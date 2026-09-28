@@ -58,11 +58,11 @@ ided makes those mistakes unrepresentable:
      `<div>` is a type error (the JSX namespace has no intrinsic elements).
   4. **Render audit**: every frame is server-rendered and each primitive validates itself, covering
      WCAG contrast of text and logos on their surfaces, non-concentric nested radii, Box
-     single-child, the root element, and the frame kind.
+     single-child, bleeds toward edges a Box cannot reach, the root element, and the frame kind.
 
 ## Install
 
-macOS or Linux. Windows is not supported in 0.1.
+macOS or Linux. Windows is not supported yet.
 
 ```sh
 brew install trevin-lee/tap/ide-design   # pulls in Node; installs the `ided` command
@@ -380,9 +380,6 @@ your files at run time.
   PNGs differ slightly between them. Treat CI's Linux exports as canonical if that matters.
 - macOS and Linux only; Windows paths are untested.
 - The starter fonts are the Latin subsets of Inter and JetBrains Mono. Other scripts fall back to system fonts until you add font files.
-- Color cannot run to the frame's edge: every frame keeps the brand margin, so a color field
-  covering part of a slide or page stops at the margin. A frame's own `surface` fills it edge to
-  edge.
 - SVG images are shown as they are, so an illustration's own colors are not checked against the
   brand. Prefer diagrams built from primitives; if an SVG is needed, use only the brand's color
   values inside it.

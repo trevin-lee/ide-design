@@ -34,6 +34,14 @@ export interface FrameEnv {
   root: { rendered: boolean };
 }
 
+/** The frame root's direct flow children, in render order: how bleed knows who touches which edge. */
+export interface RootSlots {
+  align: "start" | "center" | "end" | "stretch";
+  items: { bleed: ReadonlySet<BleedSide>; src?: string }[];
+}
+
+export type BleedSide = "top" | "bottom" | "left" | "right";
+
 export interface LayoutEnv {
   axis: "row" | "column";
   /** CSS length of the parent's gap, used to make fractions exact. */
@@ -41,13 +49,15 @@ export interface LayoutEnv {
   inText: boolean;
   /** Present when the direct parent is a Box, for concentric radii. */
   box: { radius: number; pad: number } | null;
+  /** Present when the direct parent is the frame's root. */
+  root: RootSlots | null;
 }
 
 export const BrandContext = createContext<BrandEnv | null>(null);
 export const FrameContext = createContext<FrameEnv | null>(null);
 export const SinkContext = createContext<ViolationSink>({ report() {} });
 export const SurfaceContext = createContext<string | null>(null);
-export const LayoutContext = createContext<LayoutEnv>({ axis: "column", gap: "0px", inText: false, box: null });
+export const LayoutContext = createContext<LayoutEnv>({ axis: "column", gap: "0px", inText: false, box: null, root: null });
 export const TextContext = createContext<{ emphasisWeight: number } | null>(null);
 
 export function useBrandEnv(): BrandEnv {

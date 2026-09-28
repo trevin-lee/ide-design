@@ -5,6 +5,9 @@
 - ided's full name is **ide-design**: the GitHub repository is `trevin-lee/ide-design`, the Homebrew
   formula `trevin-lee/tap/ide-design` (existing `ided` installs move over on `brew upgrade`), and
   release tarballs `ide-design-<version>.tgz`. The command stays `ided`.
+- **Full bleed.** `<Box bleed="top">` (or `"x"`, `"all"`, a list…) runs a color band, split or
+  image past the frame margin to the edge while its content stays on the margin. `ided check`
+  rejects a bleed toward an edge the Box cannot touch.
 
 ## 0.2.0 (2026-09-28)
 

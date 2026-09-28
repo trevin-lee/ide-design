@@ -17,7 +17,9 @@ import {
   SurfaceContext,
   TextContext,
   useBrandEnv,
+  type BleedSide,
   type LayoutEnv,
+  type RootSlots,
 } from "./context.ts";
 import {
   ALIGNS,
@@ -198,6 +200,8 @@ function makeRoot(name: string, kind: FrameKind) {
     const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
     const align = oneOf(props.align, ALIGNS, "align", report) ?? "stretch";
     const justify = oneOf(props.justify, JUSTIFIES, "justify", report) ?? "start";
+    // Filled in by the root's direct children as they render, then checked by BleedAudit.
+    const slots: RootSlots = { align, items: [] };
     let vars = variableCache.get(brand);
     if (!vars) variableCache.set(brand, (vars = brandVariables(brand)));
     const marginToken = brand.margin[kind];
@@ -225,13 +229,37 @@ function makeRoot(name: string, kind: FrameKind) {
     return (
       <div {...dom} className="ided-root" style={style}>
         <SurfaceContext.Provider value={bg ? surface! : null}>
-          <LayoutContext.Provider value={{ axis: "column", gap, inText: false, box: null }}>{props.children}</LayoutContext.Provider>
+          <LayoutContext.Provider value={{ axis: "column", gap, inText: false, box: null, root: slots }}>
+            {props.children}
+            <BleedAudit slots={slots} />
+          </LayoutContext.Provider>
         </SurfaceContext.Provider>
       </div>
     );
   }
   Root.displayName = name;
   return Root;
+}
+
+/** A flow child of the root takes its place in the root's order (used to validate bleed). */
+function useRootSlot(layout: LayoutEnv, src: string | undefined, bleed: ReadonlySet<BleedSide> = new Set()): void {
+  if (layout.root) layout.root.items.push({ bleed, src });
+}
+
+/** Rendered after the root's children: vertical bleed needs the first or last position. */
+function BleedAudit(props: { slots: RootSlots }) {
+  const sink = useContext(SinkContext);
+  const items = props.slots.items;
+  items.forEach((item, i) => {
+    const report = (message: string, hint: string) => sink.report({ rule: "bleed", severity: "error", message: `<Box> ${message}`, src: item.src, hint });
+    if (item.bleed.has("top") && i !== 0) {
+      report('bleeds to the top edge but is not the first thing in the frame.', "Only the first child of the frame's root touches its top edge; move the Box first or drop \"top\".");
+    }
+    if (item.bleed.has("bottom") && i !== items.length - 1) {
+      report('bleeds to the bottom edge but is not the last thing in the frame.', "Only the last child of the frame's root touches its bottom edge; move the Box last or drop \"bottom\".");
+    }
+  });
+  return null;
 }
 
 /** Root of every deck slide (1920×1080). */
@@ -266,9 +294,10 @@ export interface RowProps extends StackProps {
 function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
   const allowed = ["gap", "align", "justify", "width", "height", "grow", ...(axis === "row" ? ["wrap"] : [])];
   function Flex(props: RowProps) {
-    const { report, dom } = usePrimitive(name, props, allowed);
+    const { report, dom, src } = usePrimitive(name, props, allowed);
     const { token } = useTokens();
     const layout = useContext(LayoutContext);
+    useRootSlot(layout, src);
     if (layout.inText) report("misplaced", "cannot be inside <Text>.");
     checkNoLooseText(props.children, report);
     const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
@@ -289,7 +318,7 @@ function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
     };
     return (
       <div {...dom} style={style}>
-        <LayoutContext.Provider value={{ axis, gap, inText: false, box: null }}>{props.children}</LayoutContext.Provider>
+        <LayoutContext.Provider value={{ axis, gap, inText: false, box: null, root: null }}>{props.children}</LayoutContext.Provider>
       </div>
     );
   }
@@ -314,9 +343,10 @@ export interface GridProps {
 
 /** Equal-column grid. For unequal columns use <Row> with fractional widths. */
 export function Grid(props: GridProps) {
-  const { report, dom } = usePrimitive("Grid", props, ["columns", "gap", "width", "height", "grow"], ["columns"]);
+  const { report, dom, src } = usePrimitive("Grid", props, ["columns", "gap", "width", "height", "grow"], ["columns"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
+  useRootSlot(layout, src);
   checkNoLooseText(props.children, report);
   const columns = oneOf(props.columns, COLUMNS, "columns", report) ?? 1;
   const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
@@ -331,7 +361,7 @@ export function Grid(props: GridProps) {
   };
   return (
     <div {...dom} style={style}>
-      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null }}>{props.children}</LayoutContext.Provider>
+      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null, root: null }}>{props.children}</LayoutContext.Provider>
     </div>
   );
 }
@@ -350,13 +380,41 @@ export interface BoxProps {
   height?: Extent;
   grow?: boolean;
   ratio?: Ratio;
+  /**
+   * Extend the surface past the frame margin to the frame's edge: "top", "bottom", "left", "right",
+   * "x", "y", "all", or a list. Only for a Box directly inside the frame's root, on sides it
+   * actually touches: "top" needs it first in the frame, "bottom" last. Content inside stays
+   * aligned with the frame margin.
+   */
+  bleed?: Bleed | readonly Bleed[];
   /** At most one child. Use <Stack> or <Row> inside for several. */
   children?: ReactNode;
 }
 
+export type Bleed = "top" | "bottom" | "left" | "right" | "x" | "y" | "all";
+const BLEEDS: readonly Bleed[] = ["top", "bottom", "left", "right", "x", "y", "all"];
+
+function bleedSides(value: BoxProps["bleed"], report: Reporter): Set<BleedSide> {
+  const sides = new Set<BleedSide>();
+  if (value === undefined) return sides;
+  for (const v of Array.isArray(value) ? value : [value]) {
+    if (!BLEEDS.includes(v)) {
+      report("invalid-value", `\`bleed\` must be one of ${BLEEDS.map((b) => `"${b}"`).join(", ")}, or a list of them (got ${JSON.stringify(v)}).`);
+      continue;
+    }
+    if (v === "all" || v === "y" || v === "top") sides.add("top");
+    if (v === "all" || v === "y" || v === "bottom") sides.add("bottom");
+    if (v === "all" || v === "x" || v === "left") sides.add("left");
+    if (v === "all" || v === "x" || v === "right") sides.add("right");
+  }
+  return sides;
+}
+
+const MARGIN = "var(--brand-frame-margin)";
+
 /** A surface: background, padding, corners, border. Holds at most one child. */
 export function Box(props: BoxProps) {
-  const { report, dom } = usePrimitive("Box", props, [
+  const { report, dom, src } = usePrimitive("Box", props, [
     "surface",
     "pad",
     "radius",
@@ -367,11 +425,30 @@ export function Box(props: BoxProps) {
     "height",
     "grow",
     "ratio",
+    "bleed",
   ]);
   const { brand, token } = useTokens();
   const layout = useContext(LayoutContext);
   const parentSurface = useContext(SurfaceContext);
   if (layout.inText) report("misplaced", "cannot be inside <Text>.");
+  const bleed = bleedSides(props.bleed, report);
+  if (bleed.size && !layout.root) {
+    report("bleed", "can only bleed as a direct child of the frame's root (<Slide>, <Page>, <Artboard>, <Screen>).", "Move the Box to the top level of the frame, and put the layout inside it.");
+    bleed.clear();
+  }
+  if (bleed.size && props.radius !== undefined) report("bleed", "bleeds to the frame edge, so its corners are square; remove `radius`.");
+  if (layout.root && bleed.size) {
+    // Horizontal edges: spanning the content width touches both; a narrower Box sits where the root aligns it.
+    const spans = props.width === undefined || props.width === "full";
+    const align = layout.root.align;
+    if (bleed.has("left") && !spans && align !== "start" && align !== "stretch") {
+      report("bleed", `bleeds left, but the frame aligns it "${align}", away from the left edge.`, 'Span the width, or align the frame "start".');
+    }
+    if (bleed.has("right") && !spans && align !== "end") {
+      report("bleed", "bleeds right, but a narrower Box does not reach the right edge.", 'Span the width, or align the frame "end".');
+    }
+  }
+  useRootSlot(layout, src, bleed);
   checkNoLooseText(props.children, report);
   if (Children.toArray(props.children).length > 1) {
     report("box-children", "holds at most one child.", "Wrap several children in <Stack> or <Row>; Box only decorates.");
@@ -386,13 +463,17 @@ export function Box(props: BoxProps) {
   // Padding
   let padCss: string | undefined;
   let padPx = 0;
+  let padY = "0px";
+  let padX = "0px";
   if (props.pad !== undefined) {
     const pair = Array.isArray(props.pad) ? props.pad : [props.pad, props.pad];
     if (pair.length !== 2) report("invalid-value", "`pad` is a space token or a [vertical, horizontal] pair.");
     const y = token("space", pair[0], "pad", report);
     const x = token("space", pair[1], "pad", report);
     if (y && x) {
-      padCss = `var(${cssVar.space(y)}) var(${cssVar.space(x)})`;
+      padY = `var(${cssVar.space(y)})`;
+      padX = `var(${cssVar.space(x)})`;
+      padCss = `${padY} ${padX}`;
       padPx = Math.min(brand.space[y]!, brand.space[x]!);
     }
   }
@@ -461,10 +542,28 @@ export function Box(props: BoxProps) {
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
   };
+  if (bleed.size) {
+    // Pull the edges out to the frame by its margin, and pad the content back in by the same
+    // amount, so what is inside still lines up with everything else on the frame.
+    const add = (base: CSSProperties["width"], n: number) => (typeof base === "string" && n ? `calc(${base} + ${n} * ${MARGIN})` : base);
+    const sides: [BleedSide, "Top" | "Bottom" | "Left" | "Right", string][] = [
+      ["top", "Top", padY],
+      ["bottom", "Bottom", padY],
+      ["left", "Left", padX],
+      ["right", "Right", padX],
+    ];
+    delete style.padding;
+    for (const [side, Side, pad] of sides) {
+      style[`margin${Side}`] = bleed.has(side) ? `calc(-1 * ${MARGIN})` : undefined;
+      style[`padding${Side}`] = bleed.has(side) ? `calc(${MARGIN} + ${pad})` : pad;
+    }
+    style.width = add(style.width, Number(bleed.has("left")) + Number(bleed.has("right")));
+    style.height = add(style.height, Number(bleed.has("top")) + Number(bleed.has("bottom")));
+  }
   return (
     <div {...dom} style={style}>
       <SurfaceContext.Provider value={bg ? surface! : parentSurface}>
-        <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: { radius: radiusPx, pad: padPx } }}>
+        <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: { radius: radiusPx, pad: padPx }, root: null }}>
           {props.children}
         </LayoutContext.Provider>
       </SurfaceContext.Provider>
@@ -510,7 +609,7 @@ export function Place(props: PlaceProps) {
   if (transforms.length) style.transform = transforms.join(" ");
   return (
     <div {...dom} style={style}>
-      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null }}>{props.children}</LayoutContext.Provider>
+      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null, root: null }}>{props.children}</LayoutContext.Provider>
     </div>
   );
 }
@@ -542,9 +641,10 @@ function checkTextChildren(children: ReactNode, report: Reporter) {
 
 /** All text. The only way to set type is a brand type style. */
 export function Text(props: TextProps) {
-  const { report, dom } = usePrimitive("Text", props, ["type", "color", "align"], ["type"]);
+  const { report, dom, src } = usePrimitive("Text", props, ["type", "color", "align"], ["type"]);
   const { brand, token } = useTokens();
   const layout = useContext(LayoutContext);
+  useRootSlot(layout, src);
   const surface = useContext(SurfaceContext);
   if (layout.inText) report("misplaced", "cannot be nested inside another <Text>.");
   checkTextChildren(props.children, report);
@@ -585,7 +685,7 @@ export function Text(props: TextProps) {
   return (
     <p {...dom} style={style}>
       <TextContext.Provider value={{ emphasisWeight: m?.emphasisWeight ?? 700 }}>
-        <LayoutContext.Provider value={{ ...layout, inText: true, box: null }}>{props.children}</LayoutContext.Provider>
+        <LayoutContext.Provider value={{ ...layout, inText: true, box: null, root: null }}>{props.children}</LayoutContext.Provider>
       </TextContext.Provider>
     </p>
   );
@@ -672,7 +772,8 @@ export interface ListProps {
 
 /** A list of short text items with aligned markers. */
 export function List(props: ListProps) {
-  const { report, dom } = usePrimitive("List", props, ["type", "items", "marker", "gap", "color"], ["type", "items"]);
+  const { report, dom, src } = usePrimitive("List", props, ["type", "items", "marker", "gap", "color"], ["type", "items"]);
+  useRootSlot(useContext(LayoutContext), src);
   const { brand, token } = useTokens();
   const surface = useContext(SurfaceContext);
   const typeToken = token("type", props.type, "type", report);
@@ -735,7 +836,8 @@ export interface LogoProps {
 
 /** The brand logo, composed from the brand's mark and wordmark. */
 export function Logo(props: LogoProps) {
-  const { report, dom } = usePrimitive("Logo", props, ["variant", "size", "colorway"], ["variant", "size"]);
+  const { report, dom, src } = usePrimitive("Logo", props, ["variant", "size", "colorway"], ["variant", "size"]);
+  useRootSlot(useContext(LayoutContext), src);
   const { brand, svgs } = useBrandEnv();
   const surface = useContext(SurfaceContext);
   const variants = ["mark", "wordmark", ...Object.keys(brand.logo.lockups)];
@@ -798,9 +900,10 @@ export interface ImageProps {
 
 /** An image imported from a package's assets/. */
 export function Image(props: ImageProps) {
-  const { report, dom } = usePrimitive("Image", props, ["src", "alt", "ratio", "fit", "radius", "width", "height", "grow"], ["src", "alt"]);
+  const { report, dom, src } = usePrimitive("Image", props, ["src", "alt", "ratio", "fit", "radius", "width", "height", "grow"], ["src", "alt"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
+  useRootSlot(layout, src);
   // Imported assets resolve to server paths; anything else was typed by hand.
   if (typeof props.src !== "string" || !/^(\/|data:)/.test(props.src)) {
     report("image-src", `\`src\` ${JSON.stringify(props.src)} is not an imported asset.`, 'Import the file and pass it: import team from "@<package>/assets/team.jpg"; <Image src={team} … />.');
@@ -843,9 +946,10 @@ export interface DividerProps {
 
 /** A rule. Horizontal inside a Stack, vertical inside a Row. */
 export function Divider(props: DividerProps) {
-  const { report, dom } = usePrimitive("Divider", props, ["color", "weight"], ["color", "weight"]);
+  const { report, dom, src } = usePrimitive("Divider", props, ["color", "weight"], ["color", "weight"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
+  useRootSlot(layout, src);
   const color = token("color", props.color, "color", report);
   const weight = token("stroke", props.weight, "weight", report);
   const w = weight ? `var(${cssVar.stroke(weight)})` : "1px";

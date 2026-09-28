@@ -141,6 +141,11 @@ Decoration: surface, padding, corners, border, shadow. **At most one child**; pu
 - `border?` stroke token + `borderColor?` color token (both or neither)
 - `shadow?` shadow token, `ratio?` `"1:1" | "4:3" | "3:2" | "16:9" | "21:9" | "3:4" | "2:3" | "9:16"`
 - `width?`, `height?`, `grow?`
+- `bleed?` `"top" | "bottom" | "left" | "right" | "x" | "y" | "all"` or a list of them: the Box runs
+  past the frame margin to that edge, while its content stays aligned to the margin. Only on a
+  direct child of the root; `"top"` only on the first child and `"bottom"` only on the last; a
+  narrower Box bleeds only toward the side the root aligns it to. Bled corners are square (no
+  `radius`). Use it for color bands, split frames and full-bleed images.
 
 ### `Place`
 Pins one child to an anchor of the enclosing `Box` or frame, outside the flow. Use it for chrome (logos, page marks), not for layout.
@@ -224,6 +229,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `box-children` | Box with several children | put a `Stack`/`Row` inside the Box |
 | `contrast` | text or logo not legible on its surface | use the surface's default text color, or a different surface |
 | `concentric` | nested radius does not share the parent's corner center | `radius="concentric"` |
+| `bleed` | a Box bleeds to an edge it cannot touch (nested, not first/last, aligned away) or has a radius | make it the root's first/last child, span the width, or drop that side |
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
