@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+- Every project has a `DESIGN.md` design document (brief, message, concept, hierarchy,
+  decisions, alternatives, critique; a brand and a library variant). `ided new` scaffolds it,
+  `ided check` requires it and warns until it is written, the viewer shows it in a Design tab,
+  and the brand kit includes the brand's.
+- New `ided-design` skill, replacing `ided-compose`: the designer's process from brief to
+  critique, with references on generated-design defaults, structures per medium, type and
+  layout, color within a fixed palette, critique, and writing rationales, plus a roll script
+  for open design choices. `ided-brand` now starts with positioning, a category audit and the
+  brand idea, and shows how to add an open-licensed typeface.
+- `ided screenshot <project> --sheet` (and `sheet` on the MCP screenshot tool): every frame on
+  one contact sheet.
+- The sample deck from `ided init` is redesigned (claims with code as evidence, no template
+  chrome) and ships with written design documents for it and the starter brand. The starter
+  brand's `code` style is 28px, readable on slides.
+
 ## 0.1.0 (2026-09-28)
 
 First release, for macOS and Linux.

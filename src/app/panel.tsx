@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { brand, svgs, workspace, type WsProject } from "virtual:ided/workspace";
 import { validateBrand } from "../shared/brand-schema.ts";
+import { DesignDocView } from "./design-doc.tsx";
 import {
   activeComment,
   comments as commentsStore,
@@ -28,7 +29,10 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
   const checked = useStore(staticIssues);
   return useMemo(() => {
     const out: PanelIssue[] = [];
-    for (const i of [...workspace.issues, ...project.issues]) out.push({ severity: i.severity, message: i.message, where: i.file, hint: i.hint, source: "structure" });
+    // Design-doc issues change as the document is written, so they come from the live check below instead.
+    for (const i of [...workspace.issues, ...project.issues].filter((x) => x.rule !== "design-doc")) {
+      out.push({ severity: i.severity, message: i.message, where: i.file, hint: i.hint, source: "structure" });
+    }
     for (const i of checked.filter((c) => c.project === project.id)) {
       out.push({ severity: i.severity, message: i.message, where: i.where, hint: i.hint, source: i.source, frame: project.frames.find((f) => i.where?.startsWith(f.src))?.id });
     }
@@ -58,10 +62,11 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
 
 export function SidePanel(props: { project: WsProject }) {
   const { project } = props;
-  const [tab, setTab] = useState<"comments" | "issues">("comments");
   const issues = useProjectIssues(project);
   const comments = useStore(commentsStore).filter((c) => c.project === project.id);
   const open = comments.filter((c) => c.status === "open");
+  // Open comments are the active conversation; otherwise lead with why the design looks the way it does.
+  const [tab, setTab] = useState<"design" | "comments" | "issues">(() => (open.length ? "comments" : "design"));
   const resolved = comments.filter((c) => c.status === "resolved");
   const [showResolved, setShowResolved] = useState(false);
   const active = useStore(activeComment);
@@ -74,6 +79,9 @@ export function SidePanel(props: { project: WsProject }) {
   return (
     <aside className="panel">
       <div className="tabs">
+        <button className={tab === "design" ? "on" : ""} onClick={() => setTab("design")}>
+          Design
+        </button>
         <button className={tab === "comments" ? "on" : ""} onClick={() => setTab("comments")}>
           Comments <span className="count">{open.length}</span>
         </button>
@@ -81,7 +89,11 @@ export function SidePanel(props: { project: WsProject }) {
           Issues <span className={`count${errors ? " count-error" : ""}`}>{issues.length}</span>
         </button>
       </div>
-      {tab === "comments" ? (
+      {tab === "design" ? (
+        <div className="panel-body">
+          <DesignDocView project={project.id} />
+        </div>
+      ) : tab === "comments" ? (
         <div className="panel-body">
           {open.length === 0 && (
             <div className="panel-empty">

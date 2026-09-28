@@ -8,6 +8,7 @@ import { join, relative } from "node:path";
 import { createServer, type Plugin, type ViteDevServer } from "vite";
 import { frameGeometry } from "../shared/formats.ts";
 import { APP_DIR, DESIGN_DIR, GENERATED_DIR, PKG_ROOT, RUNTIME_ENTRY } from "../core/paths.ts";
+import { DESIGN_DOC } from "../core/design-doc.ts";
 import { writeGenerated } from "../core/scaffold.ts";
 import { canonical, dependentsOf, listBrandAssets, scanWorkspace, type Workspace } from "../core/workspace.ts";
 import { injectSourceLocations } from "./source-locations.ts";
@@ -49,7 +50,9 @@ export function workspaceModule(ws: Workspace): string {
   return lines.join("\n");
 }
 
-function idedPlugin(root: string, onWorkspaceChange: (ws: Workspace, kind: "structure" | "comments") => void): Plugin {
+export type WorkspaceChange = "structure" | "comments" | "design-doc";
+
+function idedPlugin(root: string, onWorkspaceChange: (ws: Workspace, kind: WorkspaceChange) => void): Plugin {
   const designDir = join(root, DESIGN_DIR);
   const generated = join(designDir, GENERATED_DIR);
   let server: ViteDevServer | undefined;
@@ -100,6 +103,8 @@ function idedPlugin(root: string, onWorkspaceChange: (ws: Workspace, kind: "stru
         const name = path.split(/[\\/]/).pop() ?? "";
         const isComments = name === "comments.json";
         const structural = event !== "change" || name === "project.json";
+        // Editing DESIGN.md is content, not structure: the viewer refetches it without reloading.
+        if (!structural && name === DESIGN_DOC) return onWorkspaceChange(scanWorkspace(root), "design-doc");
         if (!isComments && !structural) return;
         if (process.env.IDED_DEBUG) console.error(`[ided] ${event} ${path}`);
         const mod = server?.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
@@ -118,7 +123,7 @@ export interface IdedViteOptions {
   /** HTTP server to attach the HMR websocket to (middleware mode). */
   hmrServer?: import("node:http").Server;
   plugins?: Plugin[];
-  onWorkspaceChange?: (ws: Workspace, kind: "structure" | "comments") => void;
+  onWorkspaceChange?: (ws: Workspace, kind: WorkspaceChange) => void;
 }
 
 export async function createIdedVite(input: IdedViteOptions): Promise<ViteDevServer> {

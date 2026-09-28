@@ -47,7 +47,7 @@ export function App() {
   let body: React.ReactNode;
   if (route.name === "render") {
     const p = projects.find((x) => x.id === route.project);
-    body = p ? <RenderRoute project={p} frames={route.frames} print={route.print} /> : <RenderMissing id={route.project} />;
+    body = p ? <RenderRoute project={p} frames={route.frames} print={route.print} sheet={route.sheet} /> : <RenderMissing id={route.project} />;
   } else if (route.name === "present") {
     const p = projects.find((x) => x.id === route.project);
     body = p?.geometry ? <Presentation project={p} index={route.index} /> : <Shell project={null} frame={null} />;

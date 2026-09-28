@@ -40,14 +40,14 @@ test("viewer renders every frame of a project without errors", { skip, timeout: 
   const { page, errors } = await open("#/p/intro");
   await page.waitForFunction(() => document.querySelectorAll(".ided-root").length === 4);
   assert.deepEqual(errors, []);
-  assert.equal(await page.locator(".tabs button").nth(1).innerText().then((t) => t.replace(/\s+/g, " ")), "Issues 0");
+  assert.equal(await page.locator(".tabs button").nth(2).innerText().then((t) => t.replace(/\s+/g, " ")), "Issues 0");
   await page.close();
 });
 
 test("a comment left on an element records its source line", { skip, timeout: 60_000 }, async () => {
-  const { page } = await open("#/p/intro/02-principles");
+  const { page } = await open("#/p/intro/02-one-way");
   await page.keyboard.press("c");
-  const box = (await page.locator('[data-ided="Text"]', { hasText: "One way to" }).boundingBox())!;
+  const box = (await page.locator('[data-ided="Text"]', { hasText: "one way to write" }).boundingBox())!;
   await page.mouse.click(box.x + 20, box.y + 20);
   await page.keyboard.type("Tighter headline");
   await page.keyboard.press("Meta+Enter");
@@ -57,19 +57,19 @@ test("a comment left on an element records its source line", { skip, timeout: 60
   assert.equal(list.length, 1);
   assert.equal(list[0]!.body, "Tighter headline");
   assert.equal(list[0]!.target.primitive, "Text");
-  assert.match(list[0]!.target.src, /^design\/intro\/slides\/02-principles\.tsx:\d+:\d+$/);
+  assert.match(list[0]!.target.src, /^design\/intro\/slides\/02-one-way\.tsx:\d+:\d+$/);
   await page.close();
 });
 
 test("runtime violations appear live in the Issues panel", { skip, timeout: 60_000 }, async () => {
-  const file = join(dir, "design/intro/slides/03-numbers.tsx");
+  const file = join(dir, "design/intro/slides/04-concentric.tsx");
   const original = readFileSync(file, "utf8");
-  const { page } = await open("#/p/intro/03-numbers");
+  const { page } = await open("#/p/intro/04-concentric");
   try {
-    writeFileSync(file, original.replace('surface="paper" pad="2xl"', 'surface="muted" pad="2xl"'));
-    await page.waitForFunction(() => /Issues\s*[1-9]/.test(document.querySelectorAll(".tabs button")[1]?.textContent ?? ""), null, { timeout: 15_000 });
+    writeFileSync(file, original.replace('surface="paper" pad="l"', 'surface="muted" pad="l"'));
+    await page.waitForFunction(() => /Issues\s*[1-9]/.test(document.querySelectorAll(".tabs button")[2]?.textContent ?? ""), null, { timeout: 15_000 });
     writeFileSync(file, original);
-    await page.waitForFunction(() => /Issues\s*0/.test(document.querySelectorAll(".tabs button")[1]?.textContent ?? ""), null, { timeout: 15_000 });
+    await page.waitForFunction(() => /Issues\s*0/.test(document.querySelectorAll(".tabs button")[2]?.textContent ?? ""), null, { timeout: 15_000 });
   } finally {
     writeFileSync(file, original);
     await page.close();
@@ -108,7 +108,7 @@ test("a project created a moment ago exports from a running server", { skip, tim
 test("PNG export renders at the requested density", { skip, timeout: 60_000 }, async () => {
   const { exportProject } = await import("../src/export/artifacts.ts");
   const { getProject, scanWorkspace } = await import("../src/core/workspace.ts");
-  const [png] = await exportProject({ baseUrl: server.url, project: getProject(scanWorkspace(dir), "intro"), format: "png", frames: ["01-title"], scale: 0.5, browser });
+  const [png] = await exportProject({ baseUrl: server.url, project: getProject(scanWorkspace(dir), "intro"), format: "png", frames: ["01-statement"], scale: 0.5, browser });
   assert.equal(png!.data.readUInt32BE(16), 960);
   assert.equal(png!.data.readUInt32BE(20), 540);
 });

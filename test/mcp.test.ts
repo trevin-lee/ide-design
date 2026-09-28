@@ -21,7 +21,7 @@ test("MCP server exposes the workflow over stdio", { timeout: 90_000 }, async ()
     assert.match((await call("ided_new_project", { kind: "library", name: "kit" }))[0]!.text!, /design\/kit\/project\.json/);
     assert.match((await call("ided_use_library", { project: "intro", library: "kit" }))[0]!.text!, /now uses kit/);
     if (await findBrowser()) {
-      const shot = await call("ided_screenshot", { project: "intro", frames: ["01-title"], scale: 0.25 });
+      const shot = await call("ided_screenshot", { project: "intro", frames: ["01-statement"], scale: 0.25 });
       const image = shot.find((c) => c.type === "image");
       assert.ok(image?.data && Buffer.from(image.data, "base64").subarray(1, 4).toString() === "PNG");
     }

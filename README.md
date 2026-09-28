@@ -137,6 +137,7 @@ your-repo/
       components/            # private to this project
       assets/                # private images
       comments.json          # review comments (written by the viewer)
+      DESIGN.md              # why it looks the way it does (every project has one)
 ```
 
 ### Packages
@@ -189,6 +190,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts |
 | `ided export brand [--zip]` | export the brand kit |
 | `ided screenshot <project> <frame>` | one frame to PNG, for agents to look at their work |
+| `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
 | `ided browser [install]` | show or download the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` | review loop |
 | `ided mcp` | MCP server on stdio |
@@ -202,19 +204,41 @@ and Codex (`~/.codex/config.toml`). Claude Code's skills in `~/.claude/skills` a
 installed package; Codex's in `~/.codex/skills` are copies marked with the ided version, which
 any later `ided` command replaces after an upgrade. Folders ided did not create are never touched.
 
-- **ided**: the workflow (scaffold, write, `ided check`, screenshot, iterate) and the hard rules.
-- **ided-brand**: building the design system, including scales, surfaces, type, logo preparation,
-  lockups, colorways and the brand kit.
-- **ided-compose**: layout and typography judgment within the rules: hierarchy, proximity,
-  alignment, and per-medium guidance.
+- **ided**: the mechanics (scaffold, write, `ided check`, screenshot, review comments) and the
+  hard rules.
+- **ided-design**: how a graphic designer works, from brief to critique. The brief and the
+  one-sentence message come first, then a concept found in the subject's own world, ranked
+  hierarchy, a structure and a color strategy (with `scripts/roll.mjs` to break the model's
+  habit of making the most probable choice), then critique from screenshots against the brief,
+  and a subtractive final pass. References cover the defaults generated design falls into, a
+  catalog of structures per medium, type and layout, color within a fixed palette, and how to
+  write a rationale that convinces.
+- **ided-brand**: identity work the way an identity designer does it (positioning, a category
+  audit, one brand idea, a mark that passes the 16px and draw-from-memory tests), then the
+  design system: scales, surfaces, type, fonts, logo preparation, lockups, colorways and the
+  brand kit.
 
 The MCP server exposes `ided_rules`, `ided_list_projects`, `ided_get_brand`, `ided_check`,
 `ided_new_project`, `ided_add_frame`, `ided_screenshot` (returns images), `ided_export`, and the
 comment tools. The CLI covers the same ground for agents that prefer shell commands.
 
-The intended loop: you review in the browser and leave comments on elements; the agent runs
-`ided comments`, edits the recorded lines, runs `ided check`, looks at `ided screenshot`, and
-resolves each comment with a note.
+The intended loop: you review in the browser, reading each project's design document beside its
+frames, and leave comments on elements; the agent runs `ided comments`, edits the recorded
+lines, runs `ided check`, looks at `ided screenshot`, and resolves each comment with a note.
+
+## Design documents
+
+Every project has a `DESIGN.md`: what a designer would present alongside the work. For a
+deck, document, graphic or web project its sections are Brief, Message, Concept, Hierarchy,
+Decisions, Alternatives and Critique; the brand's are Positioning, Category, Concept, Mark,
+Typography, Color, Form, Voice, Usage and Alternatives; a library's are Purpose, Contents and
+Rules. `ided new` scaffolds one with a prompt per section (as HTML comments, which never
+render). `ided check` fails if the file or a section is missing and warns until every section
+is written. The viewer's Design tab shows it next to the frames and updates as it is edited,
+and the brand kit includes the brand's.
+
+The skills have agents write the brief, message, concept and hierarchy before any frame, since
+those decide the frames, and finish the critique last.
 
 ## Brand kit
 

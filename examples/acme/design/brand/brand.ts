@@ -61,8 +61,8 @@ export default defineBrand({
     heading: { font: "sans", size: 56, weight: 600, leading: 1.1, tracking: -0.02, wrap: "balance" },
     subhead: { font: "sans", size: 36, weight: 500, leading: 1.25, tracking: -0.01 },
     body: { font: "sans", size: 28, weight: 400, leading: 1.45, emphasisWeight: 600 },
+    code: { font: "mono", size: 28, weight: 400, leading: 1.45 },
     small: { font: "sans", size: 22, weight: 400, leading: 1.45, emphasisWeight: 600 },
-    code: { font: "mono", size: 22, weight: 400, leading: 1.5 },
     label: { font: "sans", size: 18, weight: 600, leading: 1.3, tracking: 0.08, case: "upper" },
   },
 

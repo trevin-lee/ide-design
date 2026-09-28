@@ -1,7 +1,9 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { addComment, deleteComment, listComments, updateComment } from "../core/comments.ts";
+import { DESIGN_DOC } from "../core/design-doc.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION } from "../core/paths.ts";
 import { slugify, writeGenerated } from "../core/scaffold.ts";
@@ -59,6 +61,7 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
     hmrServer: http,
     onWorkspaceChange: (_ws, kind) => {
       if (kind === "comments") vite.ws.send({ type: "custom", event: "ided:comments", data: {} });
+      else if (kind === "design-doc") vite.ws.send({ type: "custom", event: "ided:design-doc", data: {} });
       // Not Vite's "full-reload": that would also reload export pages mid-render. The viewer reloads itself.
       else vite.ws.send({ type: "custom", event: "ided:structure", data: {} });
     },
@@ -71,8 +74,14 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
       if (parts[0] === "info" && req.method === "GET") {
         return json(res, 200, { version: PKG_VERSION, root: opts.root });
       }
+      if (parts[0] === "design-doc" && req.method === "GET") {
+        const project = getProject(ws, url.searchParams.get("project") ?? "");
+        const file = join(project.dir, DESIGN_DOC);
+        return json(res, 200, { file: `design/${project.id}/${DESIGN_DOC}`, markdown: existsSync(file) ? readFileSync(file, "utf8") : null });
+      }
       if (parts[0] === "check" && req.method === "GET") {
-        const list = staticCheck(opts.root).filter((i) => i.source !== "structure");
+        // Structure comes with the page; design-doc warnings change as the document is written, so they come from here.
+        const list = staticCheck(opts.root).filter((i) => i.source !== "structure" || i.rule === "design-doc");
         return json(
           res,
           200,

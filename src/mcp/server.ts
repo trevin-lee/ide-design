@@ -156,14 +156,26 @@ export async function runMcpServer() {
     "ided_screenshot",
     {
       title: "Screenshot",
-      description: "Render frames to PNG and return them as images. Use this to look at your work after it checks clean.",
-      inputSchema: { ...rootArg, project: z.string(), frames: z.array(z.string()).optional().describe("Frame ids; defaults to all (max 8)."), scale: z.number().min(0.25).max(2).optional() },
+      description: "Render frames to PNG and return them as images, or every frame on one labeled contact sheet (sheet: true). Use this to look at your work and critique it against the brief.",
+      inputSchema: {
+        ...rootArg,
+        project: z.string(),
+        frames: z.array(z.string()).optional().describe("Frame ids; defaults to all (max 8)."),
+        sheet: z.boolean().optional().describe("All frames on one image, for judging rhythm and sameness across the piece."),
+        scale: z.number().min(0.25).max(2).optional(),
+      },
     },
-    async ({ root, project, frames, scale }) => {
+    async ({ root, project, frames, sheet, scale }) => {
       try {
         const r = rootFor(root);
         writeGenerated(r);
         const p = getProject(scanWorkspace(r), project);
+        if (sheet) {
+          const { exportSheet } = await import("../export/artifacts.ts");
+          const rs = await renderer(r);
+          const f = await exportSheet({ baseUrl: rs.server.url, project: p, scale: scale ?? 1, browser: rs.browser });
+          return { content: [{ type: "text" as const, text: f.name }, { type: "image" as const, data: f.data.toString("base64"), mimeType: "image/png" }] };
+        }
         const ids = (frames?.length ? frames : p.frames.map((f) => f.id)).slice(0, 8);
         const { exportProject } = await import("../export/artifacts.ts");
         const rs = await renderer(r);

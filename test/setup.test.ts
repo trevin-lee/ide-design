@@ -11,7 +11,7 @@ const env = { PATH: `${dirname(process.execPath)}:/usr/bin:/bin` };
 const version = JSON.parse(readFileSync(join(import.meta.dirname, "..", "package.json"), "utf8")).version as string;
 
 test("setup links Claude skills, copies Codex skills and registers the MCP server", { timeout: 30_000 }, () => {
-  mkdirSync(join(codex, "ided-compose"), { recursive: true }); // someone else's folder with our name, no SKILL.md
+  mkdirSync(join(codex, "ided-design"), { recursive: true }); // someone else's folder with our name, no SKILL.md
   const r = runWith(env, FAKE_HOME, "setup", "--claude", "--codex");
   assert.equal(r.status, 0, r.stderr);
 
@@ -21,13 +21,13 @@ test("setup links Claude skills, copies Codex skills and registers the MCP serve
   assert.match(r.stdout, /claude CLI not found/);
 
   assert.equal(readFileSync(join(codex, "ided", ".ided-version"), "utf8").trim(), version);
-  assert.ok(!existsSync(join(codex, "ided-compose", "SKILL.md")), "a folder ided did not create is left alone");
-  assert.match(r.stdout, /left your own ided-compose untouched/);
+  assert.ok(!existsSync(join(codex, "ided-design", "SKILL.md")), "a folder ided did not create is left alone");
+  assert.match(r.stdout, /left your own ided-design untouched/);
 
   const toml = readFileSync(join(FAKE_HOME, ".codex", "config.toml"), "utf8");
   const command = /command = "([^"]+)"/.exec(toml)?.[1] ?? "";
   assert.ok(command.startsWith("/"), `MCP command is absolute: ${command}`);
-  rmSync(join(codex, "ided-compose"), { recursive: true });
+  rmSync(join(codex, "ided-design"), { recursive: true });
 });
 
 test("any ided command refreshes stale skills after an upgrade", { timeout: 30_000 }, () => {

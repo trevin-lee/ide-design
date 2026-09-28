@@ -25,10 +25,11 @@ export interface ExportedFile {
   data: Buffer;
 }
 
-export function renderUrl(baseUrl: string, project: string, frames?: string[], print = false): string {
+export function renderUrl(baseUrl: string, project: string, frames?: string[], print = false, sheet = false): string {
   const q = new URLSearchParams();
   if (frames?.length) q.set("frames", frames.join(","));
   if (print) q.set("print", "1");
+  if (sheet) q.set("sheet", "1");
   const qs = q.toString();
   return `${baseUrl.replace(/\/$/, "")}/#/render/${project}${qs ? `?${qs}` : ""}`;
 }
@@ -76,6 +77,21 @@ export async function exportProject(opts: ExportOptions): Promise<ExportedFile[]
     }
     await page.close();
     return out;
+  };
+  return opts.browser ? run(opts.browser) : withBrowser(run);
+}
+
+/** Every frame of a project, labeled, on one image: for judging rhythm and sameness across frames. */
+export async function exportSheet(opts: { baseUrl: string; project: Project; scale?: number; browser?: Browser }): Promise<ExportedFile> {
+  const run = async (browser: Browser): Promise<ExportedFile> => {
+    const p = opts.project;
+    if (!p.geometry || !p.frames.length) throw new Error(`"${p.id}" has no frames.`);
+    const page = await openRender(browser, renderUrl(opts.baseUrl, p.id, undefined, false, true), opts.scale ?? 1, 1600);
+    const el = await page.$("[data-ided-sheet]");
+    if (!el) throw new Error("The contact sheet did not render.");
+    const data = await el.screenshot({ type: "png" });
+    await page.close();
+    return { name: `${p.id}-sheet.png`, data: Buffer.from(data) };
   };
   return opts.browser ? run(opts.browser) : withBrowser(run);
 }

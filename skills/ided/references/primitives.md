@@ -15,6 +15,7 @@ exactly one way to express each design decision. `ided check` enforces all of it
 6. **Nested corners are concentric.** Inside a padded, rounded `Box`, use `radius="concentric"`.
 7. **Artifacts are pure and deterministic.** No hooks, no state, no dates, no randomness, no browser APIs.
 8. **The shape of the workspace is fixed.** Create things with `ided new` / `ided add`; never invent folders.
+   Every project has a `DESIGN.md` explaining its design (see the ided-design skill).
 9. **Every import names its package.** `"ided"`, or `@<package>/components/<name>` / `@<package>/assets/<file>`. No relative imports.
 
 ## Workspace shape
@@ -26,14 +27,17 @@ exactly one way to express each design decision. `ided check` enforces all of it
     tsconfig.json              # extends .ided/ (generated, gitignored)
     brand/                     # exactly one, always this name; every project may import it
       project.json             # { "kind": "brand", "title": "…" }
+      DESIGN.md                # what the identity means and why it looks the way it does
       brand.ts                 # export default defineBrand({ … })
       assets/                  # mark.svg, wordmark.svg, fonts/, shared images
       components/              # chrome shared by every medium
     kit/                       # a library: shared components and assets, no frames
       project.json             # { "kind": "library", "title": "…", "dependencies": [] }
+      DESIGN.md                # purpose, contents, rules
       components/  assets/
     <project>/                 # kebab-case
       project.json             # { "kind": "deck" | "doc" | "graphic" | "web", "title", "dependencies": ["kit"], … }
+      DESIGN.md                # brief, message, concept, hierarchy, decisions, alternatives, critique
       slides/ | pages/ | artboards/ | screens/   # NN-name.tsx, ordered by number
       components/              # kebab-case.tsx, named exports (private to this project)
       assets/                  # images (private to this project)
@@ -210,6 +214,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
+| `design-doc` | DESIGN.md missing (error), a section heading missing (error), or sections not written yet (warning) | write each section; its prompt says what it must answer |
 | `pure`, `deterministic` | hooks, globals, `Date`, `Math.random` | hard-code data; artifacts are pure |
 | `frame-export`, `component-export` | wrong file shape | see "File shapes" |
 | `structure`, `frame-name`, `manifest` | workspace shape is off | use `ided new` / `ided add`; frames are `NN-name.tsx` |

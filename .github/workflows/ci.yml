@@ -61,7 +61,7 @@ jobs:
         working-directory: examples/acme
         run: |
           ided check
-          ided export intro -f png --frames 01-title,05-kit
+          ided export intro -f png --frames 01-statement,03-the-check
           ided export brand --out out
       - uses: actions/upload-artifact@v7
         with:

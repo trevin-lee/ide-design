@@ -10,6 +10,10 @@ every value (color, space, radius, type, logo) is a named token from `design/bra
 There is one way to do each thing, and `ided check` rejects anything else. That is the point:
 the output is consistent because nothing can drift from the brand.
 
+Consistency is the floor, not the goal. This skill covers the mechanics; the design thinking
+(brief, message, concept, hierarchy, critique) lives in the **ided-design** skill, and identity
+work in **ided-brand**. Use ided-design for every piece of design work, however small.
+
 ## Before writing anything
 
 1. `ided list`: see the projects and frame files.
@@ -22,6 +26,10 @@ repository root, and use the `ided-brand` skill to shape the brand before making
 
 ## The loop
 
+0. **Think before building.** Every project has a `DESIGN.md` that `ided new` scaffolds with one
+   prompt per section. Write its Brief, Message, Concept and Hierarchy (following ided-design)
+   before designing frames: they decide the frames. `ided check` warns until every section is
+   written, and the viewer shows the document beside the frames.
 1. **Scaffold, never hand-create structure.**
    - New project: `ided new deck q3-review --title "Q3 Review"` (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`).
    - New frame: `ided add q3-review agenda` creates the next `NN-agenda.tsx` from a template.
@@ -33,11 +41,13 @@ repository root, and use the `ided-brand` skill to shape the brand before making
    imported: `import hero from "@kit/assets/hero.jpg"`.
 3. **`ided check <project>`**, and fix every error. Treat warnings as errors unless there is a
    stated reason. The work is not done until the check is clean.
-4. **Look at it.** `ided screenshot <project> <frame>` writes a PNG (or use the
-   `ided_screenshot` MCP tool, which returns the image). Judge hierarchy, balance and spacing,
-   then iterate. A clean check proves consistency; only looking proves quality.
-5. Tell the user to run `ided run` (or that it is running) to review in the browser. They can
-   present with `P` and leave comments on elements with `C`.
+4. **Look at it.** `ided screenshot <project> <frame>` writes a PNG; `ided screenshot <project> --sheet`
+   puts every frame on one contact sheet (the `ided_screenshot` MCP tool returns the images).
+   Critique against the brief (ided-design's `references/critique.md`), revise, and update
+   DESIGN.md in the same edit. A clean check proves consistency; only looking proves quality.
+5. Tell the user to run `ided run` (or that it is running) to review in the browser. The Design
+   tab shows DESIGN.md next to the frames; they can present with `P` and leave comments on
+   elements with `C`.
 
 ## Review comments
 
@@ -49,6 +59,8 @@ location of the element (`design/deck/slides/02-x.tsx:14:11`) and its enclosing 
    that was clicked; the `inside` chain shows its parents.
 3. `ided check`, then `ided comments resolve <id> -m "what changed"`. If a comment is ambiguous,
    `ided comments reply <id> "question"` instead of guessing.
+4. If a comment changes the design's reasoning (a new audience, a different message, a
+   rejected concept), update DESIGN.md too.
 
 ## Hard rules (the checker enforces them; do not try to get around them)
 
@@ -74,4 +86,4 @@ design decision the user should see.
 - `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG
   and PNG, plus tokens as CSS, Tailwind v4, DTCG JSON and TypeScript.
 
-See `ided-compose` for layout and typography judgment, and `ided-brand` for editing the design system.
+See **ided-design** for the design process and craft, and **ided-brand** for the identity and design system.

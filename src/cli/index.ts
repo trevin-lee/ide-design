@@ -301,25 +301,29 @@ browserCmd
 
 program
   .command("screenshot")
-  .description("Render one frame to PNG (for agents to look at their work).")
+  .description("Render a frame to PNG, or every frame onto one contact sheet (for agents to look at their work).")
   .argument("<project>")
-  .argument("<frame>", "frame id, e.g. 01-title, or its number")
+  .argument("[frame]", "frame id, e.g. 01-title, or its number")
+  .option("--sheet", "every frame of the project on one labeled image")
   .option("-o, --out <file>", "output file")
   .option("--scale <n>", "pixel density", "1")
   .action(
-    action(async (project: string, frame: string, opts: { out?: string; scale: string }) => {
+    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean }) => {
       const root = requireWorkspaceRoot();
       const p = getProject(scanWorkspace(root), project);
-      const f = p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`));
-      if (!f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
+      if (!opts.sheet && !frame) throw new Error("Name a frame, or pass --sheet for all of them on one image.");
+      const f = frame ? p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`)) : undefined;
+      if (frame && !f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
       const { startServer } = await import("../server/index.ts");
-      const { exportProject } = await import("../export/artifacts.ts");
+      const { exportProject, exportSheet } = await import("../export/artifacts.ts");
       const server = await startServer({ root, port: 0 });
       try {
-        const [file] = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f.id], scale: Number(opts.scale) });
-        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", `${p.id}-${f.id}.png`));
+        const file = opts.sheet
+          ? await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) })
+          : (await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) }))[0]!;
+        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", opts.sheet ? `${p.id}-sheet.png` : `${p.id}-${f!.id}.png`));
         mkdirSync(resolve(target, ".."), { recursive: true });
-        writeFileSync(target, file!.data);
+        writeFileSync(target, file.data);
         console.log(target);
       } finally {
         await server.close();

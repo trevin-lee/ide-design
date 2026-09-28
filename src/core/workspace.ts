@@ -24,6 +24,7 @@ import {
   type ProjectKind,
   type ProjectManifest,
 } from "../shared/formats.ts";
+import { checkDesignDoc, DESIGN_DOC, designSections } from "./design-doc.ts";
 import { DESIGN_DIR, GENERATED_DIR, WORKSPACE_MARKER } from "./paths.ts";
 
 export interface Issue {
@@ -187,7 +188,7 @@ function scanProject(root: string, designDir: string, id: string): Project {
   if (manifest.kind !== "brand" && id === "brand") err(dir, "brand", 'design/brand is reserved for the brand project ("kind": "brand").');
 
   const frameDir = isFrameKind(manifest.kind) ? FRAME_DIR[manifest.kind] : null;
-  const allowed = new Set(["project.json", "README.md", "components", "assets"]);
+  const allowed = new Set(["project.json", DESIGN_DOC, "README.md", "components", "assets"]);
   if (frameDir) allowed.add(frameDir);
   if (frameDir) allowed.add("comments.json");
   if (manifest.kind === "brand") allowed.add("brand.ts");
@@ -195,6 +196,25 @@ function scanProject(root: string, designDir: string, id: string): Project {
   for (const entry of listDir(dir)) {
     if (!allowed.has(entry.name)) {
       err(join(dir, entry.name), "structure", `Unexpected ${entry.dir ? "folder" : "file"} "${entry.name}" in a ${manifest.kind} project.`, `A ${manifest.kind} project contains only: ${[...allowed].join(", ")}.`);
+    }
+  }
+
+  const docPath = join(dir, DESIGN_DOC);
+  if (!existsSync(docPath)) {
+    err(docPath, "design-doc", `Missing ${DESIGN_DOC}.`, `Every project explains its design: who it is for, the message, the concept and the reasoning. \`ided new\` scaffolds one; write it before the frames.`);
+  } else {
+    const status = checkDesignDoc(manifest.kind, readFileSync(docPath, "utf8"));
+    if (status.missing.length) {
+      err(docPath, "design-doc", `${DESIGN_DOC} is missing ${status.missing.map((t) => `"## ${t}"`).join(", ")}.`, `A ${manifest.kind} design document has these sections: ${designSections(manifest.kind).map((x) => x.title).join(", ")}.`);
+    }
+    if (status.empty.length) {
+      issues.push({
+        file: rel(docPath),
+        rule: "design-doc",
+        message: `${DESIGN_DOC}: ${status.empty.join(", ")} ${status.empty.length === 1 ? "is" : "are"} not written yet.`,
+        severity: "warning",
+        hint: "Each section's prompt says what it must answer. Write the brief, message and concept before designing the frames.",
+      });
     }
   }
 

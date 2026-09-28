@@ -12,7 +12,10 @@ declare global {
 }
 
 /** Export route: frames at exact size, no UI. Headless Chrome prints or screenshots this. */
-export function RenderRoute(props: { project: WsProject; frames: string[] | null; print: boolean }) {
+/** Contact sheets lay frames out at this width, so a whole deck fits one image. */
+const SHEET_FRAME_WIDTH = 480;
+
+export function RenderRoute(props: { project: WsProject; frames: string[] | null; print: boolean; sheet?: boolean }) {
   const { project, print } = props;
   const frames = props.frames ? project.frames.filter((f) => props.frames!.includes(f.id)) : project.frames;
   const [loaded, setLoaded] = useState(false);
@@ -57,6 +60,25 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
   const pageW = print && g.print ? g.print.width : `${g.width}px`;
   const pageH = print && g.print ? g.print.height : `${g.height}px`;
   const zoom = print && g.print ? g.print.scale : 1;
+  if (props.sheet) {
+    const scale = Math.min(1, SHEET_FRAME_WIDTH / g.width);
+    return (
+      <div className="render-sheet" data-ided-sheet>
+        {loaded &&
+          frames.map((f) => (
+            <figure key={f.id} className="render-sheet-item">
+              <div className="render-frame" style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom: scale }}>
+                <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} />
+              </div>
+              <figcaption>
+                {String(f.number).padStart(2, "0")} {f.title}
+              </figcaption>
+            </figure>
+          ))}
+      </div>
+    );
+  }
+
   return (
     <div className="render-root">
       {print && <style>{`@page { size: ${pageW} ${pageH}; margin: 0; } html, body { margin: 0; padding: 0; background: none; }`}</style>}

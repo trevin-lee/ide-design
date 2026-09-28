@@ -1,7 +1,7 @@
 // Scaffolding: the only sanctioned way to create workspaces, projects and
 // frames, so every file starts in the canonical shape.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import {
   isFrameKind,
@@ -13,6 +13,8 @@ import {
   type ProjectManifest,
 } from "../shared/formats.ts";
 import { dependencyDir, DESIGN_DIR, GENERATED_DIR, TYPES_DIR, WORKSPACE_MARKER } from "./paths.ts";
+import { DESIGN_DOC, designDocTemplate } from "./design-doc.ts";
+import { sampleDesignDoc, sampleSlides, starterBrandDesignDoc } from "./starter.ts";
 import { markSvg, wordmarkSvg } from "./wordmark.ts";
 import { getProject, scanWorkspace, type Workspace } from "./workspace.ts";
 
@@ -167,8 +169,8 @@ export default defineBrand({
     heading: { font: "sans", size: 56, weight: 600, leading: 1.1, tracking: -0.02, wrap: "balance" },
     subhead: { font: "sans", size: 36, weight: 500, leading: 1.25, tracking: -0.01 },
     body: { font: "sans", size: 28, weight: 400, leading: 1.45, emphasisWeight: 600 },
+    code: { font: "mono", size: 28, weight: 400, leading: 1.45 },
     small: { font: "sans", size: 22, weight: 400, leading: 1.45, emphasisWeight: 600 },
-    code: { font: "mono", size: 22, weight: 400, leading: 1.5 },
     label: { font: "sans", size: 18, weight: 600, leading: 1.3, tracking: 0.08, case: "upper" },
   },
 
@@ -239,6 +241,7 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
   put(WORKSPACE_MARKER, JSON.stringify({ version: 1 }, null, 2) + "\n");
   put(`${DESIGN_DIR}/brand/project.json`, JSON.stringify({ kind: "brand", title: `${opts.name} Brand` }, null, 2) + "\n");
   put(`${DESIGN_DIR}/brand/brand.ts`, brandTemplate(opts.name));
+  put(`${DESIGN_DIR}/brand/${DESIGN_DOC}`, starterBrandDesignDoc(opts.name));
   put(`${DESIGN_DIR}/brand/assets/mark.svg`, markSvg());
   put(`${DESIGN_DIR}/brand/assets/wordmark.svg`, wordmarkSvg(opts.name));
   put(`${DESIGN_DIR}/brand/components/corner-mark.tsx`, CORNER_MARK);
@@ -263,11 +266,14 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
     const ws = scanWorkspace(root);
     if (!ws.projects.some((p) => p.id === "intro")) {
       created.push(...newProject(ws, "deck", "intro", { title: "Design as Code" }));
-      const dir = join(root, DESIGN_DIR, "intro", "slides");
-      for (const [file, body] of Object.entries(SAMPLE_SLIDES(opts.name))) {
-        writeFileSync(join(dir, file), body);
+      const project = join(root, DESIGN_DIR, "intro");
+      rmSync(join(project, "slides", "01-title.tsx"), { force: true });
+      created.splice(created.indexOf(`${DESIGN_DIR}/intro/slides/01-title.tsx`), 1);
+      for (const [file, body] of Object.entries(sampleSlides())) {
+        writeFileSync(join(project, "slides", file), body);
+        created.push(`${DESIGN_DIR}/intro/slides/${file}`);
       }
-      created.push(...Object.keys(SAMPLE_SLIDES(opts.name)).map((f) => `${DESIGN_DIR}/intro/slides/${f}`));
+      writeFileSync(join(project, DESIGN_DOC), sampleDesignDoc());
     }
   }
   return [...new Set(created)];
@@ -301,9 +307,10 @@ export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOpti
 function newLibrary(ws: Workspace, id: string, title: string): string[] {
   const dir = join(ws.designDir, id);
   write(join(dir, "project.json"), JSON.stringify({ kind: "library", title }, null, 2) + "\n");
+  write(join(dir, DESIGN_DOC), designDocTemplate("library", title));
   const comp = join(dir, "components", "card.tsx");
   write(comp, componentTemplate("card"));
-  return [relative(ws.root, join(dir, "project.json")), relative(ws.root, comp)];
+  return [relative(ws.root, join(dir, "project.json")), relative(ws.root, join(dir, DESIGN_DOC)), relative(ws.root, comp)];
 }
 
 export function componentTemplate(slug: string): string {
@@ -336,9 +343,10 @@ export function newProject(ws: Workspace, kind: FrameKind | "library", id: strin
   const manifest = manifestFor(kind, title, opts);
   const rel = (p: string) => relative(ws.root, p);
   write(join(dir, "project.json"), JSON.stringify(manifest, null, 2) + "\n");
+  write(join(dir, DESIGN_DOC), designDocTemplate(kind, title));
   const first = join(dir, FRAME_DIR[kind], `01-${kind === "deck" ? "title" : kind === "doc" ? "cover" : kind === "web" ? "home" : "main"}.tsx`);
   write(first, frameTemplate(kind, first.split("/").pop()!.replace(/^\d+-|\.tsx$/g, ""), title));
-  return [rel(join(dir, "project.json")), rel(first)];
+  return [rel(join(dir, "project.json")), rel(join(dir, DESIGN_DOC)), rel(first)];
 }
 
 export function frameTemplate(kind: FrameKind, slug: string, heading = titleCase(slug)): string {
@@ -446,128 +454,6 @@ export function describeKinds(): string {
   return (Object.keys(FRAME_DIR) as FrameKind[]).map((k) => `${k} (${FRAME_NOUN[k]}s in ${FRAME_DIR[k]}/, root <${FRAME_ROOT[k]}>)`).join(", ");
 }
 
-// ---------------------------------------------------------------------------
-// Sample deck
-// ---------------------------------------------------------------------------
-
-const SAMPLE_SLIDES = (brand: string): Record<string, string> => ({
-  "01-title.tsx": `import { Slide, Stack, Text, Logo } from "ided";
-import { Footer } from "@brand/components/footer";
-
-export default function Title() {
-  return (
-    <Slide surface="ink" justify="between">
-      <Logo variant="horizontal" size="m" />
-      <Stack gap="xl" width="3/4">
-        <Text type="display">Design as code.</Text>
-        <Text type="subhead">
-          Every value comes from the brand. Every layout is a function. Nothing is eyeballed.
-        </Text>
-      </Stack>
-      <Footer label=${JSON.stringify(brand)} />
-    </Slide>
-  );
-}
-`,
-  "02-principles.tsx": `import { Slide, Stack, Row, Text, Em, Divider, List } from "ided";
-import { CornerMark } from "@brand/components/corner-mark";
-import { Footer } from "@brand/components/footer";
-
-export default function Principles() {
-  return (
-    <Slide surface="paper" justify="between">
-      <CornerMark />
-      <Text type="label" color="muted">
-        Principles
-      </Text>
-      <Row gap="4xl" align="start">
-        <Stack gap="l" width="1/2">
-          <Text type="title">
-            One way to <Em color="accent">do everything.</Em>
-          </Text>
-        </Stack>
-        <Divider color="line" weight="hairline" />
-        <Stack gap="xl" grow>
-          <List
-            type="subhead"
-            gap="l"
-            marker="number"
-            items={[
-              "Values are tokens, never literals.",
-              "Layout is Stack, Row, Grid and Place.",
-              "Text is a type style, never a font size.",
-              "Nested corners are concentric by construction.",
-            ]}
-          />
-        </Stack>
-      </Row>
-      <Footer label=${JSON.stringify(brand)} />
-    </Slide>
-  );
-}
-`,
-  "03-numbers.tsx": `import { Slide, Grid, Box, Stack, Text } from "ided";
-import { CornerMark } from "@brand/components/corner-mark";
-import { Footer } from "@brand/components/footer";
-
-const stats = [
-  { value: "0", label: "raw pixel values in this deck" },
-  { value: "16", label: "primitives in the whole vocabulary" },
-  { value: "1", label: "brand file every medium reads from" },
-];
-
-export default function Numbers() {
-  return (
-    <Slide surface="sand" justify="between">
-      <CornerMark />
-      <Text type="heading">Constraints you can count.</Text>
-      <Grid columns={3} gap="l">
-        {stats.map((s) => (
-          <Box key={s.label} surface="paper" pad="2xl" radius="l">
-            <Stack gap="m">
-              <Text type="display">{s.value}</Text>
-              <Text type="body" color="muted">
-                {s.label}
-              </Text>
-            </Stack>
-          </Box>
-        ))}
-      </Grid>
-      <Footer label=${JSON.stringify(brand)} />
-    </Slide>
-  );
-}
-`,
-  "04-concentric.tsx": `import { Slide, Row, Box, Stack, Text } from "ided";
-import { CornerMark } from "@brand/components/corner-mark";
-import { Footer } from "@brand/components/footer";
-
-export default function Concentric() {
-  return (
-    <Slide surface="paper" justify="between">
-      <CornerMark />
-      <Row gap="4xl" align="center" grow>
-        <Stack gap="l" width="1/2">
-          <Text type="heading">Corners that line up.</Text>
-          <Text type="body" color="muted">
-            An inner radius is the outer radius minus the padding between them. Write radius="concentric" and the
-            framework does the arithmetic, at any size.
-          </Text>
-        </Stack>
-        <Box surface="ink" pad="l" radius="xl" grow>
-          <Box surface="accent" pad="m" radius="concentric" ratio="16:9">
-            <Box surface="paper" pad="l" radius="concentric" grow>
-              <Text type="label">radius = concentric</Text>
-            </Box>
-          </Box>
-        </Box>
-      </Row>
-      <Footer label=${JSON.stringify(brand)} />
-    </Slide>
-  );
-}
-`,
-});
 
 export function readJson<T>(file: string, fallback: T): T {
   try {

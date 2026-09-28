@@ -1,14 +1,49 @@
 ---
 name: ided-brand
-description: Build or change the design system of an ided workspace (design/brand/brand.ts and its logo SVGs): colors and surfaces, spacing and radius scales, type scale, fonts, logo mark, wordmark, lockups, colorways, and the exported brand kit. Use when the user asks to set up a brand, change brand colors, fonts or spacing, import a logo, add a token, fix brand errors from `ided check brand`, or publish the brand kit.
+description: Design or change the brand identity and design system of an ided workspace, the way an identity designer would. Covers positioning, the category audit, the brand idea, the mark and wordmark, type, color, spacing and radius scales, lockups and colorways, the brand's DESIGN.md (what the identity means and why), and the exported brand kit. Use when the user asks to set up, rework or "make it ours" for a brand, change brand colors, fonts or spacing, design or import a logo, add a token, fix brand errors from `ided check brand`, or publish the brand kit, including right after `ided init` when the starter brand is still in place.
 ---
 
-# ided-brand: the design system
+# ided-brand: the identity and the design system
 
 `design/brand/brand.ts` is the only place a raw value may appear. Everything else in the
 workspace refers to it by name, so a change here propagates to every deck, document, graphic
 and the exported kit at once. Treat edits here as design decisions: make them deliberately,
 explain them, and check the consequences with `ided check` (which re-audits every artifact).
+
+`design/brand/DESIGN.md` says what the identity means: positioning, the category it departs
+from, the brand idea, and the reasoning behind the mark, type, color, form and voice. Every
+project's designer reads it before designing, so it is the most read document in the workspace.
+`ided check` requires all its sections.
+
+## Identity before tokens
+
+Values are the last step. An identity designer works in this order, and so should you. The
+thinking for each step goes in the brand's DESIGN.md; see the ided-design skill's
+`references/design-doc.md` for how to write reasoning that convinces rather than decorates.
+
+1. **Positioning.** Who the brand serves, what it does for them, what makes it different.
+   Personality as three to five "X, not Y" pairs: "precise, not cold", "local, not quaint".
+   These pairs are the test every later choice must pass.
+2. **Category audit.** Write down what every competitor looks and sounds like: their colors,
+   marks, type, photography, clichés (every coffee shop is kraft paper and a hand-drawn bean;
+   every fintech is blue and a rounded sans). Decide deliberately where to depart and where to
+   belong. A brand that looks like its category is invisible; one that looks like nothing in it
+   can be confusing.
+3. **The brand idea.** One line the whole identity expresses, found in the product, its method,
+   its history or its place, not in a list of adjectives. Look for it in the subject's own
+   world: materials, tools, processes, landscape, vernacular.
+4. **The mark.** One idea, drawn simply. It identifies; it does not have to illustrate the
+   business (Rand, Haviv). Tests it must pass: legible at 16px, works in one color and reversed,
+   can be drawn from memory after one look, and does not resemble a well-known mark. Explore
+   several routes on paper (in words) before drawing any.
+5. **The system.** Type, color, form and voice derived from the idea, each by role. Decide what
+   stays constant everywhere and what may vary per piece.
+6. **Applications.** Before calling it done, make one real thing with it (a card, a slide, a
+   post) and look at it. Identities are approved in use, not on a white page.
+
+When the user asks to "rework the starter brand", everything above applies: the starter's
+colors, type scale and mark are placeholders, not a foundation to preserve. Keep what survives
+the category audit and the idea; replace the rest, including the mark and DESIGN.md.
 
 ## Shape
 
@@ -36,6 +71,12 @@ defineBrand({
 **Unit.** 4px for dense UI-like work, 8px for bold editorial systems. Every space, radius,
 size, logo size and computed line height snaps to it; `ided check` rejects off-grid values.
 
+**Color: roles and proportions, then values.** Decide what leads (the ground most applications
+sit on), what supports, and what signals, and in roughly what proportions, before choosing hex
+values. Then choose values that serve the idea and depart from the category where the audit
+said to. Avoid the generated-design palettes (cream with terracotta, near-black with one acid
+accent) unless the idea demands them.
+
 **Color: surfaces first.** A surface is `{ value, on, logo? }`: a background that names its
 own text color and logo colorway. Only surfaces can be backgrounds, so text is legible by
 construction. The `on` color must reach 4.5:1 (the checker computes it). Keep 2–4 surfaces
@@ -55,11 +96,26 @@ heights snap to the unit, so choose leading and let the grid do the rest.
 
 **Fonts.** Ship font files in `assets/fonts/` (woff2) so every machine and CI renders the same
 glyphs; include the license alongside as `<font>-license.txt` (asset names are kebab-case). Only
-the brand may contain fonts.
+the brand may contain fonts. The fallback stack is for resilience, not design.
+
+Choose a typeface for what its forms do (a wide, low-contrast grotesque reads calm and
+technical; a sharp, high-contrast serif reads literary and formal), and against the category
+audit. To use one of the open-licensed families on npm's Fontsource packages without installing
+anything in the workspace:
+
+```sh
+cd "$(mktemp -d)" && npm pack @fontsource-variable/fraunces && tar xzf *.tgz
+cp package/files/fraunces-latin-wght-normal.woff2 <repo>/design/brand/assets/fonts/fraunces.woff2
+cp package/LICENSE <repo>/design/brand/assets/fonts/fraunces-license.txt
+```
+
+Then declare it in `font` with its weight range (variable files: `weight: "100 900"` or the
+family's actual range, listed in the package's `metadata.json`), and point the type styles at it. Check the license says SIL Open Font
+License or similar before shipping it; brand kits redistribute the file.
 
 **Shared images.** Photos and illustrations that are part of the identity go in the brand's
 `assets/` and are imported anywhere as `@brand/assets/<file>`. Campaign- or team-specific material
-belongs in a library instead, so the brand stays small. The fallback stack is for resilience, not design.
+belongs in a library instead, so the brand stays small.
 
 **Radius.** Ascending scale. Nested corners use `radius="concentric"` in artifacts, so the
 scale only needs outer radii.

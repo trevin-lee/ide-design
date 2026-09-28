@@ -58,7 +58,7 @@ export type Route =
   | { name: "home" }
   | { name: "project"; project: string; frame: string | null }
   | { name: "present"; project: string; index: number }
-  | { name: "render"; project: string; frames: string[] | null; print: boolean };
+  | { name: "render"; project: string; frames: string[] | null; print: boolean; sheet: boolean };
 
 export function parseRoute(hash: string): Route {
   const [path, query = ""] = hash.replace(/^#/, "").split("?");
@@ -66,7 +66,7 @@ export function parseRoute(hash: string): Route {
   const q = new URLSearchParams(query);
   if (parts[0] === "p" && parts[1]) return { name: "project", project: parts[1], frame: parts[2] ?? null };
   if (parts[0] === "present" && parts[1]) return { name: "present", project: parts[1], index: Math.max(0, Number(parts[2] ?? 0) || 0) };
-  if (parts[0] === "render" && parts[1]) return { name: "render", project: parts[1], frames: q.get("frames")?.split(",") ?? null, print: q.get("print") === "1" };
+  if (parts[0] === "render" && parts[1]) return { name: "render", project: parts[1], frames: q.get("frames")?.split(",") ?? null, print: q.get("print") === "1", sheet: q.get("sheet") === "1" };
   return { name: "home" };
 }
 
@@ -153,7 +153,37 @@ export interface StaticIssue {
   message: string;
   where: string | null;
   hint?: string;
-  source: "types" | "lint";
+  source: "types" | "lint" | "structure";
+}
+
+// ---------------------------------------------------------------------------
+// DESIGN.md, refetched whenever the file changes on disk
+// ---------------------------------------------------------------------------
+
+export interface DesignDoc {
+  file: string;
+  markdown: string | null;
+}
+
+export const designDocs = createStore<Record<string, DesignDoc>>({});
+
+export async function refreshDesignDoc(project: string) {
+  try {
+    const res = await fetch(`/api/design-doc?project=${encodeURIComponent(project)}`);
+    if (res.ok) {
+      const doc = (await res.json()) as DesignDoc;
+      designDocs.set((all) => ({ ...all, [project]: doc }));
+    }
+  } catch {
+    // server restarting; the next change event retries
+  }
+}
+
+if (import.meta.hot) {
+  import.meta.hot.on("ided:design-doc", () => {
+    for (const project of Object.keys(designDocs.get())) void refreshDesignDoc(project);
+    refreshStaticIssues(100);
+  });
 }
 
 export const staticIssues = createStore<StaticIssue[]>([]);
