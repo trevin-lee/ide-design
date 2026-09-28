@@ -1,5 +1,15 @@
-// Agent integration: install the bundled skills and register the MCP server
-// with Claude Code and Codex, so any repo on the machine can use ided.
+// Agent integration, agent-agnostic by default.
+//
+// Skills follow the Agent Skills standard (SKILL.md folders). User-wide, they are
+// installed with the ecosystem's installer (vercel-labs/skills, pinned), which
+// keeps the canonical copy in ~/.agents/skills (read directly by Codex, Cursor,
+// Copilot, Gemini CLI and most others) and links it into agents that use their
+// own folder, such as Claude Code. ided does not keep its own list of agents.
+// Per project, ided writes .agents/skills (the shared project location) and
+// .claude/skills links itself, so nothing machine-specific is committed.
+//
+// The ided CLI is the universal interface: any agent that can run a shell can
+// use it. MCP is an optional extra, registered for the clients we can configure.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import {
@@ -18,12 +28,12 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { EPHEMERAL_INSTALL, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
+import { dependencyDir, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
+import { findWorkspaceRoot } from "./workspace.ts";
 
 export type Agent = "claude" | "codex";
 
 export interface SetupStep {
-  agent: Agent;
   what: string;
   ok: boolean;
   detail?: string;
@@ -65,23 +75,21 @@ export function skillNames(): string[] {
     .map((d) => d.name);
 }
 
-/** Written into copied skills: which ided version they came from. */
+/** Written into every copy ided places: which ided version it came from. */
 const MARKER = ".ided-version";
 
-type SkillMode = "link" | "copy";
-type Placed = "linked" | "copied" | "kept";
-
+const agentsSkillsDir = () => join(homedir(), ".agents", "skills");
 const claudeSkillsDir = () => join(homedir(), ".claude", "skills");
 const codexHome = () => process.env.CODEX_HOME ?? join(homedir(), ".codex");
 const codexSkillsDir = () => join(codexHome(), "skills");
 
-/** Is this directory entry one ided created? Anything else is left alone. */
+/** Is this directory entry one ided created (or the installer created for ided)? Anything else is left alone. */
 function ownedBy(entry: string, name: string): "link" | "copy" | null {
   const st = lstatSync(entry, { throwIfNoEntry: false });
   if (!st) return null;
   if (st.isSymbolicLink()) return readlinkSync(entry).replace(/[\\/]+$/, "").endsWith(join("skills", name)) ? "link" : null;
   if (st.isDirectory() && existsSync(join(entry, MARKER))) return "copy";
-  // Copies made before version markers existed.
+  // Copies without a marker: ours if the folder is named like ours and its SKILL.md says so.
   if (st.isDirectory() && name.startsWith("ided")) {
     try {
       return new RegExp(`^name:\\s*${name}\\s*$`, "m").test(readFileSync(join(entry, "SKILL.md"), "utf8")) ? "copy" : null;
@@ -92,34 +100,19 @@ function ownedBy(entry: string, name: string): "link" | "copy" | null {
   return null;
 }
 
-/**
- * Put one skill in place. Links point at the stable install path, so they follow
- * upgrades; copies carry a version marker so the next ided run can refresh them.
- */
-function placeSkill(root: string, name: string, mode: SkillMode): Placed {
-  const dest = join(root, name);
-  if (lstatSync(dest, { throwIfNoEntry: false })) {
-    const owner = ownedBy(dest, name);
-    if (!owner) return "kept";
-    if (owner === "link") unlinkSync(dest);
-    else rmSync(dest, { recursive: true, force: true });
-  }
-  mkdirSync(root, { recursive: true });
-  const source = join(STABLE_PKG_ROOT, "skills", name);
-  if (mode === "link" && !EPHEMERAL_INSTALL) {
-    symlinkSync(source, dest, "dir");
-    return "linked";
-  }
-  cpSync(join(SKILLS_DIR, name), dest, { recursive: true });
-  writeFileSync(join(dest, MARKER), `${PKG_VERSION}\n`);
-  return "copied";
+function removeOwned(entry: string, name: string): boolean {
+  const owner = ownedBy(entry, name);
+  if (owner === "link") unlinkSync(entry);
+  else if (owner === "copy") rmSync(entry, { recursive: true, force: true });
+  return owner !== null;
 }
 
-function installSkills(root: string, mode: SkillMode): string {
-  const results = skillNames().map((n) => ({ n, r: placeSkill(root, n, mode) }));
-  const kept = results.filter((x) => x.r === "kept").map((x) => x.n);
-  const how = results.some((x) => x.r === "linked") ? "linked" : "copied";
-  return `${how}: ${results.filter((x) => x.r !== "kept").map((x) => x.n).join(", ")}${kept.length ? `; left your own ${kept.join(", ")} untouched` : ""}`;
+function markerVersion(dir: string): string {
+  try {
+    return readFileSync(join(dir, MARKER), "utf8").trim();
+  } catch {
+    return "0.0.0";
+  }
 }
 
 function newer(a: string, b: string): boolean {
@@ -134,72 +127,196 @@ function newer(a: string, b: string): boolean {
   return false;
 }
 
+/** A copy of one of this version's skills, with the version marker. */
+function copySkill(root: string, name: string): "copied" | "kept" {
+  const dest = join(root, name);
+  if (lstatSync(dest, { throwIfNoEntry: false }) && !removeOwned(dest, name)) return "kept";
+  mkdirSync(root, { recursive: true });
+  cpSync(join(SKILLS_DIR, name), dest, { recursive: true });
+  writeFileSync(join(dest, MARKER), `${PKG_VERSION}\n`);
+  return "copied";
+}
+
+// ---------------------------------------------------------------------------
+// User-wide: the standard installer
+// ---------------------------------------------------------------------------
+
 /**
- * Keep skills from `ided setup` current after an upgrade. Runs on every command
- * and when the MCP server starts, and only touches roots where ided already
- * placed skills: copies older than this version are replaced, dangling links are
- * re-pointed, and skills added in a newer version are installed alongside.
+ * Runs the pinned Agent Skills installer. Tracking is always off: ided never
+ * sends anything about the user's machine or skills to a third party.
  */
-export function refreshSkills(): void {
+function runInstaller(args: string[], cwd: string): { ok: boolean; output: string } {
+  const cli = join(dependencyDir("skills"), "bin", "cli.mjs");
+  const r = spawnSync(process.execPath, [cli, ...args], {
+    cwd,
+    encoding: "utf8",
+    timeout: 120_000,
+    env: { ...process.env, DO_NOT_TRACK: "1", DISABLE_TELEMETRY: "1", NO_COLOR: "1", FORCE_COLOR: "0" },
+  });
+  const output = `${r.stdout ?? ""}${r.stderr ?? ""}`.replace(/\x1b\[[0-9;]*m/g, "");
+  return { ok: r.status === 0, output };
+}
+
+/** Which agents the installer reached, from its summary ("universal: …", "symlinked: …"). */
+function installerAgents(output: string): string {
+  const pick = (label: string) => new RegExp(`${label}:\\s*([^│\\n]+)`).exec(output)?.[1]?.trim();
+  return [pick("universal") && `reads ~/.agents/skills: ${pick("universal")}`, pick("symlinked") && `linked: ${pick("symlinked")}`]
+    .filter(Boolean)
+    .join("; ");
+}
+
+export function installGlobalSkills(): SetupStep {
+  const names = skillNames();
+  // Setups from ided 0.1 put copies in ~/.codex/skills and links in ~/.claude/skills. Codex now reads
+  // the shared folder directly (a second copy would appear twice), and the installer replaces the links.
+  for (const root of [codexSkillsDir(), claudeSkillsDir()]) for (const n of names) removeOwned(join(root, n), n);
+  const r = runInstaller(["add", STABLE_PKG_ROOT, "--global", "--yes", "--skill", "*"], homedir());
+  const canonical = agentsSkillsDir();
+  const placed = names.filter((n) => existsSync(join(canonical, n, "SKILL.md")));
+  for (const n of placed) writeFileSync(join(canonical, n, MARKER), `${PKG_VERSION}\n`);
+  if (!r.ok || placed.length !== names.length) {
+    return { what: "skills", ok: false, detail: r.output.trim().split("\n").slice(-6).join("\n") || "the skills installer failed" };
+  }
+  return { what: `skills → ${canonical.replace(homedir(), "~")}`, ok: true, detail: `${names.join(", ")}${installerAgents(r.output) ? ` (${installerAgents(r.output)})` : ""}` };
+}
+
+// ---------------------------------------------------------------------------
+// Per project: files committed with the repository
+// ---------------------------------------------------------------------------
+
+const AGENTS_MD_START = "<!-- ided:start -->";
+const AGENTS_MD_END = "<!-- ided:end -->";
+
+function agentsMdBlock(): string {
+  return `${AGENTS_MD_START}
+## Design (ided)
+
+Decks, documents, graphics, web mocks and the brand in \`design/\` are built with
+[ided](https://github.com/trevin-lee/ided): token-only React checked like code. Before changing
+anything there, run \`ided rules\` (the primitives and rules) and \`ided brand\` (every allowed value
+and fact), and follow the ided skills in \`.agents/skills/\` if your agent reads them. Every value
+and fact comes from \`design/brand/brand.ts\`, every project explains itself in its \`DESIGN.md\`,
+and \`ided check\` must pass.
+${AGENTS_MD_END}
+`;
+}
+
+/** Adds or refreshes ided's block in AGENTS.md, the cross-agent instructions file. Returns the change made. */
+export function writeAgentsMd(root: string): "created" | "updated" | "unchanged" {
+  const file = join(root, "AGENTS.md");
+  const block = agentsMdBlock();
+  if (!existsSync(file)) {
+    writeFileSync(file, `# Agent instructions\n\n${block}`);
+    return "created";
+  }
+  const text = readFileSync(file, "utf8");
+  const start = text.indexOf(AGENTS_MD_START);
+  const end = text.indexOf(AGENTS_MD_END);
+  const next = start !== -1 && end > start ? text.slice(0, start) + block.trimEnd() + text.slice(end + AGENTS_MD_END.length) : `${text.replace(/\s*$/, "")}\n\n${block}`;
+  if (next === text) return "unchanged";
+  writeFileSync(file, next);
+  return "updated";
+}
+
+function writeProjectMcp(root: string): string {
+  // Claude Code's project MCP file. The bare command keeps it portable across teammates' machines.
+  const file = join(root, ".mcp.json");
+  let config: { mcpServers?: Record<string, unknown> } = {};
+  if (existsSync(file)) {
+    try {
+      config = JSON.parse(readFileSync(file, "utf8"));
+    } catch {
+      return `${file} is not valid JSON; left unchanged`;
+    }
+  }
+  config.mcpServers = { ...(config.mcpServers ?? {}), ided: { command: "ided", args: ["mcp"] } };
+  writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+  return ".mcp.json";
+}
+
+export function installProjectSkills(root: string): SetupStep[] {
+  const names = skillNames();
+  const shared = join(root, ".agents", "skills");
+  const claude = join(root, ".claude", "skills");
+  const kept: string[] = [];
+  for (const n of names) {
+    if (copySkill(shared, n) === "kept") kept.push(n);
+    // Claude Code reads its own folder: a relative link, so the checkout can live anywhere.
+    const link = join(claude, n);
+    if (lstatSync(link, { throwIfNoEntry: false }) && !removeOwned(link, n)) continue;
+    mkdirSync(claude, { recursive: true });
+    symlinkSync(join("..", "..", ".agents", "skills", n), link, "dir");
+  }
+  return [
+    {
+      what: "skills → .agents/skills (Codex, Cursor, Copilot, Gemini CLI and most others) and .claude/skills (links)",
+      ok: kept.length === 0,
+      detail: kept.length ? `left your own ${kept.join(", ")} untouched` : names.join(", "),
+    },
+    { what: `AGENTS.md: ided section ${writeAgentsMd(root)}`, ok: true },
+    { what: `MCP server → ${writeProjectMcp(root)}`, ok: true, detail: "ided mcp" },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Keeping everything current after an upgrade
+// ---------------------------------------------------------------------------
+
+/** Ours, but from an older version or missing a skill this version ships. */
+function stale(root: string): boolean {
+  if (!existsSync(root)) return false;
+  const names = skillNames();
+  const ours = names.filter((n) => ownedBy(join(root, n), n) === "copy");
+  if (ours.length === 0) return false;
+  return ours.length < names.length || ours.some((n) => newer(PKG_VERSION, markerVersion(join(root, n))));
+}
+
+/**
+ * Runs before every command (including when an agent starts the MCP server) and
+ * only touches places where ided's skills already are: the shared user folder,
+ * the current project, and folders written by older ided versions.
+ */
+export function refreshSkills(cwd = process.cwd()): void {
   if (process.env.IDED_NO_SKILL_REFRESH === "1") return;
+  try {
+    if (stale(agentsSkillsDir())) installGlobalSkills();
+    const project = findWorkspaceRoot(cwd);
+    if (project && stale(join(project, ".agents", "skills"))) installProjectSkills(project);
+    refreshLegacy();
+  } catch {
+    // Never let housekeeping break the command the user actually ran.
+  }
+}
+
+/** ided 0.1 setups: links into the package (self-updating) and Codex copies (refreshed here). */
+function refreshLegacy(): void {
   const names = skillNames();
   for (const root of [claudeSkillsDir(), codexSkillsDir()]) {
-    try {
-      if (!existsSync(root)) continue;
-      const ours = readdirSync(root)
-        .map((entry) => ({ entry, owner: ownedBy(join(root, entry), entry) }))
-        .filter((x) => x.owner && x.entry.startsWith("ided"));
-      if (ours.length === 0) continue;
-      const mode: SkillMode = ours.some((x) => x.owner === "link") ? "link" : "copy";
-      for (const name of names) {
-        const dest = join(root, name);
-        const owner = ownedBy(dest, name);
-        const exists = lstatSync(dest, { throwIfNoEntry: false });
-        if (!exists) placeSkill(root, name, mode);
-        else if (owner === "link" && !existsSync(resolve(dirname(dest), readlinkSync(dest)))) placeSkill(root, name, mode);
-        else if (owner === "copy") {
-          const from = existsSync(join(dest, MARKER)) ? readFileSync(join(dest, MARKER), "utf8").trim() : "0.0.0";
-          if (newer(PKG_VERSION, from)) placeSkill(root, name, "copy");
-        }
-      }
-      // A skill that a newer version removed or renamed.
-      for (const { entry, owner } of ours) {
-        if (!names.includes(entry) && owner === "copy") rmSync(join(root, entry), { recursive: true, force: true });
-        if (!names.includes(entry) && owner === "link") unlinkSync(join(root, entry));
-      }
-    } catch {
-      // Never let housekeeping break the command the user actually ran.
+    if (!existsSync(root)) continue;
+    for (const n of names) {
+      const dest = join(root, n);
+      const owner = ownedBy(dest, n);
+      if (owner === "copy" && newer(PKG_VERSION, markerVersion(dest))) copySkill(root, n);
+      if (owner === "link" && !existsSync(resolve(dirname(dest), readlinkSync(dest)))) unlinkSync(dest);
     }
   }
 }
 
-export function setupClaude(): SetupStep[] {
-  const steps: SetupStep[] = [];
-  const skillsDir = claudeSkillsDir();
-  steps.push({ agent: "claude", what: `skills → ${skillsDir}`, ok: true, detail: installSkills(skillsDir, "link") });
+// ---------------------------------------------------------------------------
+// MCP registration for clients ided knows how to configure
+// ---------------------------------------------------------------------------
+
+export function registerClaudeMcp(): SetupStep {
   const claude = which("claude");
   const { command, args } = mcpCommand();
-  if (!claude) {
-    steps.push({ agent: "claude", what: "MCP server", ok: false, detail: `claude CLI not found. Run: claude mcp add --scope user ided -- ${command} ${args.join(" ")}` });
-    return steps;
-  }
+  if (!claude) return { what: "Claude Code MCP", ok: false, detail: `claude CLI not found. Run: claude mcp add --scope user ided -- ${command} ${args.join(" ")}` };
   spawnSync(claude, ["mcp", "remove", "--scope", "user", "ided"], { encoding: "utf8" });
   const r = spawnSync(claude, ["mcp", "add", "--scope", "user", "ided", "--", command, ...args], { encoding: "utf8" });
-  steps.push({
-    agent: "claude",
-    what: "MCP server (user scope)",
-    ok: r.status === 0,
-    detail: r.status === 0 ? `${command} ${args.join(" ")}` : (r.stderr || r.stdout).trim(),
-  });
-  return steps;
+  return { what: "Claude Code MCP (user scope)", ok: r.status === 0, detail: r.status === 0 ? `${command} ${args.join(" ")}` : (r.stderr || r.stdout).trim() };
 }
 
-export function setupCodex(): SetupStep[] {
-  const steps: SetupStep[] = [];
+export function registerCodexMcp(): SetupStep {
   const home = codexHome();
-  const skillsDir = codexSkillsDir();
-  // Copies, not links: Codex's handling of symlinked skill folders is unverified.
-  steps.push({ agent: "codex", what: `skills → ${skillsDir}`, ok: true, detail: installSkills(skillsDir, "copy") });
   const config = join(home, "config.toml");
   const { command, args } = mcpCommand();
   const block = `[mcp_servers.ided]\ncommand = ${JSON.stringify(command)}\nargs = [${args.map((a) => JSON.stringify(a)).join(", ")}]\n`;
@@ -211,8 +328,7 @@ export function setupCodex(): SetupStep[] {
   }
   mkdirSync(home, { recursive: true });
   writeFileSync(config, text);
-  steps.push({ agent: "codex", what: `MCP server → ${config}`, ok: true, detail: `${command} ${args.join(" ")}` });
-  return steps;
+  return { what: `Codex MCP → ${config.replace(homedir(), "~")}`, ok: true, detail: `${command} ${args.join(" ")}` };
 }
 
 export function detectAgents(): Agent[] {

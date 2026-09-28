@@ -194,15 +194,33 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided browser [install]` | show or download the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` | review loop |
 | `ided mcp` | MCP server on stdio |
-| `ided setup [--claude] [--codex]` | install skills and register the MCP server |
+| `ided setup [--project] [--no-mcp]` | install the skills for every agent (user-wide or in this repository) and register the MCP server |
 | `ided ci` | write a GitHub Actions workflow that publishes the brand kit |
 
 ## Agents
 
-`ided setup` installs three skills and registers the MCP server with Claude Code (user scope)
-and Codex (`~/.codex/config.toml`). Claude Code's skills in `~/.claude/skills` are links to the
-installed package; Codex's in `~/.codex/skills` are copies marked with the ided version, which
-any later `ided` command replaces after an upgrade. Folders ided did not create are never touched.
+ided is agent-agnostic. Any coding agent that can run a shell can use the `ided` CLI, and the
+skills follow the [Agent Skills](https://agentskills.io) standard, so Claude Code, Codex, Cursor,
+GitHub Copilot, Gemini CLI, OpenCode, Cline and the rest read the same files.
+
+```sh
+ided setup              # user-wide: every agent on this machine
+ided setup --project    # this repository: every agent, for everyone who clones it
+```
+
+- **User-wide**, ided runs the standard skills installer ([vercel-labs/skills](https://github.com/vercel-labs/skills),
+  pinned, with its telemetry turned off) on the installed package, so the skills always match
+  your ided version. It puts one copy in `~/.agents/skills`, which most agents read directly, and
+  links it into agents with their own folder, such as `~/.claude/skills`. It also registers the MCP
+  server with Claude Code and Codex when they are installed (`--no-mcp` to skip); other MCP clients
+  can run `ided mcp`.
+- **Per project**, ided writes the skills to `.agents/skills/` (the shared project location) with
+  relative links from `.claude/skills/`, adds `ided mcp` to `.mcp.json`, and keeps a short section in
+  `AGENTS.md`, the cross-agent instructions file, so even an agent without the skills knows to run
+  `ided rules`. `ided init` adds that section on its own (`--no-agents-md` to skip).
+- After an upgrade, the next `ided` command refreshes both copies. Folders ided did not create are
+  never touched.
+- Without ided installed, the skills alone install anywhere with `npx skills add trevin-lee/ided`.
 
 - **ided**: the mechanics (scaffold, write, `ided check`, screenshot, review comments) and the
   hard rules.

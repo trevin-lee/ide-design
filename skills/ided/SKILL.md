@@ -22,7 +22,9 @@ work in **ided-brand**. Use ided-design for every piece of design work, however 
    it is also in `references/primitives.md` next to this file.
 
 If there is no workspace yet (`ided.json` missing), run `ided init --name "<Brand>"` from the
-repository root, and use the `ided-brand` skill to shape the brand before making artifacts.
+repository root; it also adds an ided section to `AGENTS.md` so other agents know the rules. If
+the user wants these skills available to every agent and teammate who opens the repository,
+`ided setup --project` commits them to `.agents/skills/`.
 
 ## The loop
 

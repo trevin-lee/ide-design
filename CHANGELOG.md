@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Agent-agnostic setup. `ided setup` installs the skills with the standard Agent Skills installer
+  (pinned, telemetry off) into `~/.agents/skills`, which Codex, Cursor, Copilot, Gemini CLI and
+  most others read, linking agents with their own folder such as Claude Code. `ided setup
+  --project` commits them to the repository (`.agents/skills`, `.claude/skills` links, `.mcp.json`),
+  and `ided init` adds an ided section to `AGENTS.md`.
 - Brand data: `data` in brand.ts holds names, links, contact details, locations, social handles and
   abbreviations; artifacts show them with `<Fact name="links.website" />`, and a URL, email, phone
   number or domain typed into an artifact fails `ided check`. Listed by `ided brand`, shown on the

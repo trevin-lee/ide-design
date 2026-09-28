@@ -2,7 +2,17 @@ import { Command, Option } from "commander";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import pc from "picocolors";
-import { detectAgents, gitRoot, refreshSkills, setupClaude, setupCodex, type SetupStep } from "../core/agents.ts";
+import {
+  detectAgents,
+  gitRoot,
+  installGlobalSkills,
+  installProjectSkills,
+  refreshSkills,
+  registerClaudeMcp,
+  registerCodexMcp,
+  writeAgentsMd,
+  type SetupStep,
+} from "../core/agents.ts";
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
@@ -41,16 +51,21 @@ program
   .option("-n, --name <brand>", "brand name, used for the starter wordmark")
   .option("--bare", "skip the sample deck")
   .option("--here", "use the current directory even inside a git repository")
+  .option("--no-agents-md", "do not add an ided section to AGENTS.md")
   .action(
-    action((opts: { name?: string; bare?: boolean; here?: boolean }) => {
+    action((opts: { name?: string; bare?: boolean; here?: boolean; agentsMd: boolean }) => {
       const cwd = process.cwd();
       const existing = findWorkspaceRoot(cwd);
       const root = existing ?? (opts.here ? cwd : gitRoot(cwd) ?? cwd);
       const name = opts.name ?? titleFromDir(basename(root));
       const created = initWorkspace(root, { name, sample: !opts.bare });
+      if (opts.agentsMd) {
+        const change = writeAgentsMd(root);
+        if (change !== "unchanged") created.push(`AGENTS.md (ided section ${change})`);
+      }
       console.log(existing ? `${pc.green("✔")} Workspace already exists at ${root}` : `${pc.green("✔")} Created ided workspace at ${root}`);
       for (const f of created) console.log(pc.dim(`  + ${f}`));
-      console.log(`\nNext:\n  ${pc.cyan("ided run")}          open the design viewer\n  ${pc.cyan("ided check")}        verify every artifact\n  ${pc.cyan("ided setup")}        teach Claude Code / Codex the rules`);
+      console.log(`\nNext:\n  ${pc.cyan("ided run")}          open the design viewer\n  ${pc.cyan("ided check")}        verify every artifact\n  ${pc.cyan("ided setup")}        give your coding agents the ided skills`);
     }),
   );
 
@@ -384,21 +399,33 @@ program
 
 program
   .command("setup")
-  .description("Install ided skills and register the MCP server with your coding agents.")
-  .option("--claude", "Claude Code only")
-  .option("--codex", "Codex only")
+  .description("Install ided's skills for your coding agents (the Agent Skills standard: Claude Code, Codex, Cursor, Copilot, Gemini CLI and more) and register the MCP server.")
+  .option("--project", "install into this repository instead, for everyone who clones it: .agents/skills, .claude/skills, AGENTS.md, .mcp.json")
+  .option("--no-mcp", "skills only; do not register the MCP server")
+  .option("--claude", "register the MCP server with Claude Code only")
+  .option("--codex", "register the MCP server with Codex only")
   .action(
-    action((opts: { claude?: boolean; codex?: boolean }) => {
-      const agents = opts.claude || opts.codex ? [...(opts.claude ? ["claude"] : []), ...(opts.codex ? ["codex"] : [])] : detectAgents();
-      if (!agents.length) {
-        console.log("No Claude Code or Codex installation found. Use --claude or --codex to set up anyway.");
-        return;
-      }
+    action((opts: { project?: boolean; mcp: boolean; claude?: boolean; codex?: boolean }) => {
       const steps: SetupStep[] = [];
-      if (agents.includes("claude")) steps.push(...setupClaude());
-      if (agents.includes("codex")) steps.push(...setupCodex());
-      for (const s of steps) console.log(`${s.ok ? pc.green("✔") : pc.yellow("!")} ${pc.bold(s.agent)} ${s.what}${s.detail ? pc.dim(`  ${s.detail}`) : ""}`);
-      console.log(pc.dim("\nRestart your agent session to pick up the skills and MCP tools."));
+      if (opts.project) {
+        steps.push(...installProjectSkills(requireWorkspaceRoot()));
+        if (!opts.mcp) steps.pop();
+      } else {
+        steps.push(installGlobalSkills());
+        if (opts.mcp) {
+          const agents = opts.claude || opts.codex ? [...(opts.claude ? ["claude"] : []), ...(opts.codex ? ["codex"] : [])] : detectAgents();
+          if (agents.includes("claude")) steps.push(registerClaudeMcp());
+          if (agents.includes("codex")) steps.push(registerCodexMcp());
+        }
+      }
+      for (const s of steps) console.log(`${s.ok ? pc.green("✔") : pc.yellow("!")} ${s.what}${s.detail ? pc.dim(`  ${s.detail}`) : ""}`);
+      console.log(
+        pc.dim(
+          opts.project
+            ? "\nCommit these files; teammates' agents pick them up on clone. Restart your agent session."
+            : "\nAny agent that can run a shell can also use the ided CLI directly. Other MCP clients: point them at `ided mcp`.\nRestart your agent session to pick up the skills.",
+        ),
+      );
     }),
   );
 
