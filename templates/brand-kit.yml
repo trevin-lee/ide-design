@@ -32,26 +32,29 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
+      - name: Install ided
+        run: npm install -g https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz
+
       - name: Check every artifact against the brand
-        run: npx -y ided@latest check
+        run: ided check
 
       - name: Export brand kit
-        run: npx -y ided@latest export brand --out out --zip
+        run: ided export brand --out out --zip
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: brand-kit
           path: out
 
       - name: Configure AWS credentials
         if: ${{ vars.BRAND_KIT_BUCKET != '' }}
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}

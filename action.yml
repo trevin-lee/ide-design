@@ -15,7 +15,7 @@ inputs:
     description: Run `ided check` first and fail on errors.
     default: "true"
   version:
-    description: ided version to run.
+    description: ided version to run, e.g. 0.1.0, or "latest".
     default: latest
 
 outputs:
@@ -29,22 +29,34 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v7
       with:
         node-version: 22
+
+    - name: Install ided
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+      run: |
+        if [ "$VERSION" = "latest" ]; then
+          url="https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz"
+        else
+          url="https://github.com/trevin-lee/ided/releases/download/v${VERSION}/ided-${VERSION}.tgz"
+        fi
+        npm install -g "$url"
 
     - name: Check
       if: ${{ inputs.check == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: npx -y ided@${{ inputs.version }} check
+      run: ided check
 
     - name: Export
       id: export
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        npx -y ided@${{ inputs.version }} export brand --out "${{ inputs.out }}" --zip
+        ided export brand --out "${{ inputs.out }}" --zip
         KIT=$(ls -d "${{ inputs.out }}"/*-brand-kit)
         echo "kit=${{ inputs.working-directory }}/$KIT" >> "$GITHUB_OUTPUT"
         echo "zip=${{ inputs.working-directory }}/$KIT.zip" >> "$GITHUB_OUTPUT"

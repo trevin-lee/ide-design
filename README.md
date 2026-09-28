@@ -2,8 +2,6 @@
 
 **Parametric graphic design. Design as code.**
 
-> Working name. The package, CLI, and `ided.json` marker will all be renamed together.
-
 ided is a CLI plus a strict React framework for making decks, documents, social graphics,
 web mocks and brand systems the way you write software: as deterministic, reusable functions
 checked by a compiler. It is built for developers who work in the terminal, and for the coding
@@ -77,13 +75,13 @@ are links to the installed copy, and Codex's skill copies refresh themselves on 
 command. The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents
 started outside a terminal still find it.
 
-Without Homebrew, any Node 20.19+ works:
+Without Homebrew, any Node 20.19+ works. Every release attaches the package to its GitHub release:
 
 ```sh
-npm install -g ided
+npm install -g https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz
 ```
 
-Neither channel is live until the first release is tagged. Until then, install from a checkout:
+Neither is live until the first release is tagged. Until then, install from a checkout:
 
 ```sh
 git clone https://github.com/trevin-lee/ided && cd ided && npm install && npm run build && npm install -g .
@@ -268,11 +266,17 @@ Releases are cut by CI from a tag, never from a laptop:
 2. `git tag -a v<version> -m "<version>" && git push --follow-tags`.
 
 `.github/workflows/release.yml` then checks that the tag, `package.json` and the changelog agree,
-runs the full test suite, attaches the npm tarball to a GitHub release (notes taken from the
-changelog), and publishes to npm if `NPM_TOKEN` is set. A macOS job renders the formula with
-`packaging/homebrew/formula.mjs`, installs it with real Homebrew, runs `brew test` and
-`brew audit --strict`, and only then commits it to `trevin-lee/homebrew-tap` using
-`HOMEBREW_TAP_TOKEN` (a fine-grained token with write access to that repository alone).
+runs the full test suite, and attaches the package to a GitHub release (notes taken from the
+changelog) twice: `ided-<version>.tgz` for the formula, and `ided.tgz`, which
+`releases/latest/download/ided.tgz` always points at. It publishes to npm too when an `NPM_TOKEN`
+secret exists. A macOS job then renders the formula with `packaging/homebrew/formula.mjs`,
+installs it with real Homebrew, runs `brew test` and `brew audit --strict`, and only then commits
+it to `trevin-lee/homebrew-tap` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to
+the tap and nothing else.
+
+To rehearse a release without publishing anything, run the Release workflow by hand
+(Actions → Release → Run workflow): it builds, tests, packs and verifies the formula with real
+Homebrew, and skips the release, npm and the tap.
 
 ## Development
 

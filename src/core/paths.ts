@@ -54,6 +54,9 @@ export const SKILLS_DIR = pkgPath("skills");
 /** Declaration files emitted at build time; the workspace tsconfig points here, so it must survive upgrades. */
 export const TYPES_DIR = join(STABLE_PKG_ROOT, "dist", "types");
 
+/** Every release attaches the package under this stable name. */
+export const LATEST_TARBALL_URL = "https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz";
+
 export const WORKSPACE_MARKER = "ided.json";
 export const DESIGN_DIR = "design";
 export const GENERATED_DIR = ".ided";

@@ -18,7 +18,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { EPHEMERAL_INSTALL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
+import { EPHEMERAL_INSTALL, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
 
 export type Agent = "claude" | "codex";
 
@@ -56,7 +56,7 @@ export function mcpCommand(): { command: string; args: string[] } {
   // Not on PATH: point at this exact CLI, unless it lives in a throwaway npx cache.
   const self = process.argv[1];
   if (self && !/[\\/]_npx[\\/]/.test(self)) return { command: process.execPath, args: [self, "mcp"] };
-  return { command: "npx", args: ["-y", "ided@latest", "mcp"] };
+  return { command: "npx", args: ["-y", `--package=${LATEST_TARBALL_URL}`, "ided", "mcp"] };
 }
 
 export function skillNames(): string[] {
