@@ -53,7 +53,7 @@ dependencies; decks, docs, graphics and web projects are never imported. Depende
 form a cycle. There are no versions: everything in the repo is used at its current state.
 
 **Assets.** Images live in a package's `assets/` (kebab-case names and folders; png, jpg, jpeg,
-webp, avif, gif, svg). Only the brand has `assets/fonts/`. Assets are imported, and every file
+webp, avif, gif, svg). SVGs may only use the brand's color values (alpha allowed). Only the brand has `assets/fonts/`. Assets are imported, and every file
 has an exact generated type, so a misspelled or missing file is a compile error:
 
 ```tsx
@@ -233,6 +233,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
+| `svg-colors` | an SVG asset uses a color that is not in the brand (error) or one ided cannot read, like `hsl()` (warning) | recolor it with the brand hex values the message suggests; add a color to brand.ts only if the brand truly needs it |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
 | `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `facts` in brand.ts or ask, never invent one |
 | `design-doc` | DESIGN.md missing (error), a section heading missing (error), or sections not written yet (warning) | write each section; its prompt says what it must answer |

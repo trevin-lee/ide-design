@@ -8,6 +8,8 @@
 - **Full bleed.** `<Box bleed="top">` (or `"x"`, `"all"`, a list…) runs a color band, split or
   image past the frame margin to the edge while its content stays on the margin. `ided check`
   rejects a bleed toward an edge the Box cannot touch.
+- **SVG colors follow the brand.** `ided check` and the viewer flag any SVG asset that uses a color
+  outside the brand palette (alpha on a brand color is fine), naming the nearest brand color.
 
 ## 0.2.0 (2026-09-28)
 

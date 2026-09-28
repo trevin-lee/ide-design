@@ -9,9 +9,10 @@ import { allIssues, canonical, scanWorkspace, sourceFiles, type Issue, type Proj
 import type { FrameKind } from "../shared/formats.ts";
 import { createIdedVite } from "../server/vite.ts";
 import { lintFile, type FileRole } from "./lint.ts";
+import { svgColorIssues } from "./svg-colors.ts";
 import { typecheck } from "./typecheck.ts";
 
-export type IssueSource = "structure" | "lint" | "types" | "render" | "brand";
+export type IssueSource = "structure" | "lint" | "types" | "render" | "brand" | "assets";
 export interface CheckIssue extends Issue {
   source: IssueSource;
   project: string | null;
@@ -128,6 +129,7 @@ export async function runCheck(rootPath: string, opts: CheckOptions = {}): Promi
       }
       const brandOk = loaded.brand && !loaded.issues.some((i) => i.severity === "error");
       if (loaded.brand && brandOk) {
+        for (const i of svgColorIssues(root, projects, loaded.brand)) issues.push({ ...i, source: "assets" });
         const ssr = (await vite.ssrLoadModule(join(RUNTIME_DIR, "ssr.tsx"))) as typeof import("../runtime/ssr.tsx");
         for (const p of projects) {
           if (p.kind === "brand" || !p.geometry) continue;

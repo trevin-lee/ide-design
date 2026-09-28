@@ -59,6 +59,7 @@ ided makes those mistakes unrepresentable:
   4. **Render audit**: every frame is server-rendered and each primitive validates itself, covering
      WCAG contrast of text and logos on their surfaces, non-concentric nested radii, Box
      single-child, bleeds toward edges a Box cannot reach, the root element, and the frame kind.
+     SVG assets are checked too: every color they use must be one of the brand's.
 
 ## Install
 
@@ -372,6 +373,9 @@ your files at run time.
 - Doc pages are explicit, one file per page. Text does not flow across pages automatically.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
+- The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic
+  names). Shapes with no fill at all draw black and are not flagged; `hsl()` and other names are
+  reported as unreadable.
 - If the pinned Chromium cannot be downloaded, export falls back to installed Chrome and warns that
   output then follows that browser's version. `IDED_CHROME_PATH` forces a specific binary;
   `IDED_NO_BROWSER_DOWNLOAD=1` disables the download; `IDED_BROWSERS_PATH` moves the cache.
@@ -380,6 +384,3 @@ your files at run time.
   PNGs differ slightly between them. Treat CI's Linux exports as canonical if that matters.
 - macOS and Linux only; Windows paths are untested.
 - The starter fonts are the Latin subsets of Inter and JetBrains Mono. Other scripts fall back to system fonts until you add font files.
-- SVG images are shown as they are, so an illustration's own colors are not checked against the
-  brand. Prefer diagrams built from primitives; if an SVG is needed, use only the brand's color
-  values inside it.

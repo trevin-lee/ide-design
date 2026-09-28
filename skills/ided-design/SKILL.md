@@ -130,8 +130,8 @@ that the work needs (a larger size, say) is fine; name it and why when you repor
 `Row`, `Grid`, `Divider` give you bars, strips, tables and fields), and real photographs from
 `assets/`. Hand-drawn SVG illustration is where generated work looks most amateur: shapes that
 read as something else at a glance, wobbly proportions. If a drawing is essential, keep it
-geometric, test it at thumbnail size with a fresh critic, and keep its colors out of the file
-(an SVG with its own hex values bypasses the brand).
+geometric, test it at thumbnail size with a fresh critic, and color it only with the brand's
+hex values (`ided check` rejects any other color in an SVG asset).
 
 ## Time
 

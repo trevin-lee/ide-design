@@ -21,7 +21,7 @@ export interface PanelIssue {
   where: string | null;
   hint?: string;
   frame?: string;
-  source: "structure" | "runtime" | "brand" | "types" | "lint";
+  source: "structure" | "runtime" | "brand" | "types" | "lint" | "assets";
 }
 
 export function useProjectIssues(project: WsProject): PanelIssue[] {

@@ -11,6 +11,7 @@ import { canonical, getProject, scanWorkspace } from "../core/workspace.ts";
 import { exportProject, type ExportFormat } from "../export/artifacts.ts";
 import { buildBrandKit, zipBrandKit } from "../export/brand-kit.ts";
 import { staticCheck } from "../check/index.ts";
+import { svgColorIssues } from "../check/svg-colors.ts";
 import { createIdedVite } from "./vite.ts";
 
 export interface RunningServer {
@@ -82,6 +83,11 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
       if (parts[0] === "check" && req.method === "GET") {
         // Structure comes with the page; design-doc warnings change as the document is written, so they come from here.
         const list = staticCheck(opts.root).filter((i) => i.source !== "structure" || i.rule === "design-doc");
+        // SVG colors are checked against the brand, which the viewer validates itself; skip them while it is broken.
+        const loaded = await loadBrand(vite, ws);
+        if (loaded.brand && !loaded.issues.some((i) => i.severity === "error")) {
+          for (const i of svgColorIssues(opts.root, ws.projects, loaded.brand)) list.push({ ...i, source: "assets" });
+        }
         return json(
           res,
           200,
