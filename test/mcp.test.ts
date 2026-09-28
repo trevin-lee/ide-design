@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CLI, findBrowser, workspace } from "./helpers.ts";
+import { CLI, findBrowser, testEnv, workspace } from "./helpers.ts";
 
 test("MCP server exposes the workflow over stdio", { timeout: 90_000 }, async () => {
   const dir = workspace("--name", "Mcp");
   const client = new Client({ name: "test", version: "1" });
-  await client.connect(new StdioClientTransport({ command: process.execPath, args: [CLI, "mcp"], cwd: dir, stderr: "ignore" }));
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [CLI, "mcp"], cwd: dir, stderr: "ignore", env: testEnv }));
   try {
     const call = async (name: string, args: Record<string, unknown> = {}) => {
       const r = (await client.callTool({ name, arguments: args })) as { content: { type: string; text?: string; data?: string }[]; isError?: boolean };

@@ -2,7 +2,7 @@ import { Command, Option } from "commander";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { basename, join, relative, resolve } from "node:path";
 import pc from "picocolors";
-import { detectAgents, gitRoot, setupClaude, setupCodex, type SetupStep } from "../core/agents.ts";
+import { detectAgents, gitRoot, refreshSkills, setupClaude, setupCodex, type SetupStep } from "../core/agents.ts";
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
@@ -415,6 +415,7 @@ program
   );
 
 program.hook("preAction", (_cmd, sub) => {
+  refreshSkills();
   // Keep generated editor types current for whatever the command touches.
   if (["init", "mcp", "setup", "ci", "browser", "status", "install"].includes(sub.name())) return;
   const root = findWorkspaceRoot();
