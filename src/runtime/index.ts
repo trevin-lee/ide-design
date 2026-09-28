@@ -63,7 +63,7 @@ export type {
 
 export { defineBrand } from "../shared/brand-schema.ts";
 export type { BrandInput } from "../shared/brand-schema.ts";
-export type { BrandData, Location, FactFormat } from "../shared/brand-data.ts";
+export type { BrandFacts, Location, FactFormat } from "../shared/brand-facts.ts";
 
 /** Type for a component's `children` prop. */
 export type Children = import("react").ReactNode;

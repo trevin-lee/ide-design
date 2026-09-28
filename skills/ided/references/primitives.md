@@ -14,7 +14,7 @@ exactly one way to express each design decision. `ided check` enforces all of it
 5. **Backgrounds are surfaces.** A surface declares its own text and logo color, so text on it is legible by construction.
 6. **Nested corners are concentric.** Inside a padded, rounded `Box`, use `radius="concentric"`.
 7. **Facts come from the brand too.** Names, links, contact details and places are `<Fact>`s from
-   the brand's `data`, never typed, so they are written once and cannot be invented.
+   the brand's `facts`, never typed, so they are written once and cannot be invented.
 8. **Artifacts are pure and deterministic.** No hooks, no state, no dates, no randomness, no browser APIs.
 9. **The shape of the workspace is fixed.** Create things with `ided new` / `ided add`; never invent folders.
    Every project has a `DESIGN.md` explaining its design (see the ided-design skill).
@@ -158,7 +158,7 @@ Emphasis inside `Text`: the style's emphasis weight. `color?` color token.
 Current slide/page number inside `Text`. `format?` `"n"` (3) | `"nn"` (03) | `"n/total"` (3 / 12).
 
 ### `Fact`
-A fact from the brand's `data`, inside `Text`: names, links, contact details, locations, social
+A fact from the brand's `facts`, inside `Text`: names, links, contact details, locations, social
 handles, abbreviations. Links, emails, phone numbers and domains typed by hand fail `ided check`.
 - `name` **required**: `"<group>.<key>"`, e.g. `"links.signup"`, `"contact.email"`, `"locations.studio"`
 - `format?`: links `"display"` (default, `kilnandcopper.com`) | `"full"`; locations `"line"` (default,
@@ -228,7 +228,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
-| `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `data` in brand.ts or ask, never invent one |
+| `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `facts` in brand.ts or ask, never invent one |
 | `design-doc` | DESIGN.md missing (error), a section heading missing (error), or sections not written yet (warning) | write each section; its prompt says what it must answer |
 | `pure`, `deterministic` | hooks, globals, `Date`, `Math.random` | hard-code data; artifacts are pure |
 | `frame-export`, `component-export` | wrong file shape | see "File shapes" |

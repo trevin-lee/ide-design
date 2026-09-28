@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
 import { AssetGrid } from "./library.tsx";
-import { factNames, formatFact } from "../shared/brand-data.ts";
+import { factNames, formatFact } from "../shared/brand-facts.ts";
 import { colorValue, isSurface, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
@@ -216,13 +216,13 @@ export function BrandBoard(props: { project: WsProject }) {
           </Section>
         </div>
 
-        <Section title="Facts" note='Used in artifacts as <Fact name="…" /> and never typed by hand. Edit them in the data section of brand.ts.'>
-          {factNames(b.data).length ? (
+        <Section title="Facts" note='Used in artifacts as <Fact name="…" /> and never typed by hand. Edit them in the facts section of brand.ts.'>
+          {factNames(b.facts).length ? (
             <div className="bb-facts">
-              {factNames(b.data).map((f) => (
+              {factNames(b.facts).map((f) => (
                 <div key={f} className="bb-fact">
                   <code>{f}</code>
-                  <span>{formatFact(b.data, f, "full")}</span>
+                  <span>{formatFact(b.facts, f, "full")}</span>
                 </div>
               ))}
             </div>

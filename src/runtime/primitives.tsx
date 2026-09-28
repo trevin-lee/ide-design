@@ -5,7 +5,7 @@
 
 import { Children, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
-import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-data.ts";
+import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
 import { contrast, requiredContrast } from "../shared/color.ts";
 import { FRAME_ROOT, type FrameKind } from "../shared/formats.ts";
 import { composeLogo } from "../shared/lockup.ts";
@@ -629,7 +629,7 @@ export function FrameNumber(props: FrameNumberProps) {
 }
 
 export interface FactProps {
-  /** A fact from the brand's data: "links.website", "contact.email", "locations.studio"… */
+  /** A fact from the brand: "links.website", "contact.email", "locations.studio"… */
   name: FactName;
   /**
    * links: "display" (default, reads "kilnandcopper.com") or "full". locations: "line" (default),
@@ -638,7 +638,7 @@ export interface FactProps {
   format?: FactFormat;
 }
 
-/** A fact from the brand's data, inside <Text>. Links, addresses and names are never typed by hand. */
+/** A fact from the brand's facts, inside <Text>. Links, addresses and names are never typed by hand. */
 export function Fact(props: FactProps) {
   const { report, dom } = usePrimitive("Fact", props, ["name", "format"], ["name"]);
   const { brand } = useTokens();
@@ -649,13 +649,13 @@ export function Fact(props: FactProps) {
   if (props.format !== undefined && formats && !formats.allowed.includes(props.format)) {
     report("invalid-value", `\`format\` for ${group} is one of ${formats.allowed.map((f) => `"${f}"`).join(", ")}.`);
   }
-  const value = formatFact(brand.data, String(props.name), props.format);
+  const value = formatFact(brand.facts, String(props.name), props.format);
   if (value === undefined) {
-    const known = factNames(brand.data);
+    const known = factNames(brand.facts);
     report(
       "invalid-token",
-      `\`name\` "${props.name}" is not a fact in the brand's data.`,
-      known.length ? `Facts: ${known.join(", ")}. Add missing ones to \`data\` in brand.ts; never type or invent them.` : "The brand has no data yet. Add facts to `data` in brand.ts; never type or invent them.",
+      `\`name\` "${props.name}" is not one of the brand's facts.`,
+      known.length ? `Facts: ${known.join(", ")}. Add missing ones to \`facts\` in brand.ts; never type or invent them.` : "The brand has no facts yet. Add them to `facts` in brand.ts; never type or invent them.",
     );
     return null;
   }

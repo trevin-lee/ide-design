@@ -186,7 +186,7 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
         report(node, "no-raw-values", `"${v}" is a raw CSS value.`, "Every length, color and font comes from brand tokens. Add a token to design/brand/brand.ts if one is missing.");
       }
     }
-    // Contact details typed by hand. They come from the brand's data through <Fact>, so they
+    // Contact details typed by hand. They come from the brand's facts through <Fact>, so they
     // are written once, stay current everywhere, and cannot be invented.
     if (role !== "brand" && (ts.isJsxText(node) || ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent)))) {
       const found = rawFact(node.text);
@@ -195,7 +195,7 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
           node,
           "no-raw-facts",
           `"${found.text}" looks like ${found.kind} typed by hand.`,
-          `Links, email addresses, phone numbers and domains come from the brand's data: <Fact name="${found.kind === "an email address" || found.kind === "a phone number" ? "contact" : "links"}.…" /> inside <Text>. If the fact is missing, add it to \`data\` in brand.ts, or ask; never invent one.`,
+          `Links, email addresses, phone numbers and domains come from the brand's facts: <Fact name="${found.kind === "an email address" || found.kind === "a phone number" ? "contact" : "links"}.…" /> inside <Text>. If the fact is missing, add it to \`facts\` in brand.ts, or ask; never invent one.`,
         );
       }
     }

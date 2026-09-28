@@ -1,4 +1,4 @@
-// Brand data: the facts every artifact repeats (names, links, contact details,
+// Brand facts: what every artifact repeats (names, links, contact details,
 // places, handles, abbreviations). They live in brand.ts next to the tokens and
 // are used the same way: by name, through <Fact>, never typed by hand. Change
 // the website once and every flyer, slide and post follows; an artifact cannot
@@ -17,7 +17,7 @@ export interface Location {
   readonly note?: string;
 }
 
-export interface BrandData {
+export interface BrandFacts {
   /** full, short, legal, abbreviation, or any other form of the name. */
   readonly names?: Readonly<Record<string, string>>;
   /** Full https URLs: website, signup, docs… */
@@ -31,13 +31,13 @@ export interface BrandData {
   readonly abbreviations?: Readonly<Record<string, string>>;
 }
 
-export const DATA_GROUPS = ["names", "links", "contact", "social", "locations", "abbreviations"] as const;
-export type DataGroup = (typeof DATA_GROUPS)[number];
+export const FACT_GROUPS = ["names", "links", "contact", "social", "locations", "abbreviations"] as const;
+export type FactGroup = (typeof FACT_GROUPS)[number];
 
 export type FactFormat = "short" | "long" | "both" | "display" | "full" | "line" | "city" | "street";
 
 /** Which formats each group accepts, and its default. */
-export const FACT_FORMATS: Record<DataGroup, { default: FactFormat; allowed: readonly FactFormat[] }> = {
+export const FACT_FORMATS: Record<FactGroup, { default: FactFormat; allowed: readonly FactFormat[] }> = {
   names: { default: "full", allowed: ["full"] },
   links: { default: "display", allowed: ["display", "full"] },
   contact: { default: "full", allowed: ["full"] },
@@ -52,28 +52,28 @@ const digits = (s: string) => (s.match(/\d/g) ?? []).length;
 const PHONE_RE = /^\+?[\d\s().-]+$/;
 const KEY_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export interface DataIssue {
+export interface FactIssue {
   path: string;
   message: string;
 }
 
-export function validateBrandData(data: unknown): DataIssue[] {
-  const issues: DataIssue[] = [];
-  if (data === undefined) return issues;
-  if (!data || typeof data !== "object" || Array.isArray(data)) return [{ path: "data", message: "data is an object of groups: " + DATA_GROUPS.join(", ") + "." }];
-  const d = data as Record<string, unknown>;
+export function validateBrandFacts(facts: unknown): FactIssue[] {
+  const issues: FactIssue[] = [];
+  if (facts === undefined) return issues;
+  if (!facts || typeof facts !== "object" || Array.isArray(facts)) return [{ path: "facts", message: "facts is an object of groups: " + FACT_GROUPS.join(", ") + "." }];
+  const d = facts as Record<string, unknown>;
   for (const group of Object.keys(d)) {
-    if (!(DATA_GROUPS as readonly string[]).includes(group)) {
-      issues.push({ path: `data.${group}`, message: `Unknown data group "${group}". Groups: ${DATA_GROUPS.join(", ")}.` });
+    if (!(FACT_GROUPS as readonly string[]).includes(group)) {
+      issues.push({ path: `facts.${group}`, message: `Unknown facts group "${group}". Groups: ${FACT_GROUPS.join(", ")}.` });
       continue;
     }
     const entries = d[group];
     if (!entries || typeof entries !== "object" || Array.isArray(entries)) {
-      issues.push({ path: `data.${group}`, message: `data.${group} is an object of named entries.` });
+      issues.push({ path: `facts.${group}`, message: `facts.${group} is an object of named entries.` });
       continue;
     }
     for (const [key, value] of Object.entries(entries as Record<string, unknown>)) {
-      const path = `data.${group}.${key}`;
+      const path = `facts.${group}.${key}`;
       const keyOk = group === "abbreviations" ? /^[^\s.][^\s]*$/.test(key) : KEY_RE.test(key);
       if (!keyOk) issues.push({ path, message: group === "abbreviations" ? "Abbreviations have no spaces and do not start with a dot." : "Keys are lowercase kebab-case." });
       if (group === "locations") {
@@ -98,9 +98,9 @@ export function validateBrandData(data: unknown): DataIssue[] {
 }
 
 /** Every fact as "group.key", for listings and error hints. */
-export function factNames(data: BrandData | undefined): string[] {
-  if (!data) return [];
-  return DATA_GROUPS.flatMap((g) => Object.keys(data[g] ?? {}).map((k) => `${g}.${k}`));
+export function factNames(facts: BrandFacts | undefined): string[] {
+  if (!facts) return [];
+  return FACT_GROUPS.flatMap((g) => Object.keys(facts[g] ?? {}).map((k) => `${g}.${k}`));
 }
 
 export function splitFact(name: string): { group: string; key: string } {
@@ -128,13 +128,13 @@ export function displayUrl(url: string): string {
 }
 
 /** The text a fact renders as, or undefined if it does not exist. */
-export function formatFact(data: BrandData | undefined, name: string, format?: FactFormat): string | undefined {
+export function formatFact(facts: BrandFacts | undefined, name: string, format?: FactFormat): string | undefined {
   const { group, key } = splitFact(name);
-  const entries = data?.[group as DataGroup] as Record<string, unknown> | undefined;
+  const entries = facts?.[group as FactGroup] as Record<string, unknown> | undefined;
   if (!entries || !(key in entries)) return undefined;
   const value = entries[key];
-  const f = format ?? FACT_FORMATS[group as DataGroup].default;
-  switch (group as DataGroup) {
+  const f = format ?? FACT_FORMATS[group as FactGroup].default;
+  switch (group as FactGroup) {
     case "links":
       return f === "full" ? (value as string) : displayUrl(value as string);
     case "locations":

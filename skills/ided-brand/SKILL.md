@@ -64,7 +64,7 @@ defineBrand({
   type: { display: { font: "sans", size: 160, weight: 700, leading: 0.95, tracking: -0.045 }, … },
   margin: { deck: "4xl", doc: "5xl", graphic: "3xl", web: "3xl" },
   logo: { mark: "mark.svg", wordmark: "wordmark.svg", lockups, colorways, sizes },
-  data?: { names, links, contact, locations, social, abbreviations },   // facts, used via <Fact>
+  facts?: { names, links, contact, locations, social, abbreviations },  // used via <Fact>
 })
 ```
 
@@ -115,13 +115,13 @@ Then declare it in `font` with its weight range (variable files: `weight: "100 9
 family's actual range, listed in the package's `metadata.json`), and point the type styles at it. Check the license says SIL Open Font
 License or similar before shipping it; brand kits redistribute the file.
 
-**Facts.** The brand's `data` holds what artifacts repeat: `names` (full, short, legal,
+**Facts.** The brand's `facts` hold what artifacts repeat: `names` (full, short, legal,
 abbreviation), `links` (full https URLs), `contact` (emails, phone numbers), `locations` (street,
 city, region, postal, country, label, note), `social` (@handles or profile URLs) and
 `abbreviations` (abbreviation → what it stands for). Artifacts use them through `<Fact>`, and
 typing one by hand fails `ided check`, so every fact is written once, here. Add only real facts
 the user gave you; a missing fact is better than an invented one. The brand kit exports them as
-`data.json` for websites and documents built outside ided.
+`facts.json` for websites and documents built outside ided.
 
 **Shared images.** Photos and illustrations that are part of the identity go in the brand's
 `assets/` and are imported anywhere as `@brand/assets/<file>`. Campaign- or team-specific material

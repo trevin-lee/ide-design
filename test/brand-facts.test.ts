@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { displayUrl, factNames, formatFact, validateBrandData, type BrandData } from "../src/shared/brand-data.ts";
+import { displayUrl, factNames, formatFact, validateBrandFacts, type BrandFacts } from "../src/shared/brand-facts.ts";
 import { lintFile } from "../src/check/lint.ts";
 import type { Project } from "../src/core/workspace.ts";
 import { run, workspace } from "./helpers.ts";
 
-const data: BrandData = {
+const data: BrandFacts = {
   names: { full: "Kiln & Copper", legal: "Kiln and Copper LLC" },
   links: { website: "https://www.kilnandcopper.com/", signup: "https://kilnandcopper.com/classes" },
   contact: { email: "hello@kilnandcopper.com", phone: "+1 828 555 0142" },
@@ -29,8 +29,8 @@ test("facts format by group", () => {
 });
 
 test("brand data is validated", () => {
-  assert.deepEqual(validateBrandData(data), []);
-  const paths = validateBrandData({
+  assert.deepEqual(validateBrandFacts(data), []);
+  const paths = validateBrandFacts({
     links: { website: "kilnandcopper.com" },
     contact: { email: "not an address" },
     social: { x: "kiln" },
@@ -38,7 +38,7 @@ test("brand data is validated", () => {
     names: { Full: "K" },
     colors: {},
   }).map((i) => i.path);
-  for (const p of ["data.links.website", "data.contact.email", "data.social.x", "data.locations.studio", "data.names.Full", "data.colors"]) assert.ok(paths.includes(p), p);
+  for (const p of ["facts.links.website", "facts.contact.email", "facts.social.x", "facts.locations.studio", "facts.names.Full", "facts.colors"]) assert.ok(paths.includes(p), p);
 });
 
 test("typed contact details are rejected in artifacts", () => {
@@ -69,6 +69,6 @@ test("facts render, are typed, and reach the brand kit", { timeout: 60_000 }, ()
   assert.match(run(dir, "brand").stdout, /links\.website\s+https:\/\/facts\.example\.org/);
   assert.equal(run(dir, "export", "brand", "--out", "out").status, 0);
   const kit = join(dir, "out/facts-co-brand-kit");
-  assert.ok(existsSync(join(kit, "data.json")));
-  assert.equal(JSON.parse(readFileSync(join(kit, "data.json"), "utf8")).links.website, "https://facts.example.org");
+  assert.ok(existsSync(join(kit, "facts.json")));
+  assert.equal(JSON.parse(readFileSync(join(kit, "facts.json"), "utf8")).links.website, "https://facts.example.org");
 });

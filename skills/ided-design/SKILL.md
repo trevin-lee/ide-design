@@ -35,9 +35,9 @@ the design cannot land it either. → **Message**
 
 **4. Rank the content.** Real content only: facts you were given, copy you wrote for this
 audience. Never invent numbers, quotes, testimonials or logos. Names, links, contact details and
-places come from the brand's data through `<Fact>` (`ided brand` lists them); if the piece needs
+places come from the brand's facts through `<Fact>` (`ided brand` lists them); if the piece needs
 one the brand lacks, leave a visible placeholder such as "[signup link]" and ask, or add it to
-`data` in brand.ts if the user gave it to you. Rank everything by importance and
+`facts` in brand.ts if the user gave it to you. Rank everything by importance and
 decide the reading order before any layout. → **Hierarchy**
 
 **5. Name the defaults.** Write down (for yourself) what this category always looks like and its

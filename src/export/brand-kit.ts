@@ -6,7 +6,7 @@ import { Resvg } from "@resvg/resvg-js";
 import { strToU8, zipSync } from "fflate";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { factNames, formatFact } from "../shared/brand-data.ts";
+import { factNames, formatFact } from "../shared/brand-facts.ts";
 import type { BrandInput } from "../shared/brand-schema.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
 import { tailwindCss, tokensCss, tokensJson } from "../shared/tokens.ts";
@@ -62,7 +62,7 @@ export function buildBrandKit(opts: BuildKitOptions): KitFile[] {
 
   // Facts (names, links, contact, places, handles, abbreviations), for sites and documents built
   // outside ided to read from the same source.
-  if (brand.data && factNames(brand.data).length) add("data.json", JSON.stringify(brand.data, null, 2) + "\n");
+  if (brand.facts && factNames(brand.facts).length) add("facts.json", JSON.stringify(brand.facts, null, 2) + "\n");
 
   // The meaning behind the identity travels with it.
   const designDoc = join(dirname(opts.brandAssetsDir), "DESIGN.md");
@@ -93,16 +93,16 @@ ${files.some((f) => f.path === "DESIGN.md") ? "\nWhy the identity looks the way 
 - **JSON**: \`tokens/tokens.json\` (Design Tokens Community Group format) for Style Dictionary and friends.
 
 ${
-    factNames(brand.data).length
+    factNames(brand.facts).length
       ? `## Facts
 
-Names, links, contact details, places and abbreviations, in \`data.json\`. Read them from there
+Names, links, contact details, places and abbreviations, in \`facts.json\`. Read them from there
 rather than retyping them, so a change reaches everything.
 
 | fact | value |
 |---|---|
-${factNames(brand.data)
-  .map((f) => `| ${f} | ${(formatFact(brand.data, f, "full") ?? "").replace(/\|/g, "\\|")} |`)
+${factNames(brand.facts)
+  .map((f) => `| ${f} | ${(formatFact(brand.facts, f, "full") ?? "").replace(/\|/g, "\\|")} |`)
   .join("\n")}
 
 `

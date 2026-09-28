@@ -196,7 +196,7 @@ export default defineBrand({
 
   // Facts every artifact repeats, used through <Fact name="links.website" /> and never typed by
   // hand, so they are written once and cannot be invented. Add what exists; leave out what does not.
-  data: {
+  facts: {
     names: { full: ${JSON.stringify(name)} },
     // links: { website: "https://example.com" },
     // contact: { email: "hello@example.com", phone: "+1 555 010 0100" },
