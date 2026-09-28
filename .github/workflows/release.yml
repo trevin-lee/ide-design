@@ -1,0 +1,129 @@
+# Push a tag that matches package.json (git tag -a v0.1.0 -m "…" && git push --tags).
+# Tests, attaches the npm tarball to a GitHub release, publishes to npm when
+# NPM_TOKEN is set, then installs the rendered formula with real Homebrew and
+# only pushes it to <owner>/homebrew-tap if that install and `brew test` pass.
+#
+# Secrets: HOMEBREW_TAP_TOKEN (fine-grained token, contents:write on the tap
+# repository) and, optionally, NPM_TOKEN.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+      sha256: ${{ steps.pack.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Tag matches package.json
+        id: meta
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          grep -q "^## $version" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ided/browsers
+          key: ided-browser-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('package-lock.json') }}
+      - run: node dist/cli.js browser install
+      - run: node node_modules/playwright-core/cli.js install-deps chromium-headless-shell
+      - run: npm test
+
+      - name: Pack
+        id: pack
+        run: |
+          tarball=$(npm pack --silent)
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+          echo "sha256=$(sha256sum "$tarball" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: Release notes from CHANGELOG.md
+        run: |
+          awk -v v="${{ steps.meta.outputs.version }}" '
+            $0 ~ "^## "v { on = 1; next }
+            on && /^## / { exit }
+            on { print }
+          ' CHANGELOG.md > notes.md
+
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" "${{ steps.pack.outputs.tarball }}" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+
+      - name: Publish to npm
+        if: env.NPM_TOKEN != ''
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish "${{ steps.pack.outputs.tarball }}" --provenance --access public
+
+  homebrew:
+    needs: release
+    runs-on: macos-latest
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Render formula
+        run: |
+          node packaging/homebrew/formula.mjs \
+            --version "${{ needs.release.outputs.version }}" \
+            --url "https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/${{ needs.release.outputs.tarball }}" \
+            --sha256 "${{ needs.release.outputs.sha256 }}" \
+            --homepage "https://github.com/${{ github.repository }}" > ided.rb
+          cat ided.rb
+
+      - name: Install and test with real Homebrew before publishing
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: "1"
+          HOMEBREW_NO_INSTALL_CLEANUP: "1"
+        run: |
+          brew tap-new --no-git ided-release/verify
+          cp ided.rb "$(brew --repository)/Library/Taps/ided-release/homebrew-verify/Formula/ided.rb"
+          brew install --build-from-source ided-release/verify/ided
+          brew test ided-release/verify/ided
+          brew audit --strict ided-release/verify/ided
+
+      - name: Push formula to ${{ github.repository_owner }}/homebrew-tap
+        if: env.TAP_TOKEN != ''
+        run: |
+          git clone "https://x-access-token:${TAP_TOKEN}@github.com/${{ github.repository_owner }}/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          cp ided.rb tap/Formula/ided.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/ided.rb
+          git commit -m "ided ${{ needs.release.outputs.version }}"
+          git push origin HEAD
+
+      - name: Tap token missing
+        if: env.TAP_TOKEN == ''
+        run: echo "::warning::HOMEBREW_TAP_TOKEN is not set; the formula was verified but not published."

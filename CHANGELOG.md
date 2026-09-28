@@ -19,5 +19,9 @@ First release.
   JSON and TypeScript, fonts.
 - Pinned export renderer: a Chromium headless shell matched to the driver, downloaded on first
   export into a shared cache (`ided browser install|status`), with installed Chrome as a warned fallback.
+- Homebrew formula (generated per release and verified with a real `brew install` before it is
+  published to the tap) and a tag-driven release workflow for GitHub releases, npm and Homebrew.
+- `ided setup` links Claude Code skills and copies Codex skills with a version marker; any `ided`
+  command refreshes them after an upgrade. The MCP server is registered by absolute path.
 - MCP server and skills for Claude Code and Codex; GitHub Actions workflow template and
   composite action for publishing the brand kit.

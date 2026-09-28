@@ -64,7 +64,30 @@ ided makes those mistakes unrepresentable:
 
 ## Install
 
-Requires Node 20.19+ on macOS or Linux. Windows is not supported in 0.1.
+macOS or Linux. Windows is not supported in 0.1.
+
+```sh
+brew install trevin-lee/tap/ided   # pulls in Node; nothing is installed per repository
+ided setup                         # skills + MCP server for Claude Code and Codex
+```
+
+Upgrade with `brew upgrade`. Everything ided writes outside its own install survives upgrades:
+the workspace's editor types point at Homebrew's version-independent path, Claude Code's skills
+are links to the installed copy, and Codex's skill copies refresh themselves on the next `ided`
+command. The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents
+started outside a terminal still find it.
+
+Without Homebrew, any Node 20.19+ works:
+
+```sh
+npm install -g ided
+```
+
+Neither channel is live until the first release is tagged. Until then, install from a checkout:
+
+```sh
+git clone https://github.com/trevin-lee/ided && cd ided && npm install && npm run build && npm install -g .
+```
 
 PDF and PNG export render with one pinned Chromium build (the headless shell that ided's
 Playwright version targets), not with whatever Chrome you have installed, so an export looks the
@@ -72,17 +95,6 @@ same after a Chrome update and on every machine of the same OS. It downloads on 
 (about 100 MB, 195 MB on disk, shared by every workspace in `~/.cache/ided/browsers`), or ahead of
 time with `ided browser install`. It comes from Playwright's download server over HTTPS; Playwright
 does not publish checksums for these builds, so ided cannot verify one.
-
-```sh
-npm install -g ided        # once, system-wide; no per-repo install, no node_modules
-ided setup                 # install the agent skills + register the MCP server (Claude Code, Codex)
-```
-
-ided is not yet published to npm. Until it is, install from a checkout:
-
-```sh
-git clone <this repo> && cd ided && npm install && npm run build && npm install -g .
-```
 
 ## Quick start
 
@@ -187,8 +199,10 @@ Anything else in these folders is an error. Create things with the CLI so they s
 
 ## Agents
 
-`ided setup` installs three skills into `~/.claude/skills` and `~/.codex/skills`, and registers
-the MCP server with Claude Code (user scope) and Codex (`~/.codex/config.toml`):
+`ided setup` installs three skills and registers the MCP server with Claude Code (user scope)
+and Codex (`~/.codex/config.toml`). Claude Code's skills in `~/.claude/skills` are links to the
+installed package; Codex's in `~/.codex/skills` are copies marked with the ided version, which
+any later `ided` command replaces after an upgrade. Folders ided did not create are never touched.
 
 - **ided**: the workflow (scaffold, write, `ided check`, screenshot, iterate) and the hard rules.
 - **ided-brand**: building the design system, including scales, surfaces, type, logo preparation,
@@ -245,6 +259,20 @@ load. `action.yml` packages the same steps as a composite action.
 - **Deterministic rendering.** Artifacts are pure functions of their source; fonts ship in the brand's
   assets; frames have fixed pixel geometry. Export is headless Chrome printing or screenshotting a
   chrome-free render route.
+
+## Releasing
+
+Releases are cut by CI from a tag, never from a laptop:
+
+1. Set `version` in `package.json` and add a matching `## <version>` section to `CHANGELOG.md`.
+2. `git tag -a v<version> -m "<version>" && git push --follow-tags`.
+
+`.github/workflows/release.yml` then checks that the tag, `package.json` and the changelog agree,
+runs the full test suite, attaches the npm tarball to a GitHub release (notes taken from the
+changelog), and publishes to npm if `NPM_TOKEN` is set. A macOS job renders the formula with
+`packaging/homebrew/formula.mjs`, installs it with real Homebrew, runs `brew test` and
+`brew audit --strict`, and only then commits it to `trevin-lee/homebrew-tap` using
+`HOMEBREW_TAP_TOKEN` (a fine-grained token with write access to that repository alone).
 
 ## Development
 

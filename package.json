@@ -18,6 +18,14 @@
     "claude",
     "codex"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trevin-lee/ided.git"
+  },
+  "homepage": "https://github.com/trevin-lee/ided",
+  "bugs": {
+    "url": "https://github.com/trevin-lee/ided/issues"
+  },
   "bin": {
     "ided": "dist/cli.js"
   },
