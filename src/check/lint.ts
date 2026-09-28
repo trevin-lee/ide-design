@@ -8,6 +8,25 @@ import type { Issue, Project } from "../core/workspace.ts";
 
 export type FileRole = "frame" | "component" | "brand";
 
+const TLDS = "com|org|net|io|co|app|dev|ai|us|uk|ca|au|de|fr|nl|eu|edu|gov|info|biz|me|tv|xyz|shop|studio|design|art|coop";
+const FACT_PATTERNS: { kind: string; re: RegExp }[] = [
+  { kind: "a URL", re: /\bhttps?:\/\/[^\s"'<>]+/i },
+  { kind: "an email address", re: /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/ },
+  { kind: "a URL", re: /\bwww\.[\w-]+(?:\.[\w-]+)+/i },
+  { kind: "a domain", re: new RegExp(`\\b[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9-]+)*\\.(?:${TLDS})\\b(?![.\\w-])`, "i") },
+];
+
+/** A URL, email, domain or phone number in visible text, if any. */
+function rawFact(text: string): { kind: string; text: string } | null {
+  for (const { kind, re } of FACT_PATTERNS) {
+    const m = re.exec(text);
+    if (m) return { kind, text: m[0] };
+  }
+  const phone = /\+?\(?\d[\d\s().-]{8,}\d/.exec(text);
+  if (phone && (phone[0].match(/\d/g) ?? []).length >= 10) return { kind: "a phone number", text: phone[0].trim() };
+  return null;
+}
+
 const LAYOUT_PRIMITIVES = new Set(["Slide", "Page", "Artboard", "Screen", "Stack", "Row", "Grid", "Box", "Place"]);
 const FORBIDDEN_ATTRS = new Set(["style", "className", "class", "dangerouslySetInnerHTML", "ref", "id", "tabIndex"]);
 const FORBIDDEN_GLOBALS = new Set(["window", "document", "fetch", "localStorage", "sessionStorage", "globalThis", "process", "require", "eval", "Function", "XMLHttpRequest", "navigator", "setTimeout", "setInterval"]);
@@ -165,6 +184,19 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
       const v = node.text.trim();
       if (RAW_UNIT_RE.test(v) || RAW_COLOR_RE.test(v) || RAW_FN_RE.test(v)) {
         report(node, "no-raw-values", `"${v}" is a raw CSS value.`, "Every length, color and font comes from brand tokens. Add a token to design/brand/brand.ts if one is missing.");
+      }
+    }
+    // Contact details typed by hand. They come from the brand's data through <Fact>, so they
+    // are written once, stay current everywhere, and cannot be invented.
+    if (role !== "brand" && (ts.isJsxText(node) || ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent)))) {
+      const found = rawFact(node.text);
+      if (found) {
+        report(
+          node,
+          "no-raw-facts",
+          `"${found.text}" looks like ${found.kind} typed by hand.`,
+          `Links, email addresses, phone numbers and domains come from the brand's data: <Fact name="${found.kind === "an email address" || found.kind === "a phone number" ? "contact" : "links"}.…" /> inside <Text>. If the fact is missing, add it to \`data\` in brand.ts, or ask; never invent one.`,
+        );
       }
     }
     // Hooks, nondeterminism, globals

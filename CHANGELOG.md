@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Brand data: `data` in brand.ts holds names, links, contact details, locations, social handles and
+  abbreviations; artifacts show them with `<Fact name="links.website" />`, and a URL, email, phone
+  number or domain typed into an artifact fails `ided check`. Listed by `ided brand`, shown on the
+  brand page, exported in the brand kit as `data.json`.
 - Every project has a `DESIGN.md` design document (brief, message, concept, hierarchy,
   decisions, alternatives, critique; a brand and a library variant). `ided new` scaffolds it,
   `ided check` requires it and warns until it is written, the viewer shows it in a Design tab,

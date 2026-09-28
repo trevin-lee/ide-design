@@ -1273,3 +1273,18 @@ html.render-mode #root {
 .design-doc a {
   color: var(--ui-accent);
 }
+
+.bb-facts {
+  display: flex;
+  flex-direction: column;
+}
+.bb-fact {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 16px;
+  padding: 8px 0;
+  border-top: 1px solid var(--ui-line);
+}
+.bb-fact code {
+  justify-self: start;
+}

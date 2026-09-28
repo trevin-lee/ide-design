@@ -1,4 +1,5 @@
 import type { BrandInput } from "./brand-schema.ts";
+import { factNames, formatFact } from "./brand-data.ts";
 import { colorValue, isSurface, typeMetrics } from "./brand-schema.ts";
 
 /** A compact, agent-readable listing of every token in the brand. */
@@ -30,5 +31,13 @@ export function brandSummary(b: BrandInput): string {
   out.push(`logo sizes:     ${Object.entries(b.logo.sizes).map(([k, v]) => `${k}=${v}`).join("  ")}`);
   out.push(`colorways:      ${Object.entries(b.logo.colorways).map(([k, v]) => `${k}(${v.mark}/${v.wordmark})`).join("  ")}`);
   out.push(`frame margins:  ${Object.entries(b.margin).map(([k, v]) => `${k}=${v}`).join("  ")}`);
+  out.push("");
+  const facts = factNames(b.data);
+  if (facts.length) {
+    out.push('facts (<Fact name="…" /> inside Text; never type these by hand):');
+    for (const f of facts) out.push(`  ${f.padEnd(28)} ${formatFact(b.data, f, "full") ?? ""}`);
+  } else {
+    out.push("facts: none yet. Add names, links, contact, locations, social and abbreviations to `data` in brand.ts; never invent them.");
+  }
   return out.join("\n");
 }

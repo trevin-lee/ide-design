@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
 import { AssetGrid } from "./library.tsx";
+import { factNames, formatFact } from "../shared/brand-data.ts";
 import { colorValue, isSurface, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
@@ -214,6 +215,21 @@ export function BrandBoard(props: { project: WsProject }) {
             </div>
           </Section>
         </div>
+
+        <Section title="Facts" note='Used in artifacts as <Fact name="…" /> and never typed by hand. Edit them in the data section of brand.ts.'>
+          {factNames(b.data).length ? (
+            <div className="bb-facts">
+              {factNames(b.data).map((f) => (
+                <div key={f} className="bb-fact">
+                  <code>{f}</code>
+                  <span>{formatFact(b.data, f, "full")}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="lib-empty">No facts yet. Add names, links, contact details, locations, social handles and abbreviations to brand.ts.</p>
+          )}
+        </Section>
 
         <Section title="Assets" note="Shared images. Every project can import these: @brand/assets/<file>.">
           <AssetGrid project={props.project} exclude={[b.logo.mark, b.logo.wordmark]} />

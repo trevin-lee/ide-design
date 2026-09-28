@@ -55,6 +55,8 @@ reader find their place, which is rarely every frame of a short deck.
 
 Copy makes a design look as templated as layout does.
 
+- Invented contact details: a plausible-looking web address or phone number that nobody gave you.
+  ided rejects typed URLs, emails and phone numbers anyway; use `<Fact>` or a visible placeholder.
 - Invented numbers, testimonials or logos. Use only facts you were given; if the piece needs a
   number you do not have, leave it out or ask.
 - Superlatives doing the work of evidence ("revolutionary", "seamless", "powerful").

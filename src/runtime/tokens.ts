@@ -30,6 +30,12 @@ export type LogoSizeToken = Keys<LogoGroup<"sizes">>;
 export type ColorwayToken = Keys<LogoGroup<"colorways">>;
 export type LogoVariant = "mark" | "wordmark" | Keys<LogoGroup<"lockups">>;
 
+type DataOf = RegisteredBrand extends { readonly data?: infer D } ? NonNullable<D> : {};
+/** Every fact in the brand's data, as "group.key": "links.website", "locations.studio". */
+export type FactName = {
+  [G in Keys<DataOf>]: `${G}.${Keys<NonNullable<DataOf[G]>>}`;
+}[Keys<DataOf>];
+
 /** Relative extents. Fractions account for the parent's gap, so 1/2 + 1/2 always fills exactly. */
 export type Fraction = "1/2" | "1/3" | "2/3" | "1/4" | "3/4" | "1/5" | "2/5" | "3/5" | "4/5";
 export type Extent = "auto" | "full" | Fraction | SizeToken;

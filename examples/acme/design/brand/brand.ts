@@ -85,4 +85,15 @@ export default defineBrand({
     },
     sizes: { xs: 24, s: 40, m: 64, l: 96, xl: 160 },
   },
+
+  // Facts every artifact repeats, used through <Fact name="links.website" /> and never typed by
+  // hand, so they are written once and cannot be invented. Add what exists; leave out what does not.
+  data: {
+    names: { full: "Acme" },
+    // links: { website: "https://example.com" },
+    // contact: { email: "hello@example.com", phone: "+1 555 010 0100" },
+    // locations: { office: { street: "1 Main St", city: "Springfield", region: "IL" } },
+    // social: { instagram: "@example" },
+    // abbreviations: { MW: "megawatt" },
+  },
 });

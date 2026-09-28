@@ -240,6 +240,30 @@ and the brand kit includes the brand's.
 The skills have agents write the brief, message, concept and hierarchy before any frame, since
 those decide the frames, and finish the critique last.
 
+## Brand data
+
+Names, links, contact details, locations, social handles and abbreviations live in the brand's
+`data`, next to the tokens, and artifacts use them the same way: by name.
+
+```ts
+data: {
+  names: { full: "Kiln & Copper", legal: "Kiln and Copper LLC" },
+  links: { website: "https://kilnandcopper.com", signup: "https://kilnandcopper.com/classes" },
+  contact: { email: "hello@kilnandcopper.com", phone: "+1 828 555 0142" },
+  locations: { studio: { street: "12 Clingman Ave", city: "Asheville", region: "NC" } },
+  abbreviations: { MW: "megawatt" },
+}
+```
+
+```tsx
+<Text type="body">Sign up at <Fact name="links.signup" /></Text>   // reads "kilnandcopper.com/classes"
+```
+
+A URL, email address, phone number or domain typed into an artifact fails `ided check` with a
+pointer to the fact to use, so contact details are written once, stay current everywhere, and
+cannot be made up by an agent. `ided brand` lists every fact, the viewer's brand page shows them,
+and the brand kit exports them as `data.json`.
+
 ## Brand kit
 
 `ided export brand --zip` writes:
@@ -252,6 +276,7 @@ acme-brand-kit/
   tokens/tailwind.css    # Tailwind v4 @theme that replaces the default palette and scales
   tokens/tokens.json     # Design Tokens Community Group format
   tokens/brand.ts        # typed constant
+  data.json              # names, links, contact, locations, social, abbreviations
   fonts/                 # font files + licenses
   manifest.json, README.md
 ```

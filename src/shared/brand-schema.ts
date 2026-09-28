@@ -2,6 +2,7 @@
 // never contain a color, a length or a font name: they contain token names, and
 // this file defines what a token is and validates that a brand is coherent.
 
+import { validateBrandData, type BrandData } from "./brand-data.ts";
 import { HEX_RE, contrast } from "./color.ts";
 import type { FrameKind } from "./formats.ts";
 
@@ -91,6 +92,8 @@ export interface BrandInput {
   /** Frame margin per project kind, as a space token. */
   readonly margin: Readonly<Record<FrameKind, string>>;
   readonly logo: LogoDef;
+  /** Facts artifacts repeat (names, links, contact, places, handles, abbreviations), used through <Fact>. */
+  readonly data?: BrandData;
 }
 
 /** Words with framework meaning that a brand may not use as token names. */
@@ -262,6 +265,9 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
     if (m === undefined) err(`margin.${kind}`, `Missing frame margin for ${kind} (a space token).`);
     else if (brand.space?.[m] === undefined) err(`margin.${kind}`, `"${m}" is not a space token.`);
   }
+
+  // Data
+  for (const i of validateBrandData((brand as { data?: unknown }).data)) err(i.path, i.message);
 
   // Logo
   const logo = brand.logo;

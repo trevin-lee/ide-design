@@ -6,6 +6,7 @@ import { Resvg } from "@resvg/resvg-js";
 import { strToU8, zipSync } from "fflate";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { factNames, formatFact } from "../shared/brand-data.ts";
 import type { BrandInput } from "../shared/brand-schema.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
 import { tailwindCss, tokensCss, tokensJson } from "../shared/tokens.ts";
@@ -59,6 +60,10 @@ export function buildBrandKit(opts: BuildKitOptions): KitFile[] {
     }
   }
 
+  // Facts (names, links, contact, places, handles, abbreviations), for sites and documents built
+  // outside ided to read from the same source.
+  if (brand.data && factNames(brand.data).length) add("data.json", JSON.stringify(brand.data, null, 2) + "\n");
+
   // The meaning behind the identity travels with it.
   const designDoc = join(dirname(opts.brandAssetsDir), "DESIGN.md");
   if (existsSync(designDoc)) add("DESIGN.md", readFileSync(designDoc));
@@ -87,7 +92,22 @@ ${files.some((f) => f.path === "DESIGN.md") ? "\nWhy the identity looks the way 
 - **Tailwind v4**: \`@import "tailwindcss"; @import "tokens/tailwind.css";\`. The default palette, spacing, radii and type scale are replaced, so only brand values compile.
 - **JSON**: \`tokens/tokens.json\` (Design Tokens Community Group format) for Style Dictionary and friends.
 
-## Colors
+${
+    factNames(brand.data).length
+      ? `## Facts
+
+Names, links, contact details, places and abbreviations, in \`data.json\`. Read them from there
+rather than retyping them, so a change reaches everything.
+
+| fact | value |
+|---|---|
+${factNames(brand.data)
+  .map((f) => `| ${f} | ${(formatFact(brand.data, f, "full") ?? "").replace(/\|/g, "\\|")} |`)
+  .join("\n")}
+
+`
+      : ""
+  }## Colors
 
 | token | value | role |
 |---|---|---|

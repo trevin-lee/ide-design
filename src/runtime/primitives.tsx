@@ -5,6 +5,7 @@
 
 import { Children, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
+import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-data.ts";
 import { contrast, requiredContrast } from "../shared/color.ts";
 import { FRAME_ROOT, type FrameKind } from "../shared/formats.ts";
 import { composeLogo } from "../shared/lockup.ts";
@@ -43,6 +44,7 @@ import {
   type SurfaceToken,
   type TypeToken,
   type ImageAsset,
+  type FactName,
 } from "./tokens.ts";
 
 type Reporter = (rule: string, message: string, hint?: string, severity?: "error" | "warning") => void;
@@ -523,7 +525,7 @@ export interface TextProps {
   /** Defaults to the current surface's foreground. */
   color?: ColorToken;
   align?: "start" | "center" | "end";
-  /** Strings, numbers, <Em> and <FrameNumber> only. */
+  /** Strings, numbers, <Em>, <Fact> and <FrameNumber> only. */
   children?: ReactNode;
 }
 
@@ -531,10 +533,10 @@ function checkTextChildren(children: ReactNode, report: Reporter) {
   Children.forEach(children, (c) => {
     if (c === null || c === undefined || typeof c === "boolean" || typeof c === "string" || typeof c === "number") return;
     if (isValidElement(c)) {
-      if (c.type === Em || c.type === FrameNumber) return;
+      if (c.type === Em || c.type === FrameNumber || c.type === Fact) return;
       if (c.type === Fragment) return checkTextChildren((c.props as { children?: ReactNode }).children, report);
     }
-    report("text-children", "may only contain text, <Em> and <FrameNumber>.", "Put layout outside the Text: <Stack><Text/><Text/></Stack>.");
+    report("text-children", "may only contain text, <Em>, <Fact> and <FrameNumber>.", "Put layout outside the Text: <Stack><Text/><Text/></Stack>.");
   });
 }
 
@@ -624,6 +626,40 @@ export function FrameNumber(props: FrameNumberProps) {
   const n = (frame?.index ?? 0) + 1;
   const label = format === "nn" ? String(n).padStart(2, "0") : format === "n/total" ? `${n} / ${frame?.total ?? n}` : String(n);
   return <span {...dom}>{label}</span>;
+}
+
+export interface FactProps {
+  /** A fact from the brand's data: "links.website", "contact.email", "locations.studio"… */
+  name: FactName;
+  /**
+   * links: "display" (default, reads "kilnandcopper.com") or "full". locations: "line" (default),
+   * "city", "street" or "full". abbreviations: "short" (default), "long" or "both".
+   */
+  format?: FactFormat;
+}
+
+/** A fact from the brand's data, inside <Text>. Links, addresses and names are never typed by hand. */
+export function Fact(props: FactProps) {
+  const { report, dom } = usePrimitive("Fact", props, ["name", "format"], ["name"]);
+  const { brand } = useTokens();
+  const text = useContext(TextContext);
+  if (!text) report("misplaced", "only works inside <Text>.");
+  const { group } = splitFact(String(props.name));
+  const formats = FACT_FORMATS[group as keyof typeof FACT_FORMATS];
+  if (props.format !== undefined && formats && !formats.allowed.includes(props.format)) {
+    report("invalid-value", `\`format\` for ${group} is one of ${formats.allowed.map((f) => `"${f}"`).join(", ")}.`);
+  }
+  const value = formatFact(brand.data, String(props.name), props.format);
+  if (value === undefined) {
+    const known = factNames(brand.data);
+    report(
+      "invalid-token",
+      `\`name\` "${props.name}" is not a fact in the brand's data.`,
+      known.length ? `Facts: ${known.join(", ")}. Add missing ones to \`data\` in brand.ts; never type or invent them.` : "The brand has no data yet. Add facts to `data` in brand.ts; never type or invent them.",
+    );
+    return null;
+  }
+  return <span {...dom}>{value}</span>;
 }
 
 export interface ListProps {

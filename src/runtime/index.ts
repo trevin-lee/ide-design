@@ -13,6 +13,7 @@ export {
   Text,
   Em,
   FrameNumber,
+  Fact,
   List,
   Logo,
   Image,
@@ -29,6 +30,7 @@ export type {
   TextProps,
   EmProps,
   FrameNumberProps,
+  FactProps,
   ListProps,
   LogoProps,
   ImageProps,
@@ -56,10 +58,12 @@ export type {
   Justify,
   Columns,
   ImageAsset,
+  FactName,
 } from "./tokens.ts";
 
 export { defineBrand } from "../shared/brand-schema.ts";
 export type { BrandInput } from "../shared/brand-schema.ts";
+export type { BrandData, Location, FactFormat } from "../shared/brand-data.ts";
 
 /** Type for a component's `children` prop. */
 export type Children = import("react").ReactNode;
