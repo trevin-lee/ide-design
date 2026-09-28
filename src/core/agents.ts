@@ -75,6 +75,13 @@ export function skillNames(): string[] {
     .map((d) => d.name);
 }
 
+/**
+ * Skills earlier versions shipped under names that no longer exist. Wherever ided finds its own
+ * copy or link under one of these names, it removes it: a renamed skill must not linger, and a
+ * link into an upgraded package would point at nothing.
+ */
+const RETIRED_SKILLS = ["ided-compose"];
+
 /** Written into every copy ided places: which ided version it came from. */
 const MARKER = ".ided-version";
 
@@ -165,11 +172,18 @@ function installerAgents(output: string): string {
     .join("; ");
 }
 
+function sweepRetired(roots: string[]): void {
+  for (const root of roots) for (const n of RETIRED_SKILLS) removeOwned(join(root, n), n);
+}
+
+const globalRoots = () => [agentsSkillsDir(), claudeSkillsDir(), codexSkillsDir()];
+
 export function installGlobalSkills(): SetupStep {
   const names = skillNames();
   // Setups from ided 0.1 put copies in ~/.codex/skills and links in ~/.claude/skills. Codex now reads
   // the shared folder directly (a second copy would appear twice), and the installer replaces the links.
   for (const root of [codexSkillsDir(), claudeSkillsDir()]) for (const n of names) removeOwned(join(root, n), n);
+  sweepRetired(globalRoots());
   const r = runInstaller(["add", STABLE_PKG_ROOT, "--global", "--yes", "--skill", "*"], homedir());
   const canonical = agentsSkillsDir();
   const placed = names.filter((n) => existsSync(join(canonical, n, "SKILL.md")));
@@ -234,10 +248,12 @@ function writeProjectMcp(root: string): string {
   return ".mcp.json";
 }
 
+const projectRoots = (root: string) => [join(root, ".agents", "skills"), join(root, ".claude", "skills")];
+
 export function installProjectSkills(root: string): SetupStep[] {
   const names = skillNames();
-  const shared = join(root, ".agents", "skills");
-  const claude = join(root, ".claude", "skills");
+  const [shared, claude] = projectRoots(root) as [string, string];
+  sweepRetired([claude, shared]);
   const kept: string[] = [];
   for (const n of names) {
     if (copySkill(shared, n) === "kept") kept.push(n);
@@ -290,6 +306,9 @@ export function refreshSkills(cwd = process.cwd()): void {
 
 /** ided 0.1 setups: links into the package (self-updating) and Codex copies (refreshed here). */
 function refreshLegacy(): void {
+  sweepRetired(globalRoots());
+  const project = findWorkspaceRoot(process.cwd());
+  if (project) sweepRetired(projectRoots(project));
   const names = skillNames();
   for (const root of [claudeSkillsDir(), codexSkillsDir()]) {
     if (!existsSync(root)) continue;
@@ -300,6 +319,76 @@ function refreshLegacy(): void {
       if (owner === "link" && !existsSync(resolve(dirname(dest), readlinkSync(dest)))) unlinkSync(dest);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Removing everything setup added
+// ---------------------------------------------------------------------------
+
+/** Undoes `ided setup`: the skills in every agent, and the MCP registrations. */
+export function removeGlobal(): SetupStep[] {
+  const names = skillNames();
+  const r = runInstaller(["remove", ...names, "--global", "--yes"], homedir());
+  // Whatever the installer did not place (older setups, retired names) is removed here, ours only.
+  for (const root of globalRoots()) for (const n of [...names, ...RETIRED_SKILLS]) removeOwned(join(root, n), n);
+  const left = names.filter((n) => existsSync(join(agentsSkillsDir(), n)));
+  const steps: SetupStep[] = [{ what: "skills removed from every agent", ok: r.ok && left.length === 0, detail: left.length ? `still present: ${left.join(", ")}` : names.join(", ") }];
+  const claude = which("claude");
+  if (claude) {
+    const c = spawnSync(claude, ["mcp", "remove", "--scope", "user", "ided"], { encoding: "utf8" });
+    steps.push({ what: "Claude Code MCP removed", ok: true, detail: c.status === 0 ? undefined : "was not registered" });
+  }
+  const config = join(codexHome(), "config.toml");
+  if (existsSync(config)) {
+    const text = readFileSync(config, "utf8");
+    const next = text.replace(/\n*^\[mcp_servers\.ided\][\s\S]*?(?=^\[|(?![\s\S]))/m, "\n");
+    if (next !== text) {
+      writeFileSync(config, next.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, ""));
+      steps.push({ what: `Codex MCP removed from ${config.replace(homedir(), "~")}`, ok: true });
+    }
+  }
+  return steps;
+}
+
+/** Undoes `ided setup --project`. */
+export function removeProject(root: string): SetupStep[] {
+  for (const dir of projectRoots(root)) for (const n of [...skillNames(), ...RETIRED_SKILLS]) removeOwned(join(dir, n), n);
+  for (const dir of [...projectRoots(root), join(root, ".agents"), join(root, ".claude")]) {
+    try {
+      if (existsSync(dir) && readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
+    } catch {
+      // not empty or not ours
+    }
+  }
+  const steps: SetupStep[] = [{ what: "skills removed from .agents/skills and .claude/skills", ok: true }];
+  const agentsMd = join(root, "AGENTS.md");
+  if (existsSync(agentsMd)) {
+    const text = readFileSync(agentsMd, "utf8");
+    const start = text.indexOf(AGENTS_MD_START);
+    const end = text.indexOf(AGENTS_MD_END);
+    if (start !== -1 && end > start) {
+      const rest = (text.slice(0, start) + text.slice(end + AGENTS_MD_END.length)).replace(/\n{3,}/g, "\n\n").trim();
+      // A file that only ever held ided's section (with the heading ided wrote) goes entirely.
+      if (!rest || rest === "# Agent instructions") rmSync(agentsMd);
+      else writeFileSync(agentsMd, rest + "\n");
+      steps.push({ what: "AGENTS.md: ided section removed", ok: true });
+    }
+  }
+  const mcp = join(root, ".mcp.json");
+  if (existsSync(mcp)) {
+    try {
+      const config = JSON.parse(readFileSync(mcp, "utf8")) as { mcpServers?: Record<string, unknown> };
+      if (config.mcpServers?.ided) {
+        delete config.mcpServers.ided;
+        if (Object.keys(config.mcpServers).length === 0 && Object.keys(config).length === 1) rmSync(mcp);
+        else writeFileSync(mcp, JSON.stringify(config, null, 2) + "\n");
+        steps.push({ what: ".mcp.json: ided removed", ok: true });
+      }
+    } catch {
+      steps.push({ what: ".mcp.json is not valid JSON; left unchanged", ok: false });
+    }
+  }
+  return steps;
 }
 
 // ---------------------------------------------------------------------------

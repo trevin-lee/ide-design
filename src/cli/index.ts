@@ -10,13 +10,15 @@ import {
   refreshSkills,
   registerClaudeMcp,
   registerCodexMcp,
+  removeGlobal,
+  removeProject,
   writeAgentsMd,
   type SetupStep,
 } from "../core/agents.ts";
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
-import { addFrame, describeKinds, initWorkspace, newProject, slugify, useLibrary, writeGenerated } from "../core/scaffold.ts";
+import { addFrame, describeKinds, initWorkspace, newProject, slugify, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { findWorkspaceRoot, getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
 import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
@@ -63,7 +65,11 @@ program
         const change = writeAgentsMd(root);
         if (change !== "unchanged") created.push(`AGENTS.md (ided section ${change})`);
       }
-      console.log(existing ? `${pc.green("✔")} Workspace already exists at ${root}` : `${pc.green("✔")} Created ided workspace at ${root}`);
+      console.log(
+        existing
+          ? `${pc.green("✔")} Workspace already exists at ${root}${created.length ? "; added what was missing:" : "; nothing to add."}`
+          : `${pc.green("✔")} Created ided workspace at ${root}`,
+      );
       for (const f of created) console.log(pc.dim(`  + ${f}`));
       console.log(`\nNext:\n  ${pc.cyan("ided run")}          open the design viewer\n  ${pc.cyan("ided check")}        verify every artifact\n  ${pc.cyan("ided setup")}        give your coding agents the ided skills`);
     }),
@@ -143,13 +149,20 @@ program
 
 program
   .command("use")
-  .description("Declare that a project imports from a library (adds it to project.json dependencies).")
+  .description("Declare that a project imports from a library (adds it to project.json dependencies), or --remove it.")
   .argument("<project>")
   .argument("<library>")
+  .option("--remove", "stop using the library")
   .action(
-    action((project: string, library: string) => {
+    action((project: string, library: string, opts: { remove?: boolean }) => {
       const root = requireWorkspaceRoot();
-      console.log(`${pc.green("✔")} ${useLibrary(scanWorkspace(root), project, library)}`);
+      if (!opts.remove) return console.log(`${pc.green("✔")} ${useLibrary(scanWorkspace(root), project, library)}`);
+      const { message, stillImporting } = unuseLibrary(scanWorkspace(root), project, library);
+      console.log(`${pc.green("✔")} ${message}`);
+      if (stillImporting.length) {
+        console.log(pc.yellow(`! These files still import from @${library}; \`ided check\` will flag them until they change:`));
+        for (const f of stillImporting) console.log(pc.dim(`  ${f}`));
+      }
     }),
   );
 
@@ -404,8 +417,14 @@ program
   .option("--no-mcp", "skills only; do not register the MCP server")
   .option("--claude", "register the MCP server with Claude Code only")
   .option("--codex", "register the MCP server with Codex only")
+  .option("--remove", "undo setup: remove the skills and MCP registrations (with --project, from this repository)")
   .action(
-    action((opts: { project?: boolean; mcp: boolean; claude?: boolean; codex?: boolean }) => {
+    action((opts: { project?: boolean; mcp: boolean; claude?: boolean; codex?: boolean; remove?: boolean }) => {
+      if (opts.remove) {
+        const steps = opts.project ? removeProject(requireWorkspaceRoot()) : removeGlobal();
+        for (const s of steps) console.log(`${s.ok ? pc.green("✔") : pc.yellow("!")} ${s.what}${s.detail ? pc.dim(`  ${s.detail}`) : ""}`);
+        return;
+      }
       const steps: SetupStep[] = [];
       if (opts.project) {
         steps.push(...installProjectSkills(requireWorkspaceRoot()));

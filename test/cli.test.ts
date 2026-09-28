@@ -1,6 +1,6 @@
 // End-to-end: drives the built CLI (run `npm run build` first).
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -93,4 +93,37 @@ test("the export renderer is pinned and reported", () => {
   assert.match(status.version, /^\d+\.\d+\.\d+\.\d+$/);
   assert.ok(status.dir.startsWith(status.cache));
   assert.equal(typeof status.installed, "boolean");
+});
+
+test("re-running init upgrades a 0.1 workspace without restoring what was removed", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-e2e-"));
+  run(dir, "init", "--here", "--name", "Old");
+  run(dir, "new", "doc", "memo");
+  // What a 0.1 workspace looks like: no design documents. Also things the user removed on purpose.
+  for (const f of ["design/brand/DESIGN.md", "design/memo/DESIGN.md", "design/intro"]) rmSync(join(dir, f), { recursive: true });
+  rmSync(join(dir, "design/brand/assets/fonts/jetbrains-mono.woff2"));
+  const errors = JSON.parse(run(dir, "check", "--json", "--no-render").stdout).issues.filter((i: { rule: string; severity: string }) => i.rule === "design-doc" && i.severity === "error");
+  assert.equal(errors.length, 2);
+
+  assert.equal(run(dir, "init", "--here").status, 0);
+  assert.ok(!existsSync(join(dir, "design/intro")), "sample deck not restored");
+  assert.ok(!existsSync(join(dir, "design/brand/assets/fonts/jetbrains-mono.woff2")), "removed font not restored");
+  assert.doesNotMatch(readFileSync(join(dir, "design/brand/DESIGN.md"), "utf8"), /starter identity/, "no starter text over a real brand");
+  const after = JSON.parse(run(dir, "check", "--json", "--no-render").stdout).issues as { rule: string; severity: string }[];
+  assert.deepEqual(after.filter((i) => i.severity === "error"), []);
+  assert.equal(after.filter((i) => i.rule === "design-doc").length, 2, "one 'not written yet' warning per project");
+});
+
+test("use --remove drops a dependency and names files still importing it", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-e2e-"));
+  run(dir, "init", "--here", "--bare");
+  run(dir, "new", "deck", "pitch");
+  run(dir, "new", "library", "kit");
+  run(dir, "use", "pitch", "kit");
+  writeFileSync(join(dir, "design/pitch/slides/02-kit.tsx"), `import { Slide } from "ided";\nimport { Card } from "@kit/components/card";\nexport default function Kit() {\n  return (\n    <Slide surface="paper">\n      <Card title="a" body="b" />\n    </Slide>\n  );\n}\n`);
+  const r = run(dir, "use", "pitch", "kit", "--remove");
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /no longer uses kit/);
+  assert.match(r.stdout, /design\/pitch\/slides\/02-kit\.tsx/);
+  assert.equal(JSON.parse(readFileSync(join(dir, "design/pitch/project.json"), "utf8")).dependencies, undefined);
 });

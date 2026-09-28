@@ -16,7 +16,7 @@ import { dependencyDir, DESIGN_DIR, GENERATED_DIR, TYPES_DIR, WORKSPACE_MARKER }
 import { DESIGN_DOC, designDocTemplate } from "./design-doc.ts";
 import { sampleDesignDoc, sampleSlides, starterBrandDesignDoc } from "./starter.ts";
 import { markSvg, wordmarkSvg } from "./wordmark.ts";
-import { getProject, scanWorkspace, type Workspace } from "./workspace.ts";
+import { getProject, scanWorkspace, sourceFiles, type Workspace } from "./workspace.ts";
 
 function write(file: string, content: string, overwrite = false) {
   if (!overwrite && existsSync(file)) return false;
@@ -249,7 +249,19 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
   const put = (rel: string, content: string) => {
     if (write(join(root, rel), content)) created.push(rel);
   };
+  const existing = existsSync(join(root, DESIGN_DIR, "brand", "brand.ts"));
   put(WORKSPACE_MARKER, JSON.stringify({ version: 1 }, null, 2) + "\n");
+  const gitignore = join(root, DESIGN_DIR, ".gitignore");
+  if (write(gitignore, `${GENERATED_DIR}/\n`)) created.push(relative(root, gitignore));
+
+  // An existing workspace only gets what it is missing and never the starter again: the fonts,
+  // components and sample deck may have been removed on purpose.
+  if (existing) {
+    created.push(...addMissingDesignDocs(root));
+    writeGenerated(root);
+    return created;
+  }
+
   put(`${DESIGN_DIR}/brand/project.json`, JSON.stringify({ kind: "brand", title: `${opts.name} Brand` }, null, 2) + "\n");
   put(`${DESIGN_DIR}/brand/brand.ts`, brandTemplate(opts.name));
   put(`${DESIGN_DIR}/brand/${DESIGN_DOC}`, starterBrandDesignDoc(opts.name));
@@ -270,8 +282,6 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
       created.push(relative(root, target));
     }
   }
-  const gitignore = join(root, DESIGN_DIR, ".gitignore");
-  if (write(gitignore, `${GENERATED_DIR}/\n`)) created.push(relative(root, gitignore));
   writeGenerated(root);
   if (opts.sample) {
     const ws = scanWorkspace(root);
@@ -288,6 +298,23 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
     }
   }
   return [...new Set(created)];
+}
+
+/**
+ * Workspaces from before design documents existed: every project without a DESIGN.md gets the
+ * unwritten template for its kind. `ided check` then warns until each is written; nothing is
+ * filled in on the project's behalf, least of all the starter brand's text over a real brand.
+ */
+export function addMissingDesignDocs(root: string): string[] {
+  const added: string[] = [];
+  for (const p of scanWorkspace(root).projects) {
+    if (!p.manifest) continue;
+    const file = join(p.dir, DESIGN_DOC);
+    if (existsSync(file)) continue;
+    writeFileSync(file, designDocTemplate(p.kind, p.title));
+    added.push(relative(root, file));
+  }
+  return added;
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +486,23 @@ export function useLibrary(ws: Workspace, projectId: string, library: string): s
     throw new Error(`Not added: ${cycle.message}`);
   }
   return `${projectId} now uses ${library}: import from "@${library}/components/<name>" and "@${library}/assets/<file>"`;
+}
+
+/** Undo `useLibrary`. Returns the project files that still import from the library. */
+export function unuseLibrary(ws: Workspace, projectId: string, library: string): { message: string; stillImporting: string[] } {
+  const p = getProject(ws, projectId);
+  const file = join(p.dir, "project.json");
+  const manifest = JSON.parse(readFileSync(file, "utf8")) as { dependencies?: string[] };
+  const deps = manifest.dependencies ?? [];
+  if (!deps.includes(library)) return { message: `${projectId} does not use ${library}`, stillImporting: [] };
+  const rest = deps.filter((d) => d !== library);
+  if (rest.length) manifest.dependencies = rest;
+  else delete manifest.dependencies;
+  writeFileSync(file, JSON.stringify(manifest, null, 2) + "\n");
+  const stillImporting = sourceFiles(p)
+    .filter((f) => new RegExp(`from\\s+["']@${library}/`).test(readFileSync(f, "utf8")))
+    .map((f) => relative(ws.root, f));
+  return { message: `${projectId} no longer uses ${library}`, stillImporting };
 }
 
 export function describeKinds(): string {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { FAKE_HOME, run, runWith, workspace } from "./helpers.ts";
@@ -67,4 +67,50 @@ test("init adds one ided section to AGENTS.md, keeps the rest, and can skip it",
 
   const bare = workspace("--bare", "--no-agents-md");
   assert.ok(!existsSync(join(bare, "AGENTS.md")));
+});
+
+test("a skill renamed since 0.1 is cleaned up; other skills are untouched", { timeout: 60_000 }, () => {
+  mkdirSync(claude, { recursive: true });
+  rmSync(join(claude, "ided-compose"), { force: true });
+  rmSync(join(claude, "someone-elses"), { force: true });
+  symlinkSync("/opt/homebrew/opt/ided/libexec/lib/node_modules/ided/skills/ided-compose", join(claude, "ided-compose"), "dir");
+  symlinkSync("../../.agents/skills/someone-elses", join(claude, "someone-elses"), "dir");
+  assert.equal(runWith(env, FAKE_HOME, "browser", "status").status, 0);
+  assert.ok(!lstatSync(join(claude, "ided-compose"), { throwIfNoEntry: false }), "retired skill link removed");
+  assert.ok(lstatSync(join(claude, "someone-elses"), { throwIfNoEntry: false }), "other skills untouched");
+});
+
+test("setup --remove undoes setup and leaves everything else alone", { timeout: 120_000 }, () => {
+  runWith(env, FAKE_HOME, "setup");
+  const toml = join(FAKE_HOME, ".codex", "config.toml");
+  writeFileSync(toml, `[model]\nname = "x"\n\n${readFileSync(toml, "utf8")}`);
+  const r = runWith(env, FAKE_HOME, "setup", "--remove");
+  assert.equal(r.status, 0, r.stderr);
+  for (const n of ["ided", "ided-brand", "ided-design"]) {
+    assert.ok(!existsSync(join(shared, n)), `${n} removed from ~/.agents/skills`);
+    assert.ok(!lstatSync(join(claude, n), { throwIfNoEntry: false }), `${n} link removed from ~/.claude/skills`);
+  }
+  const config = readFileSync(toml, "utf8");
+  assert.ok(!/mcp_servers\.ided/.test(config));
+  assert.match(config, /\[model\]\nname = "x"/);
+});
+
+test("setup --project --remove takes out only what ided added", { timeout: 60_000 }, () => {
+  const dir = workspace("--bare");
+  const agentsMd = join(dir, "AGENTS.md");
+  writeFileSync(agentsMd, readFileSync(agentsMd, "utf8") + "\n## Tests\n\nRun npm test.\n");
+  writeFileSync(join(dir, ".mcp.json"), JSON.stringify({ mcpServers: { other: { command: "x" } } }));
+  run(dir, "setup", "--project");
+  const r = run(dir, "setup", "--project", "--remove");
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(!existsSync(join(dir, ".agents")) && !existsSync(join(dir, ".claude")));
+  const text = readFileSync(agentsMd, "utf8");
+  assert.ok(!text.includes("ided:start"));
+  assert.match(text, /## Tests/);
+  assert.deepEqual(JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")), { mcpServers: { other: { command: "x" } } });
+
+  // A repository whose AGENTS.md only ever held ided's section loses the file entirely.
+  const plain = workspace("--bare");
+  run(plain, "setup", "--project", "--remove");
+  assert.ok(!existsSync(join(plain, "AGENTS.md")));
 });

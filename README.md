@@ -69,7 +69,8 @@ brew install trevin-lee/tap/ided   # pulls in Node; nothing is installed per rep
 ided setup                         # skills + MCP server for Claude Code and Codex
 ```
 
-Upgrade with `brew upgrade`. Everything ided writes outside its own install survives upgrades:
+Upgrade with `brew upgrade`. Before `brew uninstall ided`, run `ided setup --remove` to take the
+skills and MCP server out of your agents. Everything ided writes outside its own install survives upgrades:
 the workspace's editor types point at Homebrew's version-independent path, Claude Code's skills
 are links to the installed copy, and Codex's skill copies refresh themselves on the next `ided`
 command. The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents
@@ -116,6 +117,9 @@ The viewer listens on `127.0.0.1` only and has no authentication. It refuses req
 to any other host name (DNS rebinding) and cross-origin writes, and it serves only `design/` and
 its own files, never the rest of the repository. `--host 0.0.0.0` exposes it to your network and
 prints a warning: use that only on a network you trust.
+
+Coming from ided 0.1? Run `ided init` once in each workspace: it adds a `DESIGN.md` template to
+every project that lacks one (0.1 had none) and changes nothing else.
 
 ## Workspace shape
 
@@ -182,7 +186,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided new <kind> <name> [--title] [--page\|--size\|--viewport]` | create a project |
 | `ided new library <name>` | create a library of shared components and assets |
 | `ided add <project> <name>` | add the next numbered frame (or a component, in a library or the brand) |
-| `ided use <project> <library>` | declare a dependency on a library |
+| `ided use <project> <library> [--remove]` | declare (or drop) a dependency on a library |
 | `ided list [--json]` | projects and frames |
 | `ided check [project] [--json] [--no-render]` | verify everything; exit 1 on errors |
 | `ided brand [--json]` | every token in the brand |
@@ -194,7 +198,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided browser [install]` | show or download the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` | review loop |
 | `ided mcp` | MCP server on stdio |
-| `ided setup [--project] [--no-mcp]` | install the skills for every agent (user-wide or in this repository) and register the MCP server |
+| `ided setup [--project] [--no-mcp] [--remove]` | install the skills for every agent (user-wide or in this repository) and register the MCP server; `--remove` undoes it |
 | `ided ci` | write a GitHub Actions workflow that publishes the brand kit |
 
 ## Agents
@@ -258,13 +262,13 @@ and the brand kit includes the brand's.
 The skills have agents write the brief, message, concept and hierarchy before any frame, since
 those decide the frames, and finish the critique last.
 
-## Brand data
+## Brand facts
 
 Names, links, contact details, locations, social handles and abbreviations live in the brand's
-`data`, next to the tokens, and artifacts use them the same way: by name.
+`facts`, next to the tokens, and artifacts use them the same way: by name.
 
 ```ts
-data: {
+facts: {
   names: { full: "Kiln & Copper", legal: "Kiln and Copper LLC" },
   links: { website: "https://kilnandcopper.com", signup: "https://kilnandcopper.com/classes" },
   contact: { email: "hello@kilnandcopper.com", phone: "+1 828 555 0142" },
@@ -280,7 +284,7 @@ data: {
 A URL, email address, phone number or domain typed into an artifact fails `ided check` with a
 pointer to the fact to use, so contact details are written once, stay current everywhere, and
 cannot be made up by an agent. `ided brand` lists every fact, the viewer's brand page shows them,
-and the brand kit exports them as `data.json`.
+and the brand kit exports them as `facts.json`.
 
 ## Brand kit
 
@@ -294,7 +298,7 @@ acme-brand-kit/
   tokens/tailwind.css    # Tailwind v4 @theme that replaces the default palette and scales
   tokens/tokens.json     # Design Tokens Community Group format
   tokens/brand.ts        # typed constant
-  data.json              # names, links, contact, locations, social, abbreviations
+  facts.json             # names, links, contact, locations, social, abbreviations
   fonts/                 # font files + licenses
   manifest.json, README.md
 ```
@@ -375,4 +379,9 @@ your files at run time.
   PNGs differ slightly between them. Treat CI's Linux exports as canonical if that matters.
 - macOS and Linux only; Windows paths are untested.
 - The starter fonts are the Latin subsets of Inter and JetBrains Mono. Other scripts fall back to system fonts until you add font files.
-- The Codex skills location (`~/.codex/skills`) follows current Codex conventions and may change.
+- Color cannot run to the frame's edge: every frame keeps the brand margin, so a color field
+  covering part of a slide or page stops at the margin. A frame's own `surface` fills it edge to
+  edge.
+- SVG images are shown as they are, so an illustration's own colors are not checked against the
+  brand. Prefer diagrams built from primitives; if an SVG is needed, use only the brand's color
+  values inside it.

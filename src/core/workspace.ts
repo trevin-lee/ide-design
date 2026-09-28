@@ -201,7 +201,7 @@ function scanProject(root: string, designDir: string, id: string): Project {
 
   const docPath = join(dir, DESIGN_DOC);
   if (!existsSync(docPath)) {
-    err(docPath, "design-doc", `Missing ${DESIGN_DOC}.`, `Every project explains its design: who it is for, the message, the concept and the reasoning. \`ided new\` scaffolds one; write it before the frames.`);
+    err(docPath, "design-doc", `Missing ${DESIGN_DOC}.`, `Every project explains its design: who it is for, the message, the concept and the reasoning. Run \`ided init\` to add the template to every project that lacks one (workspaces from ided 0.1), then write it.`);
   } else {
     const status = checkDesignDoc(manifest.kind, readFileSync(docPath, "utf8"));
     if (status.missing.length) {

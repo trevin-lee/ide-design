@@ -36,6 +36,9 @@ class Ided < Formula
       PDF and PNG export use a pinned Chromium, downloaded on the first
       export (about 100 MB), or now with:
         ided browser install
+
+      Before uninstalling, remove the skills and MCP server from your agents:
+        ided setup --remove
     EOS
   end
 

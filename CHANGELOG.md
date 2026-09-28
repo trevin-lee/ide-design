@@ -2,15 +2,21 @@
 
 ## Unreleased
 
+- Re-running `ided init` in an existing workspace only adds what is missing: the `DESIGN.md`
+  template for projects without one (the upgrade path from 0.1), never the starter fonts,
+  components or sample deck again.
+- `ided setup --remove` (and `--project --remove`) undoes setup; `ided use --remove` drops a
+  library dependency and lists files still importing it. Skills renamed since 0.1 (`ided-compose`)
+  are removed wherever setup put them.
 - Agent-agnostic setup. `ided setup` installs the skills with the standard Agent Skills installer
   (pinned, telemetry off) into `~/.agents/skills`, which Codex, Cursor, Copilot, Gemini CLI and
   most others read, linking agents with their own folder such as Claude Code. `ided setup
   --project` commits them to the repository (`.agents/skills`, `.claude/skills` links, `.mcp.json`),
   and `ided init` adds an ided section to `AGENTS.md`.
-- Brand data: `data` in brand.ts holds names, links, contact details, locations, social handles and
-  abbreviations; artifacts show them with `<Fact name="links.website" />`, and a URL, email, phone
-  number or domain typed into an artifact fails `ided check`. Listed by `ided brand`, shown on the
-  brand page, exported in the brand kit as `data.json`.
+- Brand facts: `facts` in brand.ts holds names, links, contact details, locations, social handles
+  and abbreviations; artifacts show them with `<Fact name="links.website" />`, and a URL, email,
+  phone number or domain typed into an artifact fails `ided check`. Listed by `ided brand`, shown on
+  the brand page, exported in the brand kit as `facts.json`.
 - Every project has a `DESIGN.md` design document (brief, message, concept, hierarchy,
   decisions, alternatives, critique; a brand and a library variant). `ided new` scaffolds it,
   `ided check` requires it and warns until it is written, the viewer shows it in a Design tab,
