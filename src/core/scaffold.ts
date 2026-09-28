@@ -12,7 +12,7 @@ import {
   type FrameKind,
   type ProjectManifest,
 } from "../shared/formats.ts";
-import { DESIGN_DIR, GENERATED_DIR, pkgPath, TYPES_DIR, WORKSPACE_MARKER } from "./paths.ts";
+import { dependencyDir, DESIGN_DIR, GENERATED_DIR, TYPES_DIR, WORKSPACE_MARKER } from "./paths.ts";
 import { markSvg, wordmarkSvg } from "./wordmark.ts";
 import { getProject, scanWorkspace, type Workspace } from "./workspace.ts";
 
@@ -243,15 +243,15 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
   put(`${DESIGN_DIR}/brand/components/corner-mark.tsx`, CORNER_MARK);
   put(`${DESIGN_DIR}/brand/components/footer.tsx`, FOOTER);
   const fonts = [
-    ["@fontsource-variable/inter/files/inter-latin-wght-normal.woff2", "inter.woff2", "@fontsource-variable/inter/LICENSE", "inter-license.txt"],
-    ["@fontsource-variable/jetbrains-mono/files/jetbrains-mono-latin-wght-normal.woff2", "jetbrains-mono.woff2", "@fontsource-variable/jetbrains-mono/LICENSE", "jetbrains-mono-license.txt"],
+    ["@fontsource-variable/inter", "files/inter-latin-wght-normal.woff2", "inter.woff2", "inter-license.txt"],
+    ["@fontsource-variable/jetbrains-mono", "files/jetbrains-mono-latin-wght-normal.woff2", "jetbrains-mono.woff2", "jetbrains-mono-license.txt"],
   ] as const;
-  for (const [src, dest, lic, licDest] of fonts) {
+  for (const [pkg, src, dest, licDest] of fonts) {
     const target = join(root, DESIGN_DIR, "brand/assets/fonts", dest);
     if (!existsSync(target)) {
       mkdirSync(dirname(target), { recursive: true });
-      copyFileSync(pkgPath("node_modules", src), target);
-      copyFileSync(pkgPath("node_modules", lic), join(dirname(target), licDest));
+      copyFileSync(join(dependencyDir(pkg), src), target);
+      copyFileSync(join(dependencyDir(pkg), "LICENSE"), join(dirname(target), licDest));
       created.push(relative(root, target));
     }
   }

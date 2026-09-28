@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -34,3 +35,13 @@ export const TYPES_DIR = pkgPath("dist", "types");
 export const WORKSPACE_MARKER = "ided.json";
 export const DESIGN_DIR = "design";
 export const GENERATED_DIR = ".ided";
+
+const requireFromPackage = createRequire(join(PKG_ROOT, "package.json"));
+
+/**
+ * Directory of an installed dependency. Resolved the way Node does, because
+ * npm may nest dependencies (global installs) or hoist them (npx, workspaces).
+ */
+export function dependencyDir(name: string): string {
+  return dirname(requireFromPackage.resolve(`${name}/package.json`));
+}
