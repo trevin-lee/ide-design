@@ -70,8 +70,9 @@ jobs:
         id: pack
         run: |
           tarball=$(npm pack --silent)
-          mv "$tarball" "ided-${{ steps.meta.outputs.version }}.tgz"
-          cp "ided-${{ steps.meta.outputs.version }}.tgz" ided.tgz
+          versioned="ided-${{ steps.meta.outputs.version }}.tgz"
+          [ "$tarball" = "$versioned" ] || mv "$tarball" "$versioned"
+          cp "$versioned" ided.tgz
           echo "sha256=$(sha256sum ided.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
