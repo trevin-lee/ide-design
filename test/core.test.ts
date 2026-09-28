@@ -89,3 +89,9 @@ test("lockup geometry is relative to the wordmark height", () => {
   assert.match(svg, /height="64"/);
   assert.match(svg, /fill="#111"/);
 });
+
+test("logo titles escape markup characters instead of dropping them", () => {
+  const mark = parseSvg('<svg viewBox="0 0 10 10"></svg>');
+  const svg = renderLogoSvg(layoutLogo("mark", mark, mark, {}, { mark: "#000", wordmark: "#000" }), 32, { title: "Kiln & Copper <Studio>" });
+  assert.match(svg, /<title>Kiln &amp; Copper &lt;Studio&gt;<\/title>/);
+});

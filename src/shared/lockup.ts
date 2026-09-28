@@ -106,6 +106,8 @@ export function layoutLogo(
 
 const r = (n: number) => Math.round(n * 1e4) / 1e4;
 
+const escapeXml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
 /** Serialize a layout at a given pixel height, with colors baked in. */
 export function renderLogoSvg(layout: LogoLayout, heightPx?: number, opts: { title?: string } = {}): string {
   const scale = 100; // internal coordinate precision
@@ -118,7 +120,7 @@ export function renderLogoSvg(layout: LogoLayout, heightPx?: number, opts: { tit
       return `<svg x="${r(p.x * scale)}" y="${r(p.y * scale)}" width="${r(p.w * scale)}" height="${r(p.h * scale)}" viewBox="${p.svg.x} ${p.svg.y} ${p.svg.width} ${p.svg.height}" color="${p.color}" fill="${p.color}">${inner}</svg>`;
     })
     .join("");
-  const title = opts.title ? `<title>${opts.title.replace(/[<&]/g, "")}</title>` : "";
+  const title = opts.title ? `<title>${escapeXml(opts.title)}</title>` : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}"${size}>${title}${parts}</svg>`;
 }
 
