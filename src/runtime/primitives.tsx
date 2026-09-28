@@ -3,6 +3,7 @@
 // with token props. Each primitive validates its own props while rendering,
 // so the same checks run in the browser, in export, and in `ided check`.
 
+import katex from "katex";
 import { Children, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
 import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
@@ -624,7 +625,7 @@ export interface TextProps {
   /** Defaults to the current surface's foreground. */
   color?: ColorToken;
   align?: "start" | "center" | "end";
-  /** Strings, numbers, <Em>, <Fact> and <FrameNumber> only. */
+  /** Strings, numbers, <Em>, <Fact>, <Equation> and <FrameNumber> only. */
   children?: ReactNode;
 }
 
@@ -632,10 +633,10 @@ function checkTextChildren(children: ReactNode, report: Reporter) {
   Children.forEach(children, (c) => {
     if (c === null || c === undefined || typeof c === "boolean" || typeof c === "string" || typeof c === "number") return;
     if (isValidElement(c)) {
-      if (c.type === Em || c.type === FrameNumber || c.type === Fact) return;
+      if (c.type === Em || c.type === FrameNumber || c.type === Fact || c.type === Equation) return;
       if (c.type === Fragment) return checkTextChildren((c.props as { children?: ReactNode }).children, report);
     }
-    report("text-children", "may only contain text, <Em>, <Fact> and <FrameNumber>.", "Put layout outside the Text: <Stack><Text/><Text/></Stack>.");
+    report("text-children", "may only contain text, <Em>, <Fact>, <Equation> and <FrameNumber>.", "Put layout outside the Text: <Stack><Text/><Text/></Stack>.");
   });
 }
 
@@ -684,7 +685,7 @@ export function Text(props: TextProps) {
   };
   return (
     <p {...dom} style={style}>
-      <TextContext.Provider value={{ emphasisWeight: m?.emphasisWeight ?? 700 }}>
+      <TextContext.Provider value={{ emphasisWeight: m?.emphasisWeight ?? 700, size: m?.size ?? 16, weight: m?.weight ?? 400 }}>
         <LayoutContext.Provider value={{ ...layout, inText: true, box: null, root: null }}>{props.children}</LayoutContext.Provider>
       </TextContext.Provider>
     </p>
@@ -699,11 +700,19 @@ export interface EmProps {
 /** Emphasis inside <Text>: the type style's emphasis weight, optionally a brand color. */
 export function Em(props: EmProps) {
   const { report, dom } = usePrimitive("Em", props, ["color"]);
-  const { token } = useTokens();
+  const { brand, token } = useTokens();
   const text = useContext(TextContext);
   if (!text) report("misplaced", "only works inside <Text>.");
   checkTextChildren(props.children, report);
   const color = token("color", props.color, "color", report);
+  const surface = useContext(SurfaceContext);
+  const surfaceDef = surface ? brand.color[surface] : undefined;
+  const hex = color ? colorValue(brand, color) : undefined;
+  if (hex && text && isSurface(surfaceDef)) {
+    const ratio = contrast(hex, surfaceDef.value);
+    const need = requiredContrast(text.size, text.emphasisWeight);
+    if (ratio < need) report("contrast", `"${color}" on "${surface}" is ${ratio.toFixed(2)}:1; this text needs ${need}:1.`, "Emphasize with weight alone, or pick a color token that reads on this surface.");
+  }
   return (
     <span {...dom} style={{ fontWeight: text?.emphasisWeight, color: color ? `var(${cssVar.color(color)})` : undefined }}>
       {props.children}
@@ -760,6 +769,61 @@ export function Fact(props: FactProps) {
     return null;
   }
   return <span {...dom}>{value}</span>;
+}
+
+export interface EquationProps {
+  /** TeX math: "E = mc^2", "\\frac{a}{b}". Brand colors as \\textcolor{accent}{…}. */
+  tex: string;
+  /** Display style (full-size fractions, limits above and below) on its own line. Inline by default. */
+  display?: boolean;
+}
+
+// Size, spacing, boxes and links set by hand inside TeX; the surrounding Text decides these.
+const TEX_FORBIDDEN = new Set(
+  "tiny scriptsize footnotesize small normalsize large Large LARGE huge Huge rule kern mkern mskip hskip hspace colorbox fcolorbox href url includegraphics htmlClass htmlId htmlStyle htmlData".split(" "),
+);
+
+/** Math set from TeX, inside <Text>: the Text gives it its size, color and alignment. */
+export function Equation(props: EquationProps) {
+  const { report, dom } = usePrimitive("Equation", props, ["tex", "display"], ["tex"]);
+  const { brand } = useTokens();
+  const text = useContext(TextContext);
+  const surface = useContext(SurfaceContext);
+  if (!text) report("misplaced", "only works inside <Text>.", 'Put it in a Text, which sets its size and color: <Text type="body"><Equation tex="…" /></Text>.');
+  if (typeof props.tex !== "string" || !props.tex.trim()) {
+    report("invalid-value", "`tex` is TeX math as a string.");
+    return null;
+  }
+  for (const [, cmd] of props.tex.matchAll(/\\([a-zA-Z]+)/g)) {
+    if (TEX_FORBIDDEN.has(cmd!)) {
+      report("equation", `uses \\${cmd}, which sets size, spacing, boxes or links by hand.`, "The Text around the Equation sets its size; use a different type style, or split the Text.");
+    }
+  }
+  // Colors are brand tokens, as everywhere: \textcolor{accent}{x} becomes the accent's value.
+  const surfaceDef = surface ? brand.color[surface] : undefined;
+  const tex = props.tex.replace(/\\(color|textcolor)\s*\{([^}]*)\}/g, (_, cmd: string, name: string) => {
+    const token = name.trim();
+    const hex = colorValue(brand, token);
+    if (!hex) {
+      report("invalid-token", `\`\\${cmd}{${token}}\` is not a brand color.`, `Use a color token: ${Object.keys(brand.color).join(", ")}.`);
+      return `\\${cmd}{inherit}`;
+    }
+    if (text && isSurface(surfaceDef)) {
+      const ratio = contrast(hex, surfaceDef.value);
+      const need = requiredContrast(text.size, text.weight);
+      if (ratio < need) report("contrast", `"${token}" on "${surface}" is ${ratio.toFixed(2)}:1; this text needs ${need}:1.`);
+    }
+    return `\\${cmd}{${hex}}`;
+  });
+  let html: string;
+  try {
+    html = katex.renderToString(tex, { displayMode: props.display === true, throwOnError: true, strict: "ignore", trust: false, output: "htmlAndMathml" });
+  } catch (e) {
+    const message = e instanceof katex.ParseError ? e.rawMessage : (e as Error).message;
+    report("equation", `TeX does not parse: ${message}.`, "Check the TeX; in a JSX string attribute a backslash is written once: tex=\"\\frac{a}{b}\".");
+    return <span {...dom}>{props.tex}</span>;
+  }
+  return <span {...dom} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 export interface ListProps {

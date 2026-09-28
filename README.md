@@ -41,8 +41,9 @@ ided makes those mistakes unrepresentable:
 
 - **Every value is a token.** Colors, spacing, radii, type styles, logo sizes and margins come from
   one file, `design/brand/brand.ts`. Artifacts contain only token names, typed as closed unions.
-- **One way to do each thing.** 16 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
-  style. Chrome is `Place` with an anchor and an inset. There are no alternatives to choose between.
+- **One way to do each thing.** 18 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
+  style. Math is TeX in an `<Equation>`. Chrome is `Place` with an anchor and an inset. There are
+  no alternatives to choose between.
 - **Parametric by construction.** Fractional widths subtract the parent's gap, so columns meet
   exactly. `radius="concentric"` computes an inner corner from its parent's radius and padding. Line
   heights snap to the base grid. Surfaces carry their own text and logo colors, so contrast is

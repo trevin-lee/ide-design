@@ -5,7 +5,7 @@ description: Create and edit design artifacts (slide decks, documents, social gr
 
 # ided: design as code
 
-In an ided workspace every artifact is a pure React function built from 16 primitives, and
+In an ided workspace every artifact is a pure React function built from 18 primitives, and
 every value (color, space, radius, type, logo) is a named token from `design/brand/brand.ts`.
 There is one way to do each thing, and `ided check` rejects anything else. That is the point:
 the output is consistent because nothing can drift from the brand.

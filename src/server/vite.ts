@@ -151,7 +151,7 @@ export async function createIdedVite(input: IdedViteOptions): Promise<ViteDevSer
     },
     optimizeDeps: {
       entries: [join(APP_DIR, "main.tsx")],
-      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime"],
+      include: ["react", "react-dom", "react-dom/client", "react/jsx-runtime", "react/jsx-dev-runtime", "katex"],
     },
   });
 }

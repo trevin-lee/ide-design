@@ -1,6 +1,7 @@
 // Internal: hosts artifacts inside the viewer, the exporter and the checker.
 // Not part of the public `ided` module.
 
+import "katex/dist/katex.css";
 import { Component, useEffect, useMemo, type ErrorInfo, type ReactNode } from "react";
 import type { BrandInput } from "../shared/brand-schema.ts";
 import type { FrameGeometry, FrameKind } from "../shared/formats.ts";
@@ -15,6 +16,9 @@ export const FRAME_CSS = `
 .ided-root { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: geometricPrecision; }
 .ided-root p { margin: 0; }
 .ided-root svg { display: block; }
+.ided-root .katex { letter-spacing: normal; text-transform: none; }
+.ided-root .katex-display { margin: 0; }
+.ided-root .katex-display > .katex { text-align: inherit; }
 `;
 
 export function BrandProvider(props: BrandEnv & { children: ReactNode }) {

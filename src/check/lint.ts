@@ -188,7 +188,9 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
     }
     // Contact details typed by hand. They come from the brand's facts through <Fact>, so they
     // are written once, stay current everywhere, and cannot be invented.
-    if (role !== "brand" && (ts.isJsxText(node) || ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent)))) {
+    // (TeX is exempt: long numbers in an equation are not phone numbers.)
+    const isTex = !!node.parent && ts.isJsxAttribute(node.parent) && node.parent.name.getText(sf) === "tex";
+    if (role !== "brand" && !isTex && (ts.isJsxText(node) || ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent)))) {
       const found = rawFact(node.text);
       if (found) {
         report(

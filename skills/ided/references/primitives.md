@@ -153,11 +153,11 @@ Pins one child to an anchor of the enclosing `Box` or frame, outside the flow. U
 - `inset` **required** space | `"margin"` (the frame's content edge) | `"none"`
 
 ### `Text`
-All copy. Children: strings, numbers, `<Em>`, `<FrameNumber>`.
+All copy. Children: strings, numbers, `<Em>`, `<Fact>`, `<Equation>`, `<FrameNumber>`.
 - `type` **required** type token, `color?` color token (default: the surface's text color), `align?` `"start" | "center" | "end"`
 
 ### `Em`
-Emphasis inside `Text`: the style's emphasis weight. `color?` color token.
+Emphasis inside `Text`: the style's emphasis weight. `color?` color token (checked for contrast at the Text's size).
 
 ### `FrameNumber`
 Current slide/page number inside `Text`. `format?` `"n"` (3) | `"nn"` (03) | `"n/total"` (3 / 12).
@@ -172,6 +172,23 @@ handles, abbreviations. Links, emails, phone numbers and domains typed by hand f
 
 ```tsx
 <Text type="body">Sign up at <Fact name="links.signup" /> or call <Fact name="contact.phone" />.</Text>
+```
+
+### `Equation`
+Math set from TeX (KaTeX), inside `Text`. The Text gives it size, color and alignment; there is
+no other way to size an equation. Inline by default; `display` sets it on its own line with
+full-size fractions and limits above and below (make it the Text's only child).
+- `tex` **required** TeX math. In a JSX string attribute a backslash is written once:
+  `tex="\frac{a}{b}"`
+- `display?` boolean
+- Color parts with brand tokens: `\textcolor{accent}{x}` or `\color{accent}`. Size, spacing,
+  boxes and links (`\Huge`, `\hspace`, `\kern`, `\rule`, `\colorbox`, `\href`…) are rejected.
+
+```tsx
+<Text type="body">The area is <Equation tex="\pi r^2" />.</Text>
+<Text type="title" align="center">
+  <Equation display tex="\sum_{n=1}^{\infty} \frac{1}{n^2} = \textcolor{accent}{\frac{\pi^2}{6}}" />
+</Text>
 ```
 
 ### `List`
@@ -233,6 +250,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
+| `equation` | TeX that does not parse, or a command that sets size, spacing, boxes or links | fix the TeX; size comes from the Text's type style |
 | `svg-colors` | an SVG asset uses a color that is not in the brand (error) or one ided cannot read, like `hsl()` (warning) | recolor it with the brand hex values the message suggests; add a color to brand.ts only if the brand truly needs it |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
 | `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `facts` in brand.ts or ask, never invent one |

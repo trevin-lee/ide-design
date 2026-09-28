@@ -8,6 +8,10 @@
 - **Full bleed.** `<Box bleed="top">` (or `"x"`, `"all"`, a list…) runs a color band, split or
   image past the frame margin to the edge while its content stays on the margin. `ided check`
   rejects a bleed toward an edge the Box cannot touch.
+- **Equations.** `<Equation tex="…" />` sets TeX math inside a `Text` (KaTeX, with its fonts
+  bundled, so exports match everywhere), inline or `display`. The Text sets its size, color and
+  alignment; parts can be colored with brand tokens (`\textcolor{accent}{…}`), and TeX that
+  sizes, spaces or links by hand is rejected. `Em` colors are now checked for contrast too.
 - **SVG colors follow the brand.** `ided check` and the viewer flag any SVG asset that uses a color
   outside the brand palette (alpha on a brand color is fine), naming the nearest brand color.
 

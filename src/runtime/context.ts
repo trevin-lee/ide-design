@@ -58,7 +58,13 @@ export const FrameContext = createContext<FrameEnv | null>(null);
 export const SinkContext = createContext<ViolationSink>({ report() {} });
 export const SurfaceContext = createContext<string | null>(null);
 export const LayoutContext = createContext<LayoutEnv>({ axis: "column", gap: "0px", inText: false, box: null, root: null });
-export const TextContext = createContext<{ emphasisWeight: number } | null>(null);
+export interface TextEnv {
+  emphasisWeight: number;
+  /** Size and weight of the Text's type style, for contrast checks inside it. */
+  size: number;
+  weight: number;
+}
+export const TextContext = createContext<TextEnv | null>(null);
 
 export function useBrandEnv(): BrandEnv {
   const env = useContext(BrandContext);

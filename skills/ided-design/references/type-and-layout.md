@@ -71,6 +71,10 @@ when the concept needs it and say so in DESIGN.md.
 - **Charts: remove the ink that is not data.** No gridlines, borders or legends that the labels
   can replace. Label directly.
 - **Numbering only for real sequences.** "01 / 02 / 03" on things that are not steps is chrome.
+- **Equations are type.** Set math with `<Equation>` inside a `Text`, never as an image. A key
+  equation gets a Text of its own in `display` style, sized like any focal element; inline math
+  stays in the sentence's style. To point at one term, color that term
+  (`\textcolor{accent}{…}`), not the whole equation.
 
 ## Consistency across frames
 
