@@ -82,7 +82,15 @@ honestly, and run `ided check` until clean.
 - **One focal point per frame**, much larger or more contrasted than everything else, with the
   rest deliberately quiet.
 - **Boldness spent in one place.** One loud move (a huge number, a full-bleed dark frame, type as
-  image), everything around it disciplined. Uniform emphasis reads as a template.
+  image), everything around it disciplined. Uniform emphasis reads as a template. The loud move
+  has to actually be loud: sized to the frame, not to the paragraph next to it.
+- **Space that is designed, not left over.** Restraint means few elements, not small ones. A frame
+  with a modest headline at the top and nothing below it is not minimal, it is unfinished. Size
+  the focal element to its frame, anchor the composition to more than one edge, and make every
+  large empty area a decision you could defend in Decisions.
+- **Restraint is not safety.** If your plan overrides the roll toward quieter options twice
+  (smaller scale, less color, sparser), stop and check you are not retreating to the timid
+  middle. Quiet work still needs one thing that is unmistakably the point.
 - **Structure that carries information.** Numbering only for real sequences, boxes only for real
   groups, a divider only where a boundary means something.
 - **Specific over clever.** Specific nouns, real numbers, the audience's own words. A headline
@@ -108,8 +116,25 @@ propose a token in `brand.ts` and tell the user; brand values are the client's c
 The scaffold `ided new` writes is a placeholder with a recognizable look. Replace it; do not
 decorate it.
 
+**The brand is the client's.** Design within `brand.ts` as it is unless the request is about the
+brand. Do not change its colors, fonts or mark, and do not invent an identity, because a design
+task was asked for, not a rebrand. If the brand is still ided's starter placeholder (its DESIGN.md
+says so), design within it anyway and say plainly in your final message that the logo and
+palette are placeholders the client should replace before publishing. Adding one missing token
+that the work needs (a larger size, say) is fine; name it and why when you report back.
+
+**Images.** Prefer what you can do well: typography, diagrams built from primitives (`Box`,
+`Row`, `Grid`, `Divider` give you bars, strips, tables and fields), and real photographs from
+`assets/`. Hand-drawn SVG illustration is where generated work looks most amateur: shapes that
+read as something else at a glance, wobbly proportions. If a drawing is essential, keep it
+geometric, test it at thumbnail size with a fresh critic, and keep its colors out of the file
+(an SVG with its own hex values bypasses the brand).
+
 ## Time
 
-Spend real effort on steps 2–8: they are cheap to change and decide most of the outcome. If the
-request is tiny (one graphic), the steps are still the same, just shorter: a two-line brief, a
-one-line message, three concepts in three lines.
+Spend real effort on steps 2–8: they are cheap to change and decide most of the outcome.
+
+Scale the process to the request. A single graphic or a small edit gets the same steps in
+miniature: a two-line brief, a one-line message, three concepts in three lines, one roll, one
+build, one critique round (a fresh critic is still worth it; a second round only if its verdict
+is RETHINK). A multi-frame piece or a brand gets the full process, two rounds at most.

@@ -21,7 +21,8 @@ const STRUCTURES = {
 
 const AXES = {
   color: ["restrained", "restrained", "committed", "committed", "drenched"],
-  scale: ["quiet", "strong", "strong", "extreme"],
+  // No "quiet": combined with restraint elsewhere it produced timid, half-empty frames.
+  scale: ["strong", "strong", "extreme"],
   density: ["sparse", "balanced", "balanced", "dense"],
   axis: ["hung-left", "asymmetric-split", "full-bleed", "modular-grid", "single-column", "centered"],
   constraint: [
@@ -68,8 +69,8 @@ console.log(
     `roll for a ${medium} (seed ${JSON.stringify(seed)})`,
     row("structure", roll.structure, "see references/structures.md"),
     row("color", roll.color, "see references/color.md"),
-    row("scale", roll.scale),
-    row("density", roll.density),
+    row("scale", roll.scale, "the focal element's size relative to the frame"),
+    row("density", roll.density, roll.density === "sparse" ? "few elements, each large; not small things in an empty field" : ""),
     row("axis", roll.axis),
     row("constraint", roll.constraint),
     "",

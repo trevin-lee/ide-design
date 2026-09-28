@@ -1,6 +1,6 @@
 ---
 name: ided-brand
-description: Design or change the brand identity and design system of an ided workspace, the way an identity designer would. Covers positioning, the category audit, the brand idea, the mark and wordmark, type, color, spacing and radius scales, lockups and colorways, the brand's DESIGN.md (what the identity means and why), and the exported brand kit. Use when the user asks to set up, rework or "make it ours" for a brand, change brand colors, fonts or spacing, design or import a logo, add a token, fix brand errors from `ided check brand`, or publish the brand kit, including right after `ided init` when the starter brand is still in place.
+description: Design or change the brand identity and design system of an ided workspace, the way an identity designer would. Covers positioning, the category audit, the brand idea, the mark and wordmark, type, color, spacing and radius scales, lockups and colorways, the brand's DESIGN.md (what the identity means and why), and the exported brand kit. Use when the user asks to set up, rework or "make it ours" for a brand, change brand colors, fonts or spacing, design or import a logo, add a token, fix brand errors from `ided check brand`, or publish the brand kit. Brand work happens when it is asked for; a request to design a deck, post or page is not a request to change the brand, even when the starter brand is still in place.
 ---
 
 # ided-brand: the identity and the design system
@@ -41,7 +41,8 @@ thinking for each step goes in the brand's DESIGN.md; see the ided-design skill'
 6. **Applications.** Before calling it done, make one real thing with it (a card, a slide, a
    post) and look at it. Identities are approved in use, not on a white page.
 
-When the user asks to "rework the starter brand", everything above applies: the starter's
+Change the brand only when the user asks for brand work. When they do, for example "rework the
+starter brand" or "make the brand ours", everything above applies: the starter's
 colors, type scale and mark are placeholders, not a foundation to preserve. Keep what survives
 the category audit and the idea; replace the rest, including the mark and DESIGN.md.
 

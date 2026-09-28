@@ -29,7 +29,8 @@ section, no previous scores. A critic that reads your reasoning grades the reaso
 > or not met, not "do I like it". Then list what to KEEP (so it survives the next revision), the
 > three changes that would matter most, and a verdict: SHIP, POLISH (details only), RETHINK
 > STRUCTURE, or RETHINK DIRECTION. When torn between two verdicts, choose the stricter. Do not
-> suggest adding decoration. You tend to favor ruled, editorial, typographic work; notice if
+> suggest adding decoration, but do call out timidity: a focal point too small for its frame, or
+> large empty areas that look unfinished rather than intended. You tend to favor ruled, editorial, typographic work; notice if
 > that is your taste rather than the brief's.
 
 Without subagents, do the same yourself after finishing the build: re-read only the brief and
@@ -58,6 +59,11 @@ Run the ones that apply, and write what they found in the Critique section.
 - **Memory.** What would someone describe an hour later? If the answer is a mood, the concept has
   not committed.
 - **Skeleton.** Imagine the copy replaced with grey bars. Does the hierarchy still read?
+- **Dead zone.** Find the largest empty region of each frame. If it is more than about a third
+  of the frame and Decisions does not say why it is empty, it is leftover space: scale up the
+  focal element, re-anchor the composition to another edge, or move the evidence into it.
+- **Scale.** Is the focal element sized to the frame, or to its neighbors? On a slide or poster,
+  the one thing that matters should be visible from the back of the room at a glance.
 - **Budget.** Count type styles, colors, distinct left edges and spacing values per frame. Over
   budget needs a reason.
 - **Alignment.** Every edge meets another edge or a grid line. Stray edges read as mistakes.

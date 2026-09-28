@@ -17,6 +17,10 @@ when the concept needs it and say so in DESIGN.md.
   an element is the most expensive emphasis a layout has, and the most effective.
 - **Avoid the timid middle.** Medium size, medium spacing and mid-grey everywhere is what
   undecided work looks like. Commit to contrast of scale and generous space.
+- **Size to the frame.** The focal element's size is set by the frame, not by the text around it.
+  A slide's one-sentence answer can often be `display`; a key figure on a poster can fill half
+  the width. If the largest thing on a slide is under about a tenth of the slide's height, check
+  it is not too small for the room.
 
 ## Space
 
