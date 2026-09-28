@@ -94,6 +94,17 @@ test("exports render with the pinned Chromium, not whatever is installed", { ski
   assert.equal(browser.version(), status.version);
 });
 
+test("a project created a moment ago exports from a running server", { skip, timeout: 120_000 }, async () => {
+  // Regression: the server used to learn about new projects only from its file watcher.
+  const { exportProject } = await import("../src/export/artifacts.ts");
+  const { getProject, scanWorkspace } = await import("../src/core/workspace.ts");
+  for (let i = 0; i < 8; i++) {
+    assert.equal(run(dir, "new", "graphic", `fresh-${i}`).status, 0);
+    const [png] = await exportProject({ baseUrl: server.url, project: getProject(scanWorkspace(dir), `fresh-${i}`), format: "png", scale: 0.25, browser });
+    assert.ok(png!.data.length > 0);
+  }
+});
+
 test("PNG export renders at the requested density", { skip, timeout: 60_000 }, async () => {
   const { exportProject } = await import("../src/export/artifacts.ts");
   const { getProject, scanWorkspace } = await import("../src/core/workspace.ts");

@@ -52,7 +52,6 @@ function writeIfChanged(file: string, content: string) {
 export function writeGenerated(root: string) {
   const gen = join(root, DESIGN_DIR, GENERATED_DIR);
   const ws = scanWorkspace(root);
-  const packagePaths = Object.fromEntries(ws.projects.map((p) => [`@${p.id}/*`, [`../${p.id}/*`]]));
   mkdirSync(gen, { recursive: true });
   const types = (p: string) => join(TYPES_DIR, p);
   const tsconfig = {
@@ -76,7 +75,9 @@ export function writeGenerated(root: string) {
         ided: [types("runtime/index.d.ts")],
         "ided/jsx-runtime": [types("runtime/jsx-runtime.d.ts")],
         "ided/jsx-dev-runtime": [types("runtime/jsx-dev-runtime.d.ts")],
-        ...packagePaths,
+        // One mapping for every package, so adding a project does not change this file:
+        // Vite reloads every open page, exports included, when a tsconfig changes.
+        "@*": ["../*"],
       },
     },
     include: ["../**/*.ts", "../**/*.tsx", "./register.d.ts", "./assets.d.ts"],

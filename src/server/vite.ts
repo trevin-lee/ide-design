@@ -84,6 +84,16 @@ function idedPlugin(root: string, onWorkspaceChange: (ws: Workspace, kind: "stru
     },
     configureServer(s) {
       server = s;
+      // Every page load gets the workspace as it is now. The file watcher alone
+      // lags behind a project created a moment earlier (an agent's `new` then
+      // `screenshot`), and the page would report that the project does not exist.
+      s.middlewares.use((req, _res, next) => {
+        if (req.url?.includes("virtual:ided/workspace")) {
+          const mod = s.moduleGraph.getModuleById(RESOLVED_VIRTUAL_ID);
+          if (mod) s.moduleGraph.invalidateModule(mod);
+        }
+        next();
+      });
       s.watcher.add(designDir);
       const onFs = (event: string) => (path: string) => {
         if (!path.startsWith(designDir) || path.startsWith(generated)) return;

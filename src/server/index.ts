@@ -59,7 +59,8 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
     hmrServer: http,
     onWorkspaceChange: (_ws, kind) => {
       if (kind === "comments") vite.ws.send({ type: "custom", event: "ided:comments", data: {} });
-      else vite.ws.send({ type: "full-reload" });
+      // Not Vite's "full-reload": that would also reload export pages mid-render. The viewer reloads itself.
+      else vite.ws.send({ type: "custom", event: "ided:structure", data: {} });
     },
   });
 
