@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, node ${{ matrix.node }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      # GitHub-hosted runners ship Google Chrome, so the viewer and export tests run too.
+      - run: npm test
+
+  package:
+    name: global install smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci && npm run build && npm pack
+      - run: npm install -g ./ided-*.tgz
+      - name: Fresh workspace
+        run: |
+          mkdir -p "$RUNNER_TEMP/ws" && cd "$RUNNER_TEMP/ws"
+          ided init --here --name "Smoke Test"
+          ided check
+          ided export intro -f pdf
+          ided export brand --zip
+          ls -R out | head -40
+      - name: Example workspace
+        working-directory: examples/acme
+        run: |
+          ided check
+          ided export intro -f png --frames 01-title,05-kit
+          ided export brand --out out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-exports
+          path: |
+            ${{ runner.temp }}/ws/out
+            examples/acme/out

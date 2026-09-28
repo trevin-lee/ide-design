@@ -1,0 +1,7 @@
+.DS_Store
+.ided
+*.tgz
+dist
+examples/*/design/.ided
+examples/*/out
+node_modules

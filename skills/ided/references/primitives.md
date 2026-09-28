@@ -1,0 +1,219 @@
+# ided rules and primitive reference
+
+ided is parametric graphic design: every artifact is a React function composed from a
+fixed set of primitives, and every value is a token from `design/brand/brand.ts`. There is
+exactly one way to express each design decision. `ided check` enforces all of it.
+
+## The laws
+
+1. **Every value is a token.** No px, rem, %, hex, rgb, font names or numbers in artifacts.
+   If a value is missing, add a token to `brand.ts`. Never approximate with a nearby one.
+2. **Only primitives.** No HTML (`<div>`), no `style`, no `className`, no CSS, no npm imports.
+3. **Text is a type style.** `<Text type="body">`. Size, weight, leading and tracking come as one unit.
+4. **Space is `gap`, padding is `Box pad`.** No margins, no spacers, no empty boxes for spacing.
+5. **Backgrounds are surfaces.** A surface declares its own text and logo color, so text on it is legible by construction.
+6. **Nested corners are concentric.** Inside a padded, rounded `Box`, use `radius="concentric"`.
+7. **Artifacts are pure and deterministic.** No hooks, no state, no dates, no randomness, no browser APIs.
+8. **The shape of the workspace is fixed.** Create things with `ided new` / `ided add`; never invent folders.
+9. **Every import names its package.** `"ided"`, or `@<package>/components/<name>` / `@<package>/assets/<file>`. No relative imports.
+
+## Workspace shape
+
+```
+<repo>/
+  ided.json                    # workspace marker
+  design/
+    tsconfig.json              # extends .ided/ (generated, gitignored)
+    brand/                     # exactly one, always this name; every project may import it
+      project.json             # { "kind": "brand", "title": "…" }
+      brand.ts                 # export default defineBrand({ … })
+      assets/                  # mark.svg, wordmark.svg, fonts/, shared images
+      components/              # chrome shared by every medium
+    kit/                       # a library: shared components and assets, no frames
+      project.json             # { "kind": "library", "title": "…", "dependencies": [] }
+      components/  assets/
+    <project>/                 # kebab-case
+      project.json             # { "kind": "deck" | "doc" | "graphic" | "web", "title", "dependencies": ["kit"], … }
+      slides/ | pages/ | artboards/ | screens/   # NN-name.tsx, ordered by number
+      components/              # kebab-case.tsx, named exports (private to this project)
+      assets/                  # images (private to this project)
+      comments.json            # review comments (written by the viewer)
+```
+
+**Packages.** Every project folder is a package named by its folder. A file may import from
+its own package, from `brand`, and from the libraries listed in its `project.json`
+`"dependencies"` (add one with `ided use <project> <library>`). Only libraries can be
+dependencies; decks, docs, graphics and web projects are never imported. Dependencies may not
+form a cycle. There are no versions: everything in the repo is used at its current state.
+
+**Assets.** Images live in a package's `assets/` (kebab-case names and folders; png, jpg, jpeg,
+webp, avif, gif, svg). Only the brand has `assets/fonts/`. Assets are imported, and every file
+has an exact generated type, so a misspelled or missing file is a compile error:
+
+```tsx
+import hero from "@kit/assets/photos/hero.jpg";
+<Image src={hero} alt="Launch day" ratio="16:9" />
+```
+
+Reuse goes up, not sideways: if two projects need the same image or component, move it to a
+library (or to the brand, if it is part of the identity), never import across projects.
+
+| kind    | frames in    | root primitive | size (design px)                                             | manifest extra                                   |
+|---------|--------------|----------------|--------------------------------------------------------------|--------------------------------------------------|
+| deck    | `slides/`    | `<Slide>`      | 1920×1080                                                    | none                                             |
+| doc     | `pages/`     | `<Page>`       | letter 1632×2112, a4 1588×2246 (2×, prints at true size)     | `"page": "letter" \| "a4"`                       |
+| graphic | `artboards/` | `<Artboard>`   | square 1080², portrait 1080×1350, story 1080×1920, landscape 1920×1080, og 1200×630, banner 1500×500 | `"size": …` |
+| web     | `screens/`   | `<Screen>`     | desktop 1440, tablet 834, mobile 390 wide; height grows      | `"viewport": …`                                  |
+
+## File shapes
+
+A **frame** has exactly one default-exported, prop-less, PascalCase function returning its root:
+
+```tsx
+import { Slide, Stack, Text } from "ided";
+import { CornerMark } from "@brand/components/corner-mark";
+import { Stat } from "@q3-review/components/stat";
+
+export default function Results() {
+  return (
+    <Slide surface="paper" justify="between">
+      <CornerMark />
+      <Text type="heading">Q3 results</Text>
+      <Stat value="41%" label="growth" />
+    </Slide>
+  );
+}
+```
+
+A **component** file exports PascalCase functions (named, not default). Props are typed with
+token types from `ided` so callers cannot pass raw values either:
+
+```tsx
+import { Box, Stack, Text, type SurfaceToken } from "ided";
+
+export function Stat(props: { value: string; label: string; surface?: SurfaceToken }) {
+  return (
+    <Box surface={props.surface ?? "paper"} pad="2xl" radius="l">
+      <Stack gap="m">
+        <Text type="display">{props.value}</Text>
+        <Text type="body" color="muted">{props.label}</Text>
+      </Stack>
+    </Box>
+  );
+}
+```
+
+Imports allowed: `"ided"` and package paths `@<package>/components/<name>` / `@<package>/assets/<file>`,
+where the package is this project, `brand`, or a declared dependency. A project's own files use
+its own name too: `@q3-review/components/stat`.
+
+## Primitives
+
+Keywords shown in quotes are framework keywords; everything else is a brand token name.
+`Extent` = `"auto" | "full" | "1/2" | "1/3" | "2/3" | "1/4" | "3/4" | "1/5" | "2/5" | "3/5" | "4/5" | <size token>`.
+Fractions subtract the parent's gap, so `1/3 + 2/3` inside a `Row gap="l"` fills exactly.
+
+### Roots: `Slide` `Page` `Artboard` `Screen`
+The outermost element of a frame. Fills the frame, pads it by the brand margin for the medium, and lays children out as a column.
+- `surface` **required** surface token
+- `gap?` space | `"none"`, `align?` `"start" | "center" | "end" | "stretch"`, `justify?` `"start" | "center" | "end" | "between"`
+
+### `Stack` (vertical) and `Row` (horizontal)
+Layout only: no background, no padding.
+- `gap?`, `align?`, `justify?`, `width?` Extent, `height?` Extent, `grow?` boolean (take remaining space)
+- `Row` also: `wrap?` boolean
+
+### `Grid`
+Equal columns. For unequal columns use `Row` with fractional widths.
+- `columns` **required** `1 | 2 | 3 | 4 | 5 | 6 | 12`, `gap?`, `width?`, `height?`, `grow?`
+
+### `Box`
+Decoration: surface, padding, corners, border, shadow. **At most one child**; put a `Stack`/`Row` inside for several.
+- `surface?` surface token (children inherit its text and logo colors)
+- `pad?` space | `[vertical, horizontal]`
+- `radius?` radius token | `"full"` | `"concentric"` (parent radius minus parent padding)
+- `border?` stroke token + `borderColor?` color token (both or neither)
+- `shadow?` shadow token, `ratio?` `"1:1" | "4:3" | "3:2" | "16:9" | "21:9" | "3:4" | "2:3" | "9:16"`
+- `width?`, `height?`, `grow?`
+
+### `Place`
+Pins one child to an anchor of the enclosing `Box` or frame, outside the flow. Use it for chrome (logos, page marks), not for layout.
+- `anchor` **required** `"top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right"`
+- `inset` **required** space | `"margin"` (the frame's content edge) | `"none"`
+
+### `Text`
+All copy. Children: strings, numbers, `<Em>`, `<FrameNumber>`.
+- `type` **required** type token, `color?` color token (default: the surface's text color), `align?` `"start" | "center" | "end"`
+
+### `Em`
+Emphasis inside `Text`: the style's emphasis weight. `color?` color token.
+
+### `FrameNumber`
+Current slide/page number inside `Text`. `format?` `"n"` (3) | `"nn"` (03) | `"n/total"` (3 / 12).
+
+### `List`
+- `type` **required**, `items` **required** `string[]`, `marker?` `"bullet" | "number" | "dash"`, `gap?`, `color?`
+
+### `Logo`
+Composed from the brand's mark and wordmark.
+- `variant` **required** `"mark" | "wordmark" | <lockup name>`, `size` **required** logo size token
+- `colorway?` colorway token (default: the one the current surface declares)
+
+### `Image`
+- `src` **required**, an imported asset (`import team from "@kit/assets/team.jpg"`), `alt` **required**
+- `ratio?`, `fit?` `"cover" | "contain"`, `radius?` (as Box), `width?`, `height?`, `grow?`
+
+### `Divider`
+A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** color token, `weight` **required** stroke token.
+
+## Recipes
+
+```tsx
+// Logo in the same corner, same inset, in every medium: use the brand component.
+<CornerMark />                                  // = <Place anchor="top-right" inset="margin"><Logo variant="mark" size="s" /></Place>
+
+// Asymmetric two columns
+<Row gap="4xl" align="start">
+  <Stack gap="l" width="1/3">…</Stack>
+  <Stack gap="l" grow>…</Stack>
+</Row>
+
+// Header / content / footer on a slide
+<Slide surface="paper" justify="between">…header… …content… <Footer label="Acme" /></Slide>
+
+// Card with an inset image whose corners follow the card's
+// (import team from "@q3-review/assets/team.jpg";)
+<Box surface="sand" pad="l" radius="xl">
+  <Stack gap="l">
+    <Image src={team} alt="The team at the offsite" ratio="16:9" radius="concentric" />
+    <Text type="subhead">Offsite 2026</Text>
+  </Stack>
+</Box>
+
+// Repeated content is data mapped through a component
+{stats.map((s) => <Stat key={s.label} value={s.value} label={s.label} />)}
+```
+
+## When `ided check` complains
+
+| rule | meaning | fix |
+|---|---|---|
+| `ts2322`, `invalid-token` | value is not a token of that kind | pick from the listed tokens (`ided brand`), or add one to `brand.ts` |
+| `no-raw-values` | a CSS-looking literal (`16px`, `#fff`, `calc(`) | use a token |
+| `no-html`, `ts2339` | an HTML element | use a primitive |
+| `no-escape-hatch` | `style`, `className`, `any`, `@ts-ignore`, … | remove it; express the intent with primitives and tokens |
+| `loose-text` | raw text inside a layout primitive | wrap in `<Text type="…">` |
+| `box-children` | Box with several children | put a `Stack`/`Row` inside the Box |
+| `contrast` | text or logo not legible on its surface | use the surface's default text color, or a different surface |
+| `concentric` | nested radius does not share the parent's corner center | `radius="concentric"` |
+| `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
+| `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
+| `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
+| `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
+| `pure`, `deterministic` | hooks, globals, `Date`, `Math.random` | hard-code data; artifacts are pure |
+| `frame-export`, `component-export` | wrong file shape | see "File shapes" |
+| `structure`, `frame-name`, `manifest` | workspace shape is off | use `ided new` / `ided add`; frames are `NN-name.tsx` |
+| `missing-root`, `wrong-root` | frame does not return its kind's root | return `<Slide>` / `<Page>` / `<Artboard>` / `<Screen>` |
+
+Suppressing a rule is not possible and not wanted. If a rule blocks a legitimate design, the
+brand is missing a token: add it to `brand.ts`, where it becomes available everywhere at once.

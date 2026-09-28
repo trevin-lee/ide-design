@@ -1,0 +1,50 @@
+name: ided brand kit
+description: Check an ided workspace and export its brand kit (logos in every colorway, tokens as CSS/Tailwind/JSON).
+branding:
+  icon: package
+  color: orange
+
+inputs:
+  working-directory:
+    description: Repository path that contains ided.json.
+    default: "."
+  out:
+    description: Output directory for the kit.
+    default: out
+  check:
+    description: Run `ided check` first and fail on errors.
+    default: "true"
+  version:
+    description: ided version to run.
+    default: latest
+
+outputs:
+  kit:
+    description: Path to the exported brand kit folder.
+    value: ${{ steps.export.outputs.kit }}
+  zip:
+    description: Path to the zipped brand kit.
+    value: ${{ steps.export.outputs.zip }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 22
+
+    - name: Check
+      if: ${{ inputs.check == 'true' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npx -y ided@${{ inputs.version }} check
+
+    - name: Export
+      id: export
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        npx -y ided@${{ inputs.version }} export brand --out "${{ inputs.out }}" --zip
+        KIT=$(ls -d "${{ inputs.out }}"/*-brand-kit)
+        echo "kit=${{ inputs.working-directory }}/$KIT" >> "$GITHUB_OUTPUT"
+        echo "zip=${{ inputs.working-directory }}/$KIT.zip" >> "$GITHUB_OUTPUT"

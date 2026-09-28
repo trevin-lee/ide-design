@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rewriteRelativeImportExtensions": true,
+    "outDir": "dist/types",
+    "rootDir": "src",
+    "types": []
+  },
+  "include": [],
+  "files": ["src/runtime/index.ts", "src/runtime/jsx-runtime.ts", "src/runtime/jsx-dev-runtime.ts"]
+}

@@ -1,0 +1,7 @@
+{
+  "kind": "deck",
+  "title": "Design as Code",
+  "dependencies": [
+    "kit"
+  ]
+}

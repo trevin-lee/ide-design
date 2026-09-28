@@ -1,0 +1,70 @@
+# Publishes the brand kit whenever design/brand changes.
+#
+# Deployed sites read the kit from a stable URL, so they pick up brand changes
+# without a code change:
+#   <link rel="stylesheet" href="https://<bucket-host>/latest/tokens/tokens.css">
+#   <img src="https://<bucket-host>/latest/logos/horizontal/horizontal-primary.svg">
+#
+# Setup (repository settings → Secrets and variables → Actions):
+#   vars.BRAND_KIT_BUCKET   bucket name (leave unset to only build the kit as an artifact)
+#   vars.AWS_REGION         e.g. us-east-1
+#   vars.S3_ENDPOINT        optional, for S3-compatible stores (Cloudflare R2, MinIO, GCS interop)
+#   secrets.AWS_ROLE_ARN    IAM role for GitHub OIDC, or use access keys instead:
+#   secrets.AWS_ACCESS_KEY_ID / secrets.AWS_SECRET_ACCESS_KEY
+
+name: Brand kit
+
+on:
+  push:
+    branches: [main]
+    paths: ["design/brand/**", "ided.json"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: brand-kit
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check every artifact against the brand
+        run: npx -y ided@latest check
+
+      - name: Export brand kit
+        run: npx -y ided@latest export brand --out out --zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: brand-kit
+          path: out
+
+      - name: Configure AWS credentials
+        if: ${{ vars.BRAND_KIT_BUCKET != '' }}
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Publish to bucket (versioned + latest)
+        if: ${{ vars.BRAND_KIT_BUCKET != '' }}
+        env:
+          BUCKET: ${{ vars.BRAND_KIT_BUCKET }}
+          ENDPOINT: ${{ vars.S3_ENDPOINT }}
+        run: |
+          KIT=$(ls -d out/*-brand-kit)
+          EP=${ENDPOINT:+--endpoint-url "$ENDPOINT"}
+          aws s3 sync "$KIT" "s3://$BUCKET/${GITHUB_SHA::7}/" $EP
+          aws s3 sync "$KIT" "s3://$BUCKET/latest/" --delete --cache-control "public, max-age=300" $EP
