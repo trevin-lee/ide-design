@@ -1,8 +1,13 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-09-28)
 
-First release.
+First release, for macOS and Linux.
+
+```sh
+brew install trevin-lee/tap/ided
+ided setup        # skills and MCP server for Claude Code and Codex
+```
 
 - `ided` CLI: `init`, `run`, `new`, `add`, `use`, `list`, `check`, `brand`, `rules`, `export`,
   `screenshot`, `comments`, `mcp`, `setup`, `ci`.
@@ -19,8 +24,9 @@ First release.
   JSON and TypeScript, fonts.
 - Pinned export renderer: a Chromium headless shell matched to the driver, downloaded on first
   export into a shared cache (`ided browser install|status`), with installed Chrome as a warned fallback.
-- Homebrew formula (generated per release and verified with a real `brew install` before it is
-  published to the tap) and a tag-driven release workflow for GitHub releases, npm and Homebrew.
+- Install with Homebrew, or without it from the release itself:
+  `npm install -g https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz`.
+  Each release installs and tests the formula with real Homebrew before publishing it to the tap.
 - `ided setup` links Claude Code skills and copies Codex skills with a version marker; any `ided`
   command refreshes them after an upgrade. The MCP server is registered by absolute path.
 - MCP server and skills for Claude Code and Codex; GitHub Actions workflow template and
