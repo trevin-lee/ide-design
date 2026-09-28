@@ -269,6 +269,36 @@ exportCmd.action(
   }),
 );
 
+const browserCmd = program.command("browser").description("The pinned Chromium that renders PDF/PNG exports.");
+browserCmd
+  .command("status", { isDefault: true })
+  .description("Show the pinned build, where it lives and whether it is installed.")
+  .option("--json", "machine-readable output")
+  .action(
+    action(async (opts: { json?: boolean }) => {
+      const { browserStatus, browsersDir } = await import("../export/browser.ts");
+      const s = browserStatus();
+      if (opts.json) return console.log(JSON.stringify({ ...s, cache: browsersDir() }, null, 2));
+      const mb = s.sizeBytes ? ` (${Math.round(s.sizeBytes / 1048576)} MB)` : "";
+      console.log(`Chromium ${s.version} (headless shell, pinned by this ided version)`);
+      console.log(`${s.installed ? pc.green("✔ installed") : pc.yellow("not installed")}  ${pc.dim(s.dir + mb)}`);
+      if (!s.installed) console.log(pc.dim("  Downloads automatically on first export, or now with `ided browser install`."));
+      if (process.env.IDED_CHROME_PATH) console.log(pc.yellow(`! IDED_CHROME_PATH is set; exports use ${process.env.IDED_CHROME_PATH} instead.`));
+    }),
+  );
+browserCmd
+  .command("install")
+  .description("Download the pinned Chromium now (about 100 MB, shared by every workspace).")
+  .action(
+    action(async () => {
+      const { browserStatus, installBrowser } = await import("../export/browser.ts");
+      const before = browserStatus();
+      if (before.installed) return console.log(`${pc.green("✔")} Chromium ${before.version} is already installed ${pc.dim(before.dir)}`);
+      await installBrowser();
+      console.log(`${pc.green("✔")} Chromium ${before.version} ${pc.dim(browserStatus().dir)}`);
+    }),
+  );
+
 program
   .command("screenshot")
   .description("Render one frame to PNG (for agents to look at their work).")
@@ -386,7 +416,7 @@ program
 
 program.hook("preAction", (_cmd, sub) => {
   // Keep generated editor types current for whatever the command touches.
-  if (["init", "mcp", "setup", "ci"].includes(sub.name())) return;
+  if (["init", "mcp", "setup", "ci", "browser", "status", "install"].includes(sub.name())) return;
   const root = findWorkspaceRoot();
   if (root && existsSync(join(root, WORKSPACE_MARKER))) {
     try {

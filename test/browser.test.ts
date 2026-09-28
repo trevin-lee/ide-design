@@ -87,6 +87,13 @@ test("PDF export has one page per slide; docs print at Letter size", { skip, tim
   assert.match(doc[0]!.data.toString("latin1"), /\/MediaBox\s*\[\s*0 0 612 792\s*\]/);
 });
 
+test("exports render with the pinned Chromium, not whatever is installed", { skip, timeout: 30_000 }, async () => {
+  const { browserStatus } = await import("../src/export/browser.ts");
+  const status = browserStatus();
+  if (!status.installed || process.env.IDED_CHROME_PATH) return; // fallback mode is covered by the warning path
+  assert.equal(browser.version(), status.version);
+});
+
 test("PNG export renders at the requested density", { skip, timeout: 60_000 }, async () => {
   const { exportProject } = await import("../src/export/artifacts.ts");
   const { getProject, scanWorkspace } = await import("../src/core/workspace.ts");

@@ -67,6 +67,8 @@ design decision the user should see.
 
 ## Exports
 
+- Exports and screenshots render with ided's pinned Chromium. The first one downloads it (about
+  100 MB, one time); if a command seems to pause on first use, that is why.
 - `ided export <project>` gives a PDF (docs print at true Letter/A4 size); `-f png` or `-f jpeg` gives
   per-frame images at 2× (`--frames 01-title,03-x` to limit).
 - `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG

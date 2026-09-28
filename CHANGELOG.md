@@ -17,5 +17,7 @@ First release.
   locations, presentation mode, live issues, PDF/PNG/JPEG export, brand kit download.
 - Brand kit: logos in every variant and colorway (SVG + PNG), tokens as CSS, Tailwind v4, DTCG
   JSON and TypeScript, fonts.
+- Pinned export renderer: a Chromium headless shell matched to the driver, downloaded on first
+  export into a shared cache (`ided browser install|status`), with installed Chrome as a warned fallback.
 - MCP server and skills for Claude Code and Codex; GitHub Actions workflow template and
   composite action for publishing the brand kit.

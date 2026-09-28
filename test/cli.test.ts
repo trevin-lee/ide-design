@@ -87,3 +87,10 @@ test("libraries: dependencies, typed assets and cycles", { timeout: 60_000 }, ()
   assert.equal(run(dir, "use", "kit", "pitch").status, 1);
   assert.equal(run(dir, "check").status, 0);
 });
+
+test("the export renderer is pinned and reported", () => {
+  const status = JSON.parse(run(process.cwd(), "browser", "status", "--json").stdout) as { version: string; dir: string; installed: boolean; cache: string };
+  assert.match(status.version, /^\d+\.\d+\.\d+\.\d+$/);
+  assert.ok(status.dir.startsWith(status.cache));
+  assert.equal(typeof status.installed, "boolean");
+});

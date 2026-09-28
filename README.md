@@ -64,8 +64,14 @@ ided makes those mistakes unrepresentable:
 
 ## Install
 
-Requires Node 20.19+ on macOS or Linux, and, for PDF/PNG export only, Google Chrome (or any
-Chromium). Windows is not supported in 0.1.
+Requires Node 20.19+ on macOS or Linux. Windows is not supported in 0.1.
+
+PDF and PNG export render with one pinned Chromium build (the headless shell that ided's
+Playwright version targets), not with whatever Chrome you have installed, so an export looks the
+same after a Chrome update and on every machine of the same OS. It downloads on the first export
+(about 100 MB, 195 MB on disk, shared by every workspace in `~/.cache/ided/browsers`), or ahead of
+time with `ided browser install`. It comes from Playwright's download server over HTTPS; Playwright
+does not publish checksums for these builds, so ided cannot verify one.
 
 ```sh
 npm install -g ided        # once, system-wide; no per-repo install, no node_modules
@@ -173,6 +179,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts |
 | `ided export brand [--zip]` | export the brand kit |
 | `ided screenshot <project> <frame>` | one frame to PNG, for agents to look at their work |
+| `ided browser [install]` | show or download the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` | review loop |
 | `ided mcp` | MCP server on stdio |
 | `ided setup [--claude] [--codex]` | install skills and register the MCP server |
@@ -261,7 +268,12 @@ your files at run time.
 - Doc pages are explicit, one file per page. Text does not flow across pages automatically.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
-- Export needs a local Chrome/Chromium. Set `IDED_CHROME_PATH` to point at a specific binary.
+- If the pinned Chromium cannot be downloaded, export falls back to installed Chrome and warns that
+  output then follows that browser's version. `IDED_CHROME_PATH` forces a specific binary;
+  `IDED_NO_BROWSER_DOWNLOAD=1` disables the download; `IDED_BROWSERS_PATH` moves the cache.
+- There is no pinned build for Linux on ARM; those machines use a system Chromium.
+- Pinning removes browser drift, not OS differences: macOS and Linux smooth fonts differently, so
+  PNGs differ slightly between them. Treat CI's Linux exports as canonical if that matters.
 - macOS and Linux only; Windows paths are untested.
 - The starter fonts are the Latin subsets of Inter and JetBrains Mono. Other scripts fall back to system fonts until you add font files.
 - The Codex skills location (`~/.codex/skills`) follows current Codex conventions and may change.
