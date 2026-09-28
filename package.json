@@ -1,5 +1,5 @@
 {
-  "name": "ided",
+  "name": "ide-design",
   "version": "0.2.0",
   "description": "Parametric graphic design. Design as code. A rigid React framework + CLI for decks, documents, graphics and brand systems.",
   "type": "module",
@@ -20,11 +20,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/trevin-lee/ided.git"
+    "url": "git+https://github.com/trevin-lee/ide-design.git"
   },
-  "homepage": "https://github.com/trevin-lee/ided",
+  "homepage": "https://github.com/trevin-lee/ide-design",
   "bugs": {
-    "url": "https://github.com/trevin-lee/ided/issues"
+    "url": "https://github.com/trevin-lee/ide-design/issues"
   },
   "bin": {
     "ided": "dist/cli.js"

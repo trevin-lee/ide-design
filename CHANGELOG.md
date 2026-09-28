@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- ided's full name is **ide-design**: the GitHub repository is `trevin-lee/ide-design`, the Homebrew
+  formula `trevin-lee/tap/ide-design` (existing `ided` installs move over on `brew upgrade`), and
+  release tarballs `ide-design-<version>.tgz`. The command stays `ided`.
+
 ## 0.2.0 (2026-09-28)
 
 Design that is thought through, not just on-brand: every project now explains itself, agents

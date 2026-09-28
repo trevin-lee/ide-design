@@ -39,7 +39,7 @@ jobs:
           node-version: 22
 
       - name: Install ided
-        run: npm install -g https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz
+        run: npm install -g https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz
 
       - name: Check every artifact against the brand
         run: ided check

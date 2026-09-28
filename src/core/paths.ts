@@ -9,7 +9,7 @@ function findPackageRoot(): string {
     const pkg = join(dir, "package.json");
     if (existsSync(pkg)) {
       try {
-        if (JSON.parse(readFileSync(pkg, "utf8")).name === "ided") return dir;
+        if (JSON.parse(readFileSync(pkg, "utf8")).name === "ide-design") return dir;
       } catch {
         // keep looking
       }
@@ -55,7 +55,7 @@ export const SKILLS_DIR = pkgPath("skills");
 export const TYPES_DIR = join(STABLE_PKG_ROOT, "dist", "types");
 
 /** Every release attaches the package under this stable name. */
-export const LATEST_TARBALL_URL = "https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz";
+export const LATEST_TARBALL_URL = "https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz";
 
 export const WORKSPACE_MARKER = "ided.json";
 export const DESIGN_DIR = "design";

@@ -1,4 +1,4 @@
-name: ided brand kit
+name: ide-design brand kit
 description: Check an ided workspace and export its brand kit (logos in every colorway, tokens as CSS/Tailwind/JSON).
 branding:
   icon: package
@@ -39,9 +39,9 @@ runs:
         VERSION: ${{ inputs.version }}
       run: |
         if [ "$VERSION" = "latest" ]; then
-          url="https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz"
+          url="https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz"
         else
-          url="https://github.com/trevin-lee/ided/releases/download/v${VERSION}/ided-${VERSION}.tgz"
+          url="https://github.com/trevin-lee/ide-design/releases/download/v${VERSION}/ide-design-${VERSION}.tgz"
         fi
         npm install -g "$url"
 

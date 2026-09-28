@@ -1,8 +1,8 @@
-# ided
+# ide-design
 
 **Parametric graphic design. Design as code.**
 
-ided is a CLI plus a strict React framework for making decks, documents, social graphics,
+ide-design (`ided` for short, which is also its command) is a CLI plus a strict React framework for making decks, documents, social graphics,
 web mocks and brand systems the way you write software: as deterministic, reusable functions
 checked by a compiler. It is built for developers who work in the terminal, and for the coding
 agents they work with.
@@ -65,7 +65,7 @@ ided makes those mistakes unrepresentable:
 macOS or Linux. Windows is not supported in 0.1.
 
 ```sh
-brew install trevin-lee/tap/ided   # pulls in Node; nothing is installed per repository
+brew install trevin-lee/tap/ide-design   # pulls in Node; installs the `ided` command
 ided setup                         # skills + MCP server for Claude Code and Codex
 ```
 
@@ -79,13 +79,13 @@ started outside a terminal still find it.
 Without Homebrew, any Node 20.19+ works. Every release attaches the package to its GitHub release:
 
 ```sh
-npm install -g https://github.com/trevin-lee/ided/releases/latest/download/ided.tgz
+npm install -g https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz
 ```
 
 Neither is live until the first release is tagged. Until then, install from a checkout:
 
 ```sh
-git clone https://github.com/trevin-lee/ided && cd ided && npm install && npm run build && npm install -g .
+git clone https://github.com/trevin-lee/ide-design && cd ide-design && npm install && npm run build && npm install -g .
 ```
 
 PDF and PNG export render with one pinned Chromium build (the headless shell that ided's
@@ -224,7 +224,7 @@ ided setup --project    # this repository: every agent, for everyone who clones 
   `ided rules`. `ided init` adds that section on its own (`--no-agents-md` to skip).
 - After an upgrade, the next `ided` command refreshes both copies. Folders ided did not create are
   never touched.
-- Without ided installed, the skills alone install anywhere with `npx skills add trevin-lee/ided`.
+- Without ided installed, the skills alone install anywhere with `npx skills add trevin-lee/ide-design`.
 
 - **ided**: the mechanics (scaffold, write, `ided check`, screenshot, review comments) and the
   hard rules.
@@ -338,11 +338,12 @@ Releases are cut by CI from a tag, never from a laptop:
 
 `.github/workflows/release.yml` then checks that the tag, `package.json` and the changelog agree,
 runs the full test suite, and attaches the package to a GitHub release (notes taken from the
-changelog) twice: `ided-<version>.tgz` for the formula, and `ided.tgz`, which
-`releases/latest/download/ided.tgz` always points at. It publishes to npm too when an `NPM_TOKEN`
+changelog): `ide-design-<version>.tgz` for the formula, and `ide-design.tgz`, which
+`releases/latest/download/ide-design.tgz` always points at (plus `ided.tgz`, the same file, for
+workflows generated before 0.3). It publishes to npm too when an `NPM_TOKEN`
 secret exists. A macOS job then renders the formula with `packaging/homebrew/formula.mjs`,
 installs it with real Homebrew, runs `brew test` and `brew audit --strict`, and only then commits
-it to `trevin-lee/homebrew-tap` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to
+it to `trevin-lee/homebrew-tap` as `ide-design` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to
 the tap and nothing else.
 
 To rehearse a release without publishing anything, run the Release workflow by hand
