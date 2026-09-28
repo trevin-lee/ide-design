@@ -1,6 +1,6 @@
 ---
 name: ided
-description: Create and edit design artifacts (slide decks, documents, social graphics, web screens, brand systems) in an ided workspace, where design is written as token-only React components and verified by `ided check`. Use whenever the repository has an ided.json file or a design/ folder with project.json files, or when the user asks for slides, a deck, a one-pager, a document, a poster, a social post, a landing page mock, a logo lockup or brand assets in such a repo. Also use to address review comments left in the ided viewer.
+description: Create and edit design artifacts (slide decks, documents, social graphics, web screens, brand systems) in an ided workspace, where design is written as token-only React components and verified by `ided check`. Use whenever the repository has an ided.json file or a design/ folder with project.json files, or when the user asks for slides, a deck, a one-pager, a document, a poster, a social post, a landing page mock, a logo lockup or brand assets in such a repo. Also use to set up ided in a repository (`ided init`), to create a new ided project, deck, document, graphic, web mock or shared library (`ided new`), and to address review comments left in the ided viewer.
 ---
 
 # ided: design as code
