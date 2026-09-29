@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 (2026-09-28)
+
+Layouts that reach the edge, equations, illustrations held to the brand, and the viewer inside
+VS Code. The project's full name is now ide-design; the command is still `ided`.
+
+```sh
+brew update && brew upgrade ide-design   # installs named "ided" are migrated by brew update
+curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
+code --install-extension ide-design.vsix
+```
 
 - ided's full name is **ide-design**: the GitHub repository is `trevin-lee/ide-design`, the Homebrew
   formula `trevin-lee/tap/ide-design` (existing `ided` installs move over on `brew upgrade`), and
