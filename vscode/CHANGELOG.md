@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0
+
+Problems include the layout check (overflow, ratios, crops) that `ided check` runs from 0.4.0.
+
 ## 0.3.1
 
 No changes; the extension's version follows ided's. Installs from Open VSX are documented.

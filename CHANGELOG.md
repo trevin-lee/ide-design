@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.4.0 (2026-09-28)
+
+Layout you can trust: `ided check` now sees what the page looks like, not only what the code says.
+
+- **Layout check.** `ided check` lays every frame out in the pinned Chromium and measures it.
+  Text or content that runs past its box, into the frame's margin or off the frame is an error
+  at the line that overflows, including a word too long for its column. A `ratio` shape laid
+  out at another shape is a warning. Differences under a design pixel (font rendering between
+  machines) are ignored, and so is empty space, which is a matter of taste. The viewer's Issues
+  panel shows the same findings live, marked "layout", and so does the VS Code extension.
+  `--no-layout` skips it (`--no-render` skips it too); MCP's `ided_check` takes `layout`.
+- **`<Box crop>`, the one sanctioned overflow.** Content may run past a crop Box's edge and is
+  cut there; with `bleed`, at the frame's edge, for type bigger than the page. A crop that cuts
+  nothing, or cuts reading-size text, is a warning. A crop Box never shrinks in a column.
+- **Zoomed screenshots.** `ided screenshot <project> <frame> --zoom 2x2` (and MCP's `zoom`) cuts
+  a frame into full-resolution tiles, so detail the contact sheet is too small to show can be
+  inspected.
+- **Skills.** The design critique starts from a clean `ided check`, looks at the contact sheet,
+  then zoomed tiles; cropping is a named decision, overflow a mistake.
+- The brand-kit workflow and Action run `ided check --no-layout`: publishing the brand kit needs
+  no browser.
+
 ## 0.3.1 (2026-09-28)
 
 Closes the gaps a coherence review found around the core loop.
