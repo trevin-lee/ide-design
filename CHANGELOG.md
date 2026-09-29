@@ -6,13 +6,16 @@ Layouts that reach the edge, equations, illustrations held to the brand, and the
 VS Code. The project's full name is now ide-design; the command is still `ided`.
 
 ```sh
-brew update && brew upgrade ide-design   # installs named "ided" are migrated by brew update
+# The formula was called ided. Homebrew trusts tap formulae by name, so trust the new one once:
+brew trust --formula trevin-lee/tap/ide-design
+brew update && brew migrate ided && brew upgrade ide-design
 curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
 code --install-extension ide-design.vsix
 ```
 
 - ided's full name is **ide-design**: the GitHub repository is `trevin-lee/ide-design`, the Homebrew
-  formula `trevin-lee/tap/ide-design` (existing `ided` installs move over on `brew upgrade`), and
+  formula `trevin-lee/tap/ide-design` (existing `ided` installs move over with `brew migrate ided`
+  once the new name is trusted), and
   release tarballs `ide-design-<version>.tgz`. The command stays `ided`.
 - **VS Code extension.** The viewer in a tab linked to the code: ⌥-click an element to open its
   line, and the viewer follows the cursor. `ided check` results in Problems on save, and review

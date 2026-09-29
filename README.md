@@ -68,15 +68,25 @@ macOS or Linux. Windows is not supported yet.
 
 ```sh
 brew install trevin-lee/tap/ide-design   # pulls in Node; installs the `ided` command
-ided setup                         # skills + MCP server for Claude Code and Codex
+ided setup                         # skills for your agents + the MCP server
 ```
 
-Upgrade with `brew upgrade`. Before `brew uninstall ided`, run `ided setup --remove` to take the
-skills and MCP server out of your agents. Everything ided writes outside its own install survives upgrades:
-the workspace's editor types point at Homebrew's version-independent path, Claude Code's skills
-are links to the installed copy, and Codex's skill copies refresh themselves on the next `ided`
-command. The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents
-started outside a terminal still find it.
+Upgrade with `brew upgrade ide-design`. Before `brew uninstall ide-design`, run `ided setup --remove`
+to take the skills and MCP server out of your agents. Everything ided writes outside its own
+install survives upgrades: the workspace's editor types point at Homebrew's version-independent
+path, and the skills (and the links agents read them through) refresh on the next `ided` command.
+The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents started
+outside a terminal still find it.
+
+Installed 0.2 or earlier, when the formula was called `ided`? Homebrew trusts tap formulae by
+name, so trust the new name once, then move the install over:
+
+```sh
+brew trust --formula trevin-lee/tap/ide-design
+brew update
+brew migrate ided          # skip if `brew list ided` says it is not installed
+brew upgrade ide-design
+```
 
 Without Homebrew, any Node 20.19+ works. Every release attaches the package to its GitHub release:
 
@@ -84,7 +94,7 @@ Without Homebrew, any Node 20.19+ works. Every release attaches the package to i
 npm install -g https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz
 ```
 
-Neither is live until the first release is tagged. Until then, install from a checkout:
+To run unreleased changes from `main`, install from a checkout:
 
 ```sh
 git clone https://github.com/trevin-lee/ide-design && cd ide-design && npm install && npm run build && npm install -g .
