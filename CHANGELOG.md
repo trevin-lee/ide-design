@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.3.1 (2026-09-28)
+
+Closes the gaps a coherence review found around the core loop.
+
+- **`ided setup` writes only where an agent is.** It writes the shared `~/.agents/skills` itself
+  and links `~/.claude/skills` only when Claude Code is installed; before, a machine with no
+  detected agent got a skills folder for every agent the installer knows (about 50). Agents that
+  keep their own folder are named with `ided setup --agent trae junie …`. Setup keeps a receipt
+  of the folders it creates, and `ided setup --remove` deletes them, leaving the home folder as
+  it was.
+- `ided setup --project --no-mcp` no longer writes `.mcp.json`.
+- **The MCP server runs the CLI's code.** Its brand kit export refused nothing, wrote to a
+  different folder and had no zip; it now shares one implementation with `ided export` and the
+  viewer: a brand with errors is refused, the kit lands in `out/<name>-brand-kit/` with its
+  `.zip`. `ided_use_library` takes `remove`.
+- **Web projects export PNG by default** (`ided export`, MCP and the viewer), since screens have
+  no page size. A single exported image is named after its project.
+- **Stale review comments are flagged.** `ided check` warns about open comments whose frame file
+  was renamed or deleted. `ided comments <unknown project>` is an error, not "No open comments".
+- `ided browser remove` deletes the downloaded Chromium; the uninstall steps mention it.
+- The mobile and tablet web starters fit their viewports. An `Image` or `Box` with a `ratio` is no
+  longer squeezed out of shape in a crowded column.
+- The Brand page lists the brand's components with their import lines, and it and library pages
+  no longer offer a Comments tab (comments are left on frames).
+- `ided list --json` gives the brand and libraries no frame size; `ided screenshot` of the brand
+  or a library says why it cannot, instead of listing no frames.
+- Every hand-typed URL, email or phone number in a text is reported, not only the first. The
+  design-document hint fits the brand and libraries. `roll.mjs --help` works. Logo tiles on the
+  Brand page scale down in a narrow window instead of clipping.
+- The GitHub Action's `version` input works for 0.1 and 0.2 (their packages were named `ided-`).
+- Documented: renaming, reordering and deleting frames and projects; that reopening and
+  deleting comments happen in the viewer; that `ided check` does not measure layout yet (0.4.0,
+  see ROADMAP.md).
+
 ## 0.3.0 (2026-09-28)
 
 Layouts that reach the edge, equations, illustrations held to the brand, and the viewer inside
@@ -8,7 +42,9 @@ VS Code. The project's full name is now ide-design; the command is still `ided`.
 ```sh
 # The formula was called ided. Homebrew trusts tap formulae by name, so trust the new one once:
 brew trust --formula trevin-lee/tap/ide-design
-brew update && brew migrate ided && brew upgrade ide-design
+brew update
+brew migrate ided          # skip if `brew list ided` says it is not installed
+brew upgrade ide-design
 curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
 code --install-extension ide-design.vsix
 ```
