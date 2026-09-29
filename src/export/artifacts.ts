@@ -34,7 +34,7 @@ export function renderUrl(baseUrl: string, project: string, frames?: string[], p
   return `${baseUrl.replace(/\/$/, "")}/#/render/${project}${qs ? `?${qs}` : ""}`;
 }
 
-async function openRender(browser: Browser, url: string, scale: number, width: number) {
+export async function openRender(browser: Browser, url: string, scale: number, width: number) {
   const page = await browser.newPage({ deviceScaleFactor: scale, viewport: { width: Math.max(width, 800), height: 1000 } });
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -92,6 +92,39 @@ export async function exportSheet(opts: { baseUrl: string; project: Project; sca
     const data = await el.screenshot({ type: "png" });
     await page.close();
     return { name: `${p.id}-sheet.png`, data: Buffer.from(data) };
+  };
+  return opts.browser ? run(opts.browser) : withBrowser(run);
+}
+
+/** Parses a zoom grid like "2x2" or "3x2" (columns × rows, each 1–4). */
+export function parseZoom(zoom: string): { cols: number; rows: number } {
+  const m = /^([1-4])x([1-4])$/.exec(zoom.trim());
+  if (!m || m[1] === "1" && m[2] === "1") throw new Error(`--zoom is columns x rows, each 1 to 4, e.g. 2x2 (got "${zoom}").`);
+  return { cols: Number(m[1]), rows: Number(m[2]) };
+}
+
+/**
+ * One frame cut into a grid of full-resolution tiles, left to right, top to bottom, for
+ * inspecting detail a whole-frame or contact-sheet image is too small to show.
+ */
+export async function exportTiles(opts: { baseUrl: string; project: Project; frame: string; cols: number; rows: number; scale?: number; browser?: Browser }): Promise<ExportedFile[]> {
+  const run = async (browser: Browser): Promise<ExportedFile[]> => {
+    const p = opts.project;
+    if (!p.geometry) throw new Error(`"${p.id}" has no frames.`);
+    const page = await openRender(browser, renderUrl(opts.baseUrl, p.id, [opts.frame]), opts.scale ?? 1, p.geometry.width);
+    const box = await (await page.$(`[data-ided-frame="${opts.frame}"]`))?.boundingBox();
+    if (!box) throw new Error(`Frame ${opts.frame} did not render.`);
+    const w = box.width / opts.cols;
+    const h = box.height / opts.rows;
+    const out: ExportedFile[] = [];
+    for (let r = 0; r < opts.rows; r++) {
+      for (let c = 0; c < opts.cols; c++) {
+        const data = await page.screenshot({ type: "png", fullPage: true, clip: { x: box.x + c * w, y: box.y + r * h, width: w, height: h } });
+        out.push({ name: `${opts.frame}-r${r + 1}c${c + 1}.png`, data: Buffer.from(data) });
+      }
+    }
+    await page.close();
+    return out;
   };
   return opts.browser ? run(opts.browser) : withBrowser(run);
 }

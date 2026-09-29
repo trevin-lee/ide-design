@@ -46,7 +46,8 @@ class IdeDesign < Formula
   test do
     assert_match version.to_s, shell_output("#{bin}/ided --version")
     system bin/"ided", "init", "--here", "--name", "Brew Test"
-    assert_match "Clean", shell_output("#{bin}/ided check")
+    # The layout check measures frames in a browser, which the test sandbox cannot download.
+    assert_match "Clean", shell_output("#{bin}/ided check --no-layout")
     system bin/"ided", "export", "brand", "--out", "out"
     assert_path_exists testpath/"out/brew-test-brand-kit/logos/mark/mark-primary.svg"
   end

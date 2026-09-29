@@ -204,12 +204,13 @@ program
   .description("Verify structure, lint rules, types and rendered output. Exit code 1 on errors.")
   .argument("[project]", "limit to one project")
   .option("--json", "machine-readable output")
-  .option("--no-render", "skip the render audit (faster; no contrast/radius checks)")
+  .option("--no-render", "skip the render audit and the layout check (fastest; no contrast, radius or overflow checks)")
+  .option("--no-layout", "skip the layout check, which measures frames in the pinned Chromium (overflow, ratios, crops)")
   .action(
-    action(async (project: string | undefined, opts: { json?: boolean; render: boolean }) => {
+    action(async (project: string | undefined, opts: { json?: boolean; render: boolean; layout: boolean }) => {
       const root = requireWorkspaceRoot();
       const { runCheck, formatIssues } = await import("../check/index.ts");
-      const result = await runCheck(root, { project, render: opts.render });
+      const result = await runCheck(root, { project, render: opts.render, layout: opts.layout });
       if (opts.json) console.log(JSON.stringify(result, null, 2));
       else console.log(formatIssues(result));
       process.exitCode = result.issues.some((i) => i.severity === "error") ? 1 : 0;
@@ -318,20 +319,34 @@ program
   .argument("<project>")
   .argument("[frame]", "frame id, e.g. 01-title, or its number")
   .option("--sheet", "every frame of the project on one labeled image")
-  .option("-o, --out <file>", "output file")
+  .option("--zoom <grid>", "cut the frame into full-resolution tiles, columns x rows (e.g. 2x2), to inspect detail")
+  .option("-o, --out <path>", "output file (a folder with --zoom)")
   .option("--scale <n>", "pixel density", "1")
   .action(
-    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean }) => {
+    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string }) => {
       const root = requireWorkspaceRoot();
       const p = getProject(scanWorkspace(root), project);
       if (!isFrameKind(p.kind)) throw new Error(`"${p.id}" is ${p.kind === "brand" ? "the brand" : "a library"} and has no frames; screenshot a project that uses it, or open it in the viewer (\`ided run\`).`);
       if (!opts.sheet && !frame) throw new Error("Name a frame, or pass --sheet for all of them on one image.");
+      if (opts.sheet && opts.zoom) throw new Error("--zoom cuts one frame into tiles; it does not combine with --sheet.");
       const f = frame ? p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`)) : undefined;
       if (frame && !f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
       const { startServer } = await import("../server/index.ts");
-      const { exportProject, exportSheet } = await import("../export/artifacts.ts");
+      const { exportProject, exportSheet, exportTiles, parseZoom } = await import("../export/artifacts.ts");
+      const grid = opts.zoom ? parseZoom(opts.zoom) : null;
       const server = await startServer({ root, port: 0 });
       try {
+        if (grid) {
+          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, ...grid, scale: Number(opts.scale) });
+          const dir = resolve(opts.out ?? join(root, "design", ".ided", "screenshots"));
+          mkdirSync(dir, { recursive: true });
+          for (const t of tiles) {
+            const target = join(dir, `${p.id}-${t.name}`);
+            writeFileSync(target, t.data);
+            console.log(target);
+          }
+          return;
+        }
         const file = opts.sheet
           ? await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) })
           : (await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) }))[0]!;

@@ -12,7 +12,7 @@ import { lintFile, type FileRole } from "./lint.ts";
 import { svgColorIssues } from "./svg-colors.ts";
 import { typecheck } from "./typecheck.ts";
 
-export type IssueSource = "structure" | "lint" | "types" | "render" | "brand" | "assets";
+export type IssueSource = "structure" | "lint" | "types" | "render" | "layout" | "brand" | "assets";
 export interface CheckIssue extends Issue {
   source: IssueSource;
   project: string | null;
@@ -27,6 +27,8 @@ export interface CheckOptions {
   project?: string;
   /** Server-render every frame to run the runtime rules (contrast, concentric radii, root). */
   render?: boolean;
+  /** Also lay every frame out in the pinned Chromium and measure it (overflow, ratios, crops). Needs `render`. */
+  layout?: boolean;
   /** Reuse a running Vite server instead of starting one. */
   vite?: ViteDevServer;
 }
@@ -103,7 +105,7 @@ function dedupe(list: CheckIssue[]): CheckIssue[] {
   });
 }
 
-function parseSrc(src: string | undefined): { file: string; line?: number; column?: number } | null {
+export function parseSrc(src: string | undefined): { file: string; line?: number; column?: number } | null {
   if (!src) return null;
   const m = /^(.*?):(\d+):(\d+)$/.exec(src);
   return m ? { file: m[1]!, line: Number(m[2]), column: Number(m[3]) } : { file: src };
@@ -160,6 +162,10 @@ export async function runCheck(rootPath: string, opts: CheckOptions = {}): Promi
               issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message, hint: v.hint, severity: v.severity, source: "render", project: p.id });
             }
           }
+        }
+        if (opts.layout !== false) {
+          const { layoutIssues } = await import("./layout.ts");
+          issues.push(...(await layoutIssues(root, projects, parseSrc)));
         }
       }
     } finally {

@@ -90,13 +90,18 @@ export async function runMcpServer() {
     {
       title: "Check",
       description: "Run structure, lint, type and render checks. Run after every edit; the work is not done until this is clean.",
-      inputSchema: { ...rootArg, project: z.string().optional(), render: z.boolean().optional().describe("Include the render audit (default true).") },
+      inputSchema: {
+        ...rootArg,
+        project: z.string().optional(),
+        render: z.boolean().optional().describe("Include the render audit (default true)."),
+        layout: z.boolean().optional().describe("Include the layout check: overflow, ratios and crops measured in the browser (default true)."),
+      },
     },
-    async ({ root, project, render: doRender }) => {
+    async ({ root, project, render: doRender, layout }) => {
       try {
         const r = rootFor(root);
         const { runCheck, formatIssues } = await import("../check/index.ts");
-        const result = await runCheck(r, { project, render: doRender ?? true });
+        const result = await runCheck(r, { project, render: doRender ?? true, layout: layout ?? true });
         return text(formatIssues(result));
       } catch (e) {
         return failure(e);
@@ -164,20 +169,33 @@ export async function runMcpServer() {
     "ided_screenshot",
     {
       title: "Screenshot",
-      description: "Render frames to PNG and return them as images, or every frame on one labeled contact sheet (sheet: true). Use this to look at your work and critique it against the brief.",
+      description: "Render frames to PNG and return them as images, every frame on one labeled contact sheet (sheet: true), or one frame as zoomed tiles (zoom: \"2x2\"). Use this to look at your work and critique it against the brief.",
       inputSchema: {
         ...rootArg,
         project: z.string(),
         frames: z.array(z.string()).optional().describe("Frame ids; defaults to all (max 8)."),
         sheet: z.boolean().optional().describe("All frames on one image, for judging rhythm and sameness across the piece."),
+        zoom: z.string().optional().describe('Cut one frame (pass exactly one in frames) into full-resolution tiles, columns x rows like "2x2", to inspect detail.'),
         scale: z.number().min(0.25).max(2).optional(),
       },
     },
-    async ({ root, project, frames, sheet, scale }) => {
+    async ({ root, project, frames, sheet, zoom, scale }) => {
       try {
         const r = rootFor(root);
         writeGenerated(r);
         const p = getProject(scanWorkspace(r), project);
+        if (zoom) {
+          if (frames?.length !== 1) throw new Error("zoom cuts one frame into tiles: pass exactly one frame id in frames.");
+          const { exportTiles, parseZoom } = await import("../export/artifacts.ts");
+          const rs = await renderer(r);
+          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
+          return {
+            content: tiles.flatMap((t) => [
+              { type: "text" as const, text: t.name },
+              { type: "image" as const, data: t.data.toString("base64"), mimeType: "image/png" },
+            ]),
+          };
+        }
         if (sheet) {
           const { exportSheet } = await import("../export/artifacts.ts");
           const rs = await renderer(r);

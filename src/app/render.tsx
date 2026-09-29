@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import type { WsProject } from "virtual:ided/workspace";
+import { brand, type WsProject } from "virtual:ided/workspace";
+import type { Violation } from "../runtime/context.ts";
+import { bodySize, measureLayout } from "../runtime/layout.ts";
 import { FrameRender, loadFrame } from "./frame.tsx";
 import { violations } from "./store.ts";
 
@@ -8,6 +10,8 @@ declare global {
     __IDED_READY__?: boolean;
     __IDED_ERROR__?: string;
     __IDED_VIOLATIONS__?: unknown;
+    /** Measures every rendered frame's layout (used by `ided check`). */
+    __IDED_LAYOUT__?: () => { frame: string; violations: Violation[] }[];
   }
 }
 
@@ -49,6 +53,11 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
       if (cancelled) return;
       window.__IDED_VIOLATIONS__ = violations.get();
+      window.__IDED_LAYOUT__ = () =>
+        [...document.querySelectorAll<HTMLElement>("[data-ided-frame]")].map((el) => {
+          const root = el.querySelector<HTMLElement>(".ided-root");
+          return { frame: el.dataset.idedFrame!, violations: root && brand ? measureLayout(root, { width: g.width, bodySize: bodySize(brand.type) }) : [] };
+        });
       window.__IDED_READY__ = true;
     };
     void settle();
@@ -90,7 +99,7 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
             className="render-frame"
             style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom, breakAfter: print ? "page" : undefined }}
           >
-            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} />
+            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} measure={false} />
           </div>
         ))}
     </div>

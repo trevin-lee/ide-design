@@ -68,7 +68,7 @@ test("libraries: dependencies, typed assets and cycles", { timeout: 60_000 }, ()
   const slide = (asset: string) =>
     writeFileSync(
       join(dir, "design/pitch/slides/02-kit.tsx"),
-      `import { Slide, Image } from "ided";\nimport { Card } from "@kit/components/card";\nimport dot from "@kit/assets/${asset}";\nexport default function Kit() {\n  return (\n    <Slide surface="paper">\n      <Image src={dot} alt="dot" ratio="1:1" />\n      <Card title="a" body="b" />\n    </Slide>\n  );\n}\n`,
+      `import { Slide, Image } from "ided";\nimport { Card } from "@kit/components/card";\nimport dot from "@kit/assets/${asset}";\nexport default function Kit() {\n  return (\n    <Slide surface="paper">\n      <Image src={dot} alt="dot" ratio="1:1" width="1/4" />\n      <Card title="a" body="b" />\n    </Slide>\n  );\n}\n`,
     );
   slide("dot.svg");
   const issues = (args: string[]) => (JSON.parse(run(dir, ...args, "--json").stdout) as { issues: { rule: string; line?: number }[] }).issues;

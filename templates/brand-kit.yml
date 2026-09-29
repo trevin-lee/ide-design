@@ -42,7 +42,8 @@ jobs:
         run: npm install -g https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz
 
       - name: Check every artifact against the brand
-        run: ided check
+        # Layout is measured in a browser and is not needed to publish the brand kit.
+        run: ided check --no-layout
 
       - name: Export brand kit
         run: ided export brand --out out --zip

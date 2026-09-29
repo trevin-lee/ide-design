@@ -4,19 +4,26 @@ The builder cannot see its own work: after writing the code, you see what you me
 there. Critique is how you close that gap. Do it from screenshots, against the brief, in a fixed
 order, and stop after two rounds.
 
-## Get the pictures
+## Get the pictures, and the measurements
 
 ```sh
-ided screenshot <project> <frame> --scale 0.5     # one frame
+ided check <project>                               # overflow, ratios and crops, measured
 ided screenshot <project> --sheet                  # every frame on one contact sheet
+ided screenshot <project> <frame> --zoom 2x2       # one frame as four full-resolution tiles
 ```
 
-The contact sheet is the most useful single picture: rhythm, repetition and sameness across
-frames are invisible one frame at a time.
+Clear `ided check` first. Anything with a right answer (text past its box, content past the
+frame, a shape off its ratio) is measured there, exactly; do not spend critique rounds hunting
+for it by eye, and never judge a frame that still has overflow errors.
+
+Then look from far to near. The contact sheet is the most useful single picture: rhythm,
+repetition and sameness across frames are invisible one frame at a time. Then zoom into each
+frame that matters: the tiles are full size, so rag, spacing, alignment and small type can
+actually be seen, which neither the sheet nor a whole-frame picture shows.
 
 ## Use a fresh pair of eyes when you can
 
-If you can start a subagent, give it only: the screenshots (frames and sheet), the Brief,
+If you can start a subagent, give it only: the screenshots (the sheet and the zoomed tiles), the Brief,
 Message and Hierarchy sections from DESIGN.md, and the prompt below. No code, no Decisions
 section, no previous scores. A critic that reads your reasoning grades the reasoning.
 

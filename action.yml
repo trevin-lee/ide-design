@@ -51,7 +51,10 @@ runs:
       if: ${{ inputs.check == 'true' }}
       shell: bash
       working-directory: ${{ inputs.working-directory }}
-      run: ided check
+      # The brand kit needs no layout measurement (and so no browser download). Versions
+      # before 0.4 have no layout check and no --no-layout flag.
+      run: |
+        if ided check --help | grep -q -- "--no-layout"; then ided check --no-layout; else ided check; fi
 
     - name: Export
       id: export

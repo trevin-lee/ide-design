@@ -41,6 +41,10 @@ when the concept needs it and say so in DESIGN.md.
   `2/5` + `3/5`; `Grid` only when the content really is a set of equals.
 - **Narrow margins create tension, wide margins calm.** Use `Place` with a smaller inset or a
   full-bleed `Box` when the concept wants tension, and say why.
+- **Cropping is a decision, overflow is a mistake.** Type or an image cut by the frame edge can
+  be the most striking move on a page: put it in a `<Box crop>` (with `bleed` to cut at the
+  frame's edge) and name the crop in Decisions. Anything else that runs past its box fails
+  `ided check`. Crop display type and pictures, never reading text.
 - **A few large images beat many small ones.** One image, cropped with intent (`ratio`,
   `fit="cover"`), usually beats a gallery.
 - **If you can see the layout, it is probably too much layout.** Rules, boxes and frames that

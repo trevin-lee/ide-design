@@ -387,6 +387,11 @@ export interface BoxProps {
    * aligned with the frame margin.
    */
   bleed?: Bleed | readonly Bleed[];
+  /**
+   * Content may overflow this Box and is cut at its edge: type bigger than its frame, a crop
+   * window. The one sanctioned overflow; anywhere else overflow is an error in `ided check`.
+   */
+  crop?: boolean;
   /** At most one child. Use <Stack> or <Row> inside for several. */
   children?: ReactNode;
 }
@@ -426,6 +431,7 @@ export function Box(props: BoxProps) {
     "grow",
     "ratio",
     "bleed",
+    "crop",
   ]);
   const { brand, token } = useTokens();
   const layout = useContext(LayoutContext);
@@ -437,6 +443,7 @@ export function Box(props: BoxProps) {
     bleed.clear();
   }
   if (bleed.size && props.radius !== undefined) report("bleed", "bleeds to the frame edge, so its corners are square; remove `radius`.");
+  if (props.crop !== undefined && typeof props.crop !== "boolean") report("invalid-value", "`crop` is true or absent.");
   if (layout.root && bleed.size) {
     // Horizontal edges: spanning the content width touches both; a narrower Box sits where the root aligns it.
     const spans = props.width === undefined || props.width === "full";
@@ -562,8 +569,15 @@ export function Box(props: BoxProps) {
     style.width = add(style.width, Number(bleed.has("left")) + Number(bleed.has("right")));
     style.height = add(style.height, Number(bleed.has("top")) + Number(bleed.has("bottom")));
   }
+  if (props.crop === true) {
+    style.overflow = "hidden";
+    // The crop edge is the one the design sets, never whatever a crowded column leaves over.
+    if (layout.axis === "column") style.flexShrink = 0;
+  }
+  // Read by the layout check (src/runtime/layout.ts).
+  const layoutAttrs = { "data-ided-crop": props.crop === true ? "" : undefined, "data-ided-bleed": bleed.size ? "" : undefined, "data-ided-ratio": ratio };
   return (
-    <div {...dom} style={style}>
+    <div {...dom} {...layoutAttrs} style={style}>
       <SurfaceContext.Provider value={bg ? surface! : parentSurface}>
         <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: { radius: radiusPx, pad: padPx }, root: null }}>
           {props.children}
@@ -1000,7 +1014,7 @@ export function Image(props: ImageProps) {
     ...extentCss(props.height, "height", layout, "height", report, token),
   };
   return (
-    <div {...dom} style={style}>
+    <div {...dom} data-ided-ratio={ratio} style={style}>
       <img src={url} alt={props.alt} style={{ display: "block", width: "100%", height: "100%", objectFit: fit }} />
     </div>
   );

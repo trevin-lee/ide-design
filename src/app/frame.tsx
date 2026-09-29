@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
-import { loaders, type WsFrame, type WsProject } from "virtual:ided/workspace";
+import { brand, loaders, type WsFrame, type WsProject } from "virtual:ided/workspace";
+import type { Violation } from "../runtime/context.ts";
 import { Collector, FrameHost, missingRootViolation } from "../runtime/host.tsx";
+import { bodySize, measureLayout } from "../runtime/layout.ts";
 import type { FrameKind } from "../shared/formats.ts";
 import { publishViolations, revision, useStore } from "./store.ts";
 
@@ -39,14 +41,19 @@ export function useFrameComponent(project: string, frame: string): { Component: 
   return state.key === key ? state : { Component: null, error: null };
 }
 
-/** Renders one frame at native size. Violations are published after commit. */
-export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; publish?: boolean }) {
+/**
+ * Renders one frame at native size. Violations are published after commit; the layout check
+ * adds its own once fonts and images have settled (unless `measure` is false).
+ */
+export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; publish?: boolean; measure?: boolean }) {
   const { project, frame, index } = props;
   const rev = useStore(revision);
   const { Component, error } = useFrameComponent(project.id, frame.id);
   const geometry = project.geometry!;
   const sink = useMemo(() => new Collector(), [rev, Component]);
   const key = `${project.id}/${frame.id}`;
+  const host = useRef<HTMLDivElement>(null);
+  const measure = useLayoutCheck(host, project, key, props.publish !== false && props.measure !== false);
   if (error) {
     return <FrameError geometry={geometry} title={frame.src} message={error.message} />;
   }
@@ -65,12 +72,43 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
         if (props.publish === false) return;
         const list = sink.list();
         if (!hasRoot && !list.some((v) => v.rule === "render-error")) list.push(missingRootViolation(project.kind as FrameKind, frame.src));
-        publishViolations(key, list);
+        measure(list);
       }}
     >
-      <Component />
+      <div ref={host} style={{ display: "contents" }}>
+        <Component />
+      </div>
     </FrameHost>
   );
+}
+
+/**
+ * Returns a function to call after each render. It publishes the render's violations together
+ * with the last layout findings (so a re-render does not drop them), then, once fonts and images
+ * are in, measures again and publishes only if the layout changed. A newer render cancels a
+ * measurement still waiting.
+ */
+function useLayoutCheck(host: React.RefObject<HTMLDivElement | null>, project: WsProject, key: string, enabled: boolean): (list: Violation[]) => void {
+  const latest = useRef(0);
+  const layout = useRef<Violation[]>([]);
+  useEffect(() => () => void (latest.current = -1), []);
+  return (list) => {
+    publishViolations(key, [...list, ...layout.current]);
+    if (!enabled || !brand) return;
+    const ticket = ++latest.current;
+    void (async () => {
+      await document.fonts.ready;
+      const images = [...(host.current?.querySelectorAll("img") ?? [])].filter((i) => !i.complete);
+      await Promise.all(images.map((i) => new Promise((r) => (i.addEventListener("load", r, { once: true }), i.addEventListener("error", r, { once: true })))));
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      const root = host.current?.querySelector<HTMLElement>(".ided-root");
+      if (ticket !== latest.current || !root || !brand) return;
+      const found = measureLayout(root, { width: project.geometry!.width, bodySize: bodySize(brand.type) });
+      if (JSON.stringify(found) === JSON.stringify(layout.current)) return;
+      layout.current = found;
+      publishViolations(key, [...list, ...found]);
+    })();
+  };
 }
 
 function FrameError(props: { geometry: { width: number; height: number }; title: string; message: string }) {

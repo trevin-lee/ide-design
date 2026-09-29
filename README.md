@@ -50,7 +50,7 @@ ided makes those mistakes unrepresentable:
   correct wherever a component lands.
 - **Same values in every medium.** A logo placed by `<CornerMark />` sits the same distance from the
   corner on a slide, a Letter page and an Instagram post, because it is the same component and token.
-- **A compiler, not a style guide.** `ided check` runs four layers, all of which report
+- **A compiler, not a style guide.** `ided check` runs five layers, all of which report
   `file:line:col` and a fix:
   1. **Structure**: the workspace and every project have a fixed shape.
   2. **Lint**: no HTML, `style`, raw CSS values, hooks, randomness, dates, browser globals, `any`,
@@ -61,6 +61,9 @@ ided makes those mistakes unrepresentable:
      WCAG contrast of text and logos on their surfaces, non-concentric nested radii, Box
      single-child, bleeds toward edges a Box cannot reach, the root element, and the frame kind.
      SVG assets are checked too: every color they use must be one of the brand's.
+  5. **Layout**: every frame is laid out in the pinned Chromium and measured. Content that runs
+     past its box, into the margin or off the frame is an error; the one sanctioned overflow is
+     `<Box crop>`, which cuts content at its edge on purpose.
 
 ## Install
 
@@ -206,12 +209,12 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided add <project> <name>` | add the next numbered frame (or a component, in a library or the brand) |
 | `ided use <project> <library> [--remove]` | declare (or drop) a dependency on a library |
 | `ided list [--json]` | projects and frames |
-| `ided check [project] [--json] [--no-render]` | verify everything; exit 1 on errors |
+| `ided check [project] [--json] [--no-layout] [--no-render]` | verify everything; exit 1 on errors |
 | `ided brand [--json]` | every token in the brand |
 | `ided rules` | the primitive reference agents read |
 | `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts (PDF by default; PNG for web) |
 | `ided export brand [--zip]` | export the brand kit |
-| `ided screenshot <project> <frame>` | one frame to PNG, for agents to look at their work |
+| `ided screenshot <project> <frame> [--zoom 2x2]` | one frame to PNG (or full-resolution tiles), for agents to look at their work |
 | `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
 | `ided browser [install\|remove]` | show, download or delete the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` (`--author`, default `agent`) | review loop |
@@ -263,7 +266,8 @@ ided setup --project    # this repository: every agent, for everyone who clones 
   brand kit.
 
 The MCP server exposes `ided_rules`, `ided_list_projects`, `ided_get_brand`, `ided_check`,
-`ided_new_project`, `ided_add_frame`, `ided_use_library`, `ided_screenshot` (returns images),
+`ided_new_project`, `ided_add_frame`, `ided_use_library`, `ided_screenshot` (returns images:
+frames, a contact sheet, or zoomed tiles),
 `ided_export`, and the comment tools. It runs the same code as the CLI, so both give the same
 results; use whichever your agent prefers.
 
@@ -416,15 +420,12 @@ npm test             # runs it in a downloaded VS Code with its own profile (nee
 
 `src/runtime` is the `ided` module (primitives, tokens, JSX types), `src/shared` holds pure
 isomorphic logic (brand schema, lockups, tokens, color), `src/app` is the viewer, `src/check` holds the
-four check layers, `src/export` the PDF/PNG and brand-kit exporters, `src/mcp` the MCP server,
+check layers (`src/runtime/layout.ts` is the layout measurement the viewer and `ided check` share), `src/export` the PDF/PNG and brand-kit exporters, `src/mcp` the MCP server,
 `skills/` the agent skills, and `vscode/` the VS Code extension (which only drives the CLI). The app and runtime ship as source because Vite compiles them next to
 your files at run time.
 
 ## Current limits
 
-- `ided check` does not measure layout yet: text that overflows its box, or content pushed past
-  the frame, is not reported (the render audit runs without a browser). Look at `ided screenshot`.
-  A layout check is the plan for 0.4.0 ([ROADMAP.md](ROADMAP.md)).
 - Doc pages are explicit, one file per page. Text does not flow across pages automatically.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.

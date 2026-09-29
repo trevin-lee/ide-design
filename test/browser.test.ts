@@ -171,3 +171,18 @@ test("a web project exports PNG by default", { skip, timeout: 120_000 }, () => {
   assert.equal(r.status, 0, r.stderr);
   assert.ok(existsSync(join(ws, "out/site/01-home.png")));
 });
+
+test("the viewer measures layout live and lists overflow in Issues", { skip, timeout: 60_000 }, async () => {
+  assert.equal(run(dir, "new", "deck", "lay").status, 0);
+  writeFileSync(
+    join(dir, "design/lay/slides/01-title.tsx"),
+    `import { Box, Slide, Text } from "ided";\n\nexport default function Main() {\n  return (\n    <Slide surface="paper">\n      <Box width="1/4">\n        <Text type="title">Incomprehensibilities</Text>\n      </Box>\n    </Slide>\n  );\n}\n`,
+  );
+  const { page } = await open("#/p/lay/01-title");
+  await page.waitForFunction(() => /Issues\s*[1-9]/.test(document.querySelectorAll(".tabs button")[2]?.textContent ?? ""), null, { timeout: 20_000 });
+  await page.locator(".tabs button").nth(2).click();
+  const issue = page.locator(".issue", { hasText: "overflows its <Box>" });
+  await issue.waitFor({ timeout: 10_000 });
+  assert.equal((await issue.locator(".issue-source").textContent())?.trim(), "layout");
+  await page.close();
+});

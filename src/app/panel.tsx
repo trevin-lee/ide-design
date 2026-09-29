@@ -4,6 +4,7 @@ import { validateBrand } from "../shared/brand-schema.ts";
 import { isFrameKind } from "../shared/formats.ts";
 import { DesignDocView } from "./design-doc.tsx";
 import { openSource } from "./editor.ts";
+import { LAYOUT_RULES } from "../runtime/layout.ts";
 import {
   activeComment,
   comments as commentsStore,
@@ -23,7 +24,7 @@ export interface PanelIssue {
   where: string | null;
   hint?: string;
   frame?: string;
-  source: "structure" | "runtime" | "brand" | "types" | "lint" | "assets";
+  source: "structure" | "runtime" | "layout" | "brand" | "types" | "lint" | "assets";
 }
 
 export function useProjectIssues(project: WsProject): PanelIssue[] {
@@ -43,7 +44,7 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
     }
     for (const f of project.frames) {
       for (const v of all[`${project.id}/${f.id}`] ?? []) {
-        out.push({ severity: v.severity, message: v.message, where: v.src ?? f.src, hint: v.hint, frame: f.id, source: "runtime" });
+        out.push({ severity: v.severity, message: v.message, where: v.src ?? f.src, hint: v.hint, frame: f.id, source: (LAYOUT_RULES as readonly string[]).includes(v.rule) ? "layout" : "runtime" });
       }
     }
     // Same rule as `ided check`: a type error restating a runtime finding on the same line is noise.

@@ -93,8 +93,17 @@ design decision the user should see.
 - `ided export <project>` gives a PDF (docs print at true Letter/A4 size; web projects export
   PNG, since screens have no page size); `-f png` or `-f jpeg` gives per-frame images at 2×
   (`--frames 01-title,03-x` to limit).
-- `ided check` does not measure layout yet: look at `ided screenshot` for text that overflows
-  its box or content pushed past the frame.
+- `ided screenshot <project> <frame> --zoom 2x2` cuts a frame into full-resolution tiles for
+  inspecting detail; `--sheet` puts every frame on one image.
+
+## Layout
+
+`ided check` lays every frame out in the pinned Chromium and measures it. Text or content that
+runs past its box, into the frame's margin or off the frame is an error at the line that
+overflows; fix it by cutting copy, a smaller type style, or more room. A shape laid out off its
+`ratio` is a warning. The one sanctioned overflow is `<Box crop>`: content may run past a crop
+Box's edge and is cut there (with `bleed`, at the frame's edge). A crop that cuts nothing, or
+that cuts reading-size text, is a warning. `--no-layout` skips the measurement.
 - `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG
   and PNG, plus tokens as CSS, Tailwind v4, DTCG JSON and TypeScript.
 

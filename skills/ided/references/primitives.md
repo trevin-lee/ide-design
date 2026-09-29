@@ -146,6 +146,9 @@ Decoration: surface, padding, corners, border, shadow. **At most one child**; pu
   direct child of the root; `"top"` only on the first child and `"bottom"` only on the last; a
   narrower Box bleeds only toward the side the root aligns it to. Bled corners are square (no
   `radius`). Use it for color bands, split frames and full-bleed images.
+- `crop?` boolean: content may overflow this Box and is cut at its edge, the one sanctioned
+  overflow (type bigger than its frame, a crop window). With `bleed`, the cut is at the frame's
+  edge. A crop Box never shrinks in a column, so its edge is always the one you set.
 
 ### `Place`
 Pins one child to an anchor of the enclosing `Box` or frame, outside the flow. Use it for chrome (logos, page marks), not for layout.
@@ -246,6 +249,9 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `box-children` | Box with several children | put a `Stack`/`Row` inside the Box |
 | `contrast` | text or logo not legible on its surface | use the surface's default text color, or a different surface |
 | `concentric` | nested radius does not share the parent's corner center | `radius="concentric"` |
+| `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design |
+| `ratio` | a `ratio` shape was laid out at another shape because its width and height are both fixed (warning) | drop the height (or width), or change the ratio |
+| `crop` | a crop Box cuts nothing, or cuts reading-size text (warning) | remove `crop`; give reading text room instead of cutting it |
 | `bleed` | a Box bleeds to an edge it cannot touch (nested, not first/last, aligned away) or has a radius | make it the root's first/last child, span the width, or drop that side |
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |

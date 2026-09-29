@@ -67,9 +67,11 @@ similar? If yes, the plan is generic; revise the part that is, and note what you
 hierarchy, real copy, no polish. Look at them together (`ided screenshot <project> --sheet`)
 before refining any single frame. Run `ided check` as you go; it is the floor, not the goal.
 
-**10. Critique from screenshots.** Follow `references/critique.md`: a fresh-eyes critic if you
-can start one, the tests (squint, grayscale, glance, swap, reading order, removal), comparison
-against the previous round rather than a score. Two rounds at most. → **Critique**
+**10. Critique from screenshots.** Clear `ided check` first: overflow and ratios are measured
+there, not judged. Then follow `references/critique.md`: the contact sheet, then zoomed tiles
+(`--zoom 2x2`) of the frames that matter, a fresh-eyes critic if you can start one, the tests
+(squint, grayscale, glance, swap, reading order, removal), comparison against the previous round
+rather than a score. Two rounds at most. → **Critique**
 
 **11. Subtract, then craft.** Remove one element. Cut copy that does not earn its place. Then the
 craft pass: line breaks by sense, no single-word last lines in headlines, every edge aligned,
