@@ -5,3 +5,4 @@ dist
 examples/*/design/.ided
 examples/*/out
 node_modules
+*.vsix
