@@ -173,10 +173,15 @@ jobs:
 
       - name: Push the formula to ${{ github.repository_owner }}/homebrew-tap
         if: env.PUBLISH == 'true' && env.TAP_DEPLOY_KEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          set -o pipefail
           install -m 700 -d ~/.ssh
           # Pin GitHub's host keys from its API (over HTTPS) instead of trusting on first use.
-          curl -fsSL https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          # Authenticated: the anonymous API limit is shared by every job on the runner's address.
+          gh api meta --jq '.ssh_keys[] | "github.com " + .' > ~/.ssh/known_hosts
+          [ -s ~/.ssh/known_hosts ] || { echo "::error::Could not read GitHub's SSH host keys"; exit 1; }
           printf '%s\n' "$TAP_DEPLOY_KEY" > ~/.ssh/tap_key
           chmod 600 ~/.ssh/tap_key
           export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/tap_key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
