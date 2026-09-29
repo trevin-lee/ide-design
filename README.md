@@ -258,6 +258,9 @@ primitives written on that line. `ided check` runs on save with its results in P
 viewer's open review comments appear as comment threads on the lines they point at, where you
 can reply or resolve them.
 
+In Cursor, VSCodium, Windsurf and other editors that use [Open VSX](https://open-vsx.org/extension/trevin-lee/ide-design),
+search for **ide-design** in Extensions. In VS Code, install the release's `.vsix`:
+
 ```sh
 curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
 code --install-extension ide-design.vsix
@@ -360,7 +363,8 @@ runs the full test suite, and attaches the package to a GitHub release (notes ta
 changelog): `ide-design-<version>.tgz` for the formula, and `ide-design.tgz`, which
 `releases/latest/download/ide-design.tgz` always points at (plus `ided.tgz`, the same file, for
 workflows generated before 0.3), and the VS Code extension as `ide-design-<version>.vsix` and
-`ide-design.vsix`, after its integration test passes. It publishes to npm too when an `NPM_TOKEN`
+`ide-design.vsix`, after its integration test passes, and publishes that `.vsix` to Open VSX
+(`publish-extension.yml`, which can also be run by hand for an existing release). It publishes to npm too when an `NPM_TOKEN`
 secret exists. A macOS job then renders the formula with `packaging/homebrew/formula.mjs`,
 installs it with real Homebrew, runs `brew test` and `brew audit --strict`, and only then commits
 it to `trevin-lee/homebrew-tap` as `ide-design` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to

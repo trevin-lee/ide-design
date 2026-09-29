@@ -9,6 +9,14 @@ It needs the `ided` command (0.3.0 or newer):
 brew install trevin-lee/tap/ide-design
 ```
 
+Cursor, VSCodium, Windsurf and other editors that use Open VSX find it by searching for
+**ide-design** in Extensions. In VS Code, install the `.vsix` from the latest release:
+
+```sh
+curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
+code --install-extension ide-design.vsix
+```
+
 The extension turns on in any folder that contains an ided workspace (an `ided.json` file).
 
 ## Features

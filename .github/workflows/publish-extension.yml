@@ -1,0 +1,54 @@
+# Publishes a release's VS Code extension (the .vsix the Release workflow built and tested)
+# to Open VSX, which Cursor, VSCodium and Windsurf install from. Called by release.yml for
+# each new tag; run it by hand to publish an existing release.
+#
+# Secrets: OVSX_TOKEN (an open-vsx.org access token for the trevin-lee namespace). Without
+# it, publishing is skipped.
+
+name: Publish extension
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, e.g. 0.3.0"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  open-vsx:
+    runs-on: ubuntu-latest
+    env:
+      OVSX_PAT: ${{ secrets.OVSX_TOKEN }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Download the release's extension
+        if: env.OVSX_PAT != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "ide-design-$VERSION.vsix"
+
+      - uses: actions/setup-node@v7
+        if: env.OVSX_PAT != ''
+        with:
+          node-version: 22
+
+      - name: Publish to Open VSX
+        if: env.OVSX_PAT != ''
+        run: |
+          # The namespace matches `publisher` in vscode/package.json; create it on first use.
+          npx --yes ovsx@1.2.0 verify-pat trevin-lee || npx --yes ovsx@1.2.0 create-namespace trevin-lee
+          npx --yes ovsx@1.2.0 publish --packagePath "ide-design-$VERSION.vsix" --skip-duplicate
+          echo "https://open-vsx.org/extension/trevin-lee/ide-design/$VERSION" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Skipped
+        if: env.OVSX_PAT == ''
+        run: echo "No OVSX_TOKEN secret; the extension was not published to Open VSX." >> "$GITHUB_STEP_SUMMARY"

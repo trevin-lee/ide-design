@@ -7,7 +7,7 @@
 # release, npm and the tap push.
 #
 # Secrets: TAP_DEPLOY_KEY (private half of a deploy key with write access to the
-# tap repository) and, optionally, NPM_TOKEN.
+# tap repository) and, optionally, NPM_TOKEN and OVSX_TOKEN (publish-extension.yml).
 
 name: Release
 
@@ -120,6 +120,14 @@ jobs:
           echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
           npm publish "ide-design-${{ steps.meta.outputs.version }}.tgz" --provenance --access public
           rm ~/.npmrc
+
+  extension:
+    needs: release
+    if: github.event_name == 'push'
+    uses: ./.github/workflows/publish-extension.yml
+    with:
+      version: ${{ needs.release.outputs.version }}
+    secrets: inherit
 
   homebrew:
     needs: release
