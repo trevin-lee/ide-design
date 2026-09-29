@@ -4,9 +4,9 @@
 // Installed Chrome is only a fallback, with a warning.
 
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, rmSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { Browser } from "playwright-core";
 import { dependencyDir } from "../core/paths.ts";
 
@@ -54,6 +54,33 @@ export function browserStatus(): BrowserStatus {
   const dir = join(browsersDir(), `chromium_headless_shell-${revision}`);
   const installed = existsSync(join(dir, "INSTALLATION_COMPLETE"));
   return { version, dir, installed, sizeBytes: installed ? dirSize(dir) : null };
+}
+
+/**
+ * Deletes the browser builds ided downloaded (every revision, from any ided version) and the
+ * cache folder if that leaves it empty. Only Playwright's build folders are touched, so an
+ * IDED_BROWSERS_PATH shared with other tools keeps everything else.
+ */
+export function removeBrowsers(): { removed: string[]; bytes: number } {
+  const dir = browsersDir();
+  const removed: string[] = [];
+  let bytes = 0;
+  if (!existsSync(dir)) return { removed, bytes };
+  for (const e of readdirSync(dir, { withFileTypes: true })) {
+    if (!e.isDirectory() || !/^(chromium_headless_shell|ffmpeg)-\d+$|^\.links$/.test(e.name)) continue;
+    const p = join(dir, e.name);
+    bytes += dirSize(p);
+    rmSync(p, { recursive: true, force: true });
+    removed.push(e.name);
+  }
+  for (const d of [dir, ...(process.env.IDED_BROWSERS_PATH ? [] : [dirname(dir)])]) {
+    try {
+      if (readdirSync(d).length === 0) rmSync(d, { recursive: true });
+    } catch {
+      // not there
+    }
+  }
+  return { removed, bytes };
 }
 
 /** Download the pinned build into the cache. Progress goes to stderr. */

@@ -18,9 +18,9 @@ import {
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
-import { addFrame, describeKinds, initWorkspace, newProject, slugify, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
+import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { findWorkspaceRoot, getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
-import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 
 const program = new Command();
@@ -179,7 +179,8 @@ program
         id: p.id,
         kind: p.kind,
         title: p.title,
-        size: p.geometry ? `${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : null,
+        // Only frame projects have a frame size; the brand and libraries hold components and assets.
+        size: p.geometry && isFrameKind(p.kind) ? `${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : null,
         frames: p.frames.map((f) => ({ id: f.id, file: relative(root, f.abs) })),
         components: p.components,
         assets: p.assets.filter((a) => !a.startsWith("fonts/")),
@@ -189,7 +190,7 @@ program
       if (opts.json) return console.log(JSON.stringify(data, null, 2));
       for (const p of data) {
         const deps = p.dependencies.length ? pc.cyan(`  uses ${p.dependencies.join(", ")}`) : "";
-        const size = p.kind === "brand" || p.kind === "library" ? "" : ` ${p.size}`;
+        const size = p.size ? ` ${p.size}` : "";
         console.log(`${pc.bold(p.id)} ${pc.dim(`${p.kind}${size}`)}  ${p.title}${deps}${p.issues ? pc.red(`  ${p.issues} issue(s)`) : ""}`);
         for (const f of p.frames) console.log(pc.dim(`  ${f.file}`));
         for (const c of p.components) console.log(pc.dim(`  @${p.id}/${c.replace(/\.tsx$/, "")}`));
@@ -249,51 +250,24 @@ const exportCmd = program
   .command("export")
   .description('Export a project to PDF/PNG/JPEG, or "brand" to a brand kit.')
   .argument("<project>", 'project id, or "brand" for the brand kit')
-  .addOption(new Option("-f, --format <format>", "artifact format").choices(["pdf", "png", "jpeg"]).default("pdf"))
+  .addOption(new Option("-f, --format <format>", "artifact format (default: pdf; png for web projects)").choices(["pdf", "png", "jpeg"]))
   .option("--frames <ids>", "comma-separated frame ids (e.g. 01-title,03-numbers)")
   .option("-o, --out <dir>", "output directory", "out")
   .option("--scale <n>", "pixel density for raster output", "2")
   .option("--zip", "brand kit: also write a .zip");
 exportCmd.action(
-  action(async (project: string, opts: { format: "pdf" | "png" | "jpeg"; frames?: string; out: string; scale: string; zip?: boolean }) => {
+  action(async (project: string, opts: { format?: "pdf" | "png" | "jpeg"; frames?: string; out: string; scale: string; zip?: boolean }) => {
     const root = requireWorkspaceRoot();
-    const ws = scanWorkspace(root);
+    const { exportArtifacts, exportBrandKit } = await import("../export/operations.ts");
     const out = resolve(opts.out);
     if (project === "brand") {
-      const { createIdedVite } = await import("../server/vite.ts");
-      const { buildBrandKit, writeBrandKit, zipBrandKit } = await import("../export/brand-kit.ts");
-      const vite = await createIdedVite({ root, ssrOnly: true });
-      try {
-        const loaded = await loadBrand(vite, ws);
-        if (!loaded.brand) throw new Error(loaded.error ?? "Brand did not load.");
-        const errors = loaded.issues.filter((i) => i.severity === "error");
-        if (errors.length) throw new Error(`Brand has errors; run \`ided check brand\`:\n${errors.map((e) => `  ${e.path}: ${e.message}`).join("\n")}`);
-        const files = buildBrandKit({ brand: loaded.brand, svgs: loaded.svgs, brandAssetsDir: join(ws.designDir, "brand", "assets"), version: process.env.GITHUB_SHA?.slice(0, 7) });
-        const folder = `${slugify(loaded.brand.name) || "brand"}-brand-kit`;
-        const dir = join(out, folder);
-        writeBrandKit(files, dir);
-        console.log(`${pc.green("✔")} ${files.length} files → ${relative(process.cwd(), dir)}`);
-        if (opts.zip) {
-          const zipPath = join(out, `${folder}.zip`);
-          writeFileSync(zipPath, zipBrandKit(files, folder));
-          console.log(`${pc.green("✔")} ${relative(process.cwd(), zipPath)}`);
-        }
-      } finally {
-        await vite.close();
-      }
+      const kit = await exportBrandKit(root, { out, zip: opts.zip, version: process.env.GITHUB_SHA?.slice(0, 7) });
+      console.log(`${pc.green("✔")} ${kit.count} files → ${relative(process.cwd(), kit.dir)}`);
+      if (kit.zip) console.log(`${pc.green("✔")} ${relative(process.cwd(), kit.zip)}`);
       return;
     }
-    const p = getProject(ws, project);
-    const { startServer } = await import("../server/index.ts");
-    const { exportProject, writeExport } = await import("../export/artifacts.ts");
-    const server = await startServer({ root, port: 0 });
-    try {
-      const files = await exportProject({ baseUrl: server.url, project: p, format: opts.format, frames: opts.frames?.split(","), scale: Number(opts.scale) });
-      const paths = writeExport(files, opts.format === "pdf" ? out : join(out, p.id));
-      for (const f of paths) console.log(`${pc.green("✔")} ${relative(process.cwd(), f)}`);
-    } finally {
-      await server.close();
-    }
+    const paths = await exportArtifacts(root, project, { out, format: opts.format, frames: opts.frames?.split(","), scale: Number(opts.scale) });
+    for (const f of paths) console.log(`${pc.green("✔")} ${relative(process.cwd(), f)}`);
   }),
 );
 
@@ -326,6 +300,17 @@ browserCmd
       console.log(`${pc.green("✔")} Chromium ${before.version} ${pc.dim(browserStatus().dir)}`);
     }),
   );
+browserCmd
+  .command("remove")
+  .description("Delete the downloaded Chromium (it downloads again on the next export).")
+  .action(
+    action(async () => {
+      const { browsersDir, removeBrowsers } = await import("../export/browser.ts");
+      const { removed, bytes } = removeBrowsers();
+      if (!removed.length) return console.log(pc.dim(`Nothing to remove in ${browsersDir()}.`));
+      console.log(`${pc.green("✔")} Removed ${removed.join(", ")} ${pc.dim(`(${Math.round(bytes / 1048576)} MB)`)}`);
+    }),
+  );
 
 program
   .command("screenshot")
@@ -339,6 +324,7 @@ program
     action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean }) => {
       const root = requireWorkspaceRoot();
       const p = getProject(scanWorkspace(root), project);
+      if (!isFrameKind(p.kind)) throw new Error(`"${p.id}" is ${p.kind === "brand" ? "the brand" : "a library"} and has no frames; screenshot a project that uses it, or open it in the viewer (\`ided run\`).`);
       if (!opts.sheet && !frame) throw new Error("Name a frame, or pass --sheet for all of them on one image.");
       const f = frame ? p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`)) : undefined;
       if (frame && !f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
@@ -416,12 +402,14 @@ program
   .command("setup")
   .description("Install ided's skills for your coding agents (the Agent Skills standard: Claude Code, Codex, Cursor, Copilot, Gemini CLI and more) and register the MCP server.")
   .option("--project", "install into this repository instead, for everyone who clones it: .agents/skills, .claude/skills, AGENTS.md, .mcp.json")
+  .option("--agent <names...>", "also install for agents that keep their own skills folder, e.g. trae junie kiro-cli (names as in `npx skills`)")
   .option("--no-mcp", "skills only; do not register the MCP server")
   .option("--claude", "register the MCP server with Claude Code only")
   .option("--codex", "register the MCP server with Codex only")
   .option("--remove", "undo setup: remove the skills and MCP registrations (with --project, from this repository)")
   .action(
-    action((opts: { project?: boolean; mcp: boolean; claude?: boolean; codex?: boolean; remove?: boolean }) => {
+    action((opts: { project?: boolean; agent?: string[]; mcp: boolean; claude?: boolean; codex?: boolean; remove?: boolean }) => {
+      if (opts.project && opts.agent) throw new Error("--agent is for user-wide setup. In a repository, agents read .agents/skills (and Claude Code .claude/skills).");
       if (opts.remove) {
         const steps = opts.project ? removeProject(requireWorkspaceRoot()) : removeGlobal();
         for (const s of steps) console.log(`${s.ok ? pc.green("✔") : pc.yellow("!")} ${s.what}${s.detail ? pc.dim(`  ${s.detail}`) : ""}`);
@@ -429,10 +417,9 @@ program
       }
       const steps: SetupStep[] = [];
       if (opts.project) {
-        steps.push(...installProjectSkills(requireWorkspaceRoot()));
-        if (!opts.mcp) steps.pop();
+        steps.push(...installProjectSkills(requireWorkspaceRoot(), { mcp: opts.mcp }));
       } else {
-        steps.push(installGlobalSkills());
+        steps.push(...installGlobalSkills(opts.agent ?? []));
         if (opts.mcp) {
           const agents = opts.claude || opts.codex ? [...(opts.claude ? ["claude"] : []), ...(opts.codex ? ["codex"] : [])] : detectAgents();
           if (agents.includes("claude")) steps.push(registerClaudeMcp());
@@ -444,7 +431,7 @@ program
         pc.dim(
           opts.project
             ? "\nCommit these files; teammates' agents pick them up on clone. Restart your agent session."
-            : "\nAny agent that can run a shell can also use the ided CLI directly. Other MCP clients: point them at `ided mcp`.\nRestart your agent session to pick up the skills.",
+            : `${opts.agent ? "" : "\nAn agent that keeps its own skills folder (Trae, Junie, Kiro, Windsurf…) gets them with `ided setup --agent <name>`."}\nAny agent that can run a shell can also use the ided CLI directly. Other MCP clients: point them at \`ided mcp\`.\nRestart your agent session to pick up the skills.`,
         ),
       );
     }),

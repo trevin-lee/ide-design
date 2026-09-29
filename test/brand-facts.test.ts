@@ -47,6 +47,8 @@ test("typed contact details are rejected in artifacts", () => {
     lintFile("/ws/design/deck/slides/01-a.tsx", `import { Slide, Text } from "ided";\nexport default function A() { return <Slide surface="paper"><Text type="body">${text}</Text></Slide>; }\n`, "frame", project, "/ws", new Map([["deck", "deck"]])).filter((i) => i.rule === "no-raw-facts");
   for (const bad of ["kilnandcopper.com", "https://x.org", "hello@x.io", "828-555-0142", "www.x.net"]) assert.equal(lint(bad).length, 1, bad);
   for (const fine of ["[signup link]", "loam-1.0.md", "1.2 MW", "e.g. U.S.", "2026-09-28", "$340"]) assert.equal(lint(fine).length, 0, fine);
+  const both = lint("Write hello@x.io or call 828-555-0142, or see https://x.org/help");
+  assert.deepEqual(both.map((i) => i.message.split('"')[1]), ["https://x.org/help", "hello@x.io", "828-555-0142"], "every fact in a text, each once");
 });
 
 test("facts render, are typed, and reach the brand kit", { timeout: 60_000 }, () => {

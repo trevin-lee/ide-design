@@ -1,6 +1,6 @@
 // Viewer and export, against a real server and headless Chrome. Skips without a browser.
 import assert from "node:assert/strict";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import type { Browser } from "playwright-core";
@@ -153,4 +153,21 @@ test("the server refuses cross-site and rebinding requests", { skip, timeout: 30
     });
   });
   assert.equal(rebound, 403);
+});
+
+test("the Brand page lists the brand's components and has no Comments tab", { skip, timeout: 60_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  await page.goto(`${server.url}/#/p/brand`, { waitUntil: "load" });
+  await page.waitForSelector(".lib-component", { timeout: 30_000 });
+  assert.deepEqual(await page.locator(".tabs button").allInnerTexts().then((t) => t.map((x) => x.split(/\s/)[0])), ["Design", "Issues"]);
+  assert.match(await page.locator(".lib-component").first().innerText(), /import \{ CornerMark \} from "@brand\/components\/corner-mark";/);
+  await page.close();
+});
+
+test("a web project exports PNG by default", { skip, timeout: 120_000 }, () => {
+  const ws = workspace("--bare");
+  assert.equal(run(ws, "new", "web", "site", "--viewport", "mobile").status, 0);
+  const r = run(ws, "export", "site");
+  assert.equal(r.status, 0, r.stderr);
+  assert.ok(existsSync(join(ws, "out/site/01-home.png")));
 });

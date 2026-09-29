@@ -41,7 +41,6 @@ import {
   type RadiusToken,
   type Ratio,
   type ShadowToken,
-  type SizeToken,
   type SpaceToken,
   type StrokeToken,
   type SurfaceToken,
@@ -539,6 +538,8 @@ export function Box(props: BoxProps) {
     background: bg?.value,
     color: bg ? colorValue(brand, bg.on) : undefined,
     aspectRatio: ratio ? ratio.replace(":", " / ") : undefined,
+    // A column must not squeeze a fixed shape below its ratio; if there is no room, it overflows visibly.
+    flexShrink: ratio && layout.axis === "column" ? 0 : undefined,
     ...(props.grow ? { flex: "1 1 0" } : {}),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
@@ -992,6 +993,8 @@ export function Image(props: ImageProps) {
     overflow: "hidden",
     borderRadius: radius,
     aspectRatio: ratio ? ratio.replace(":", " / ") : undefined,
+    // A column must not squeeze a fixed shape below its ratio; if there is no room, it overflows visibly.
+    flexShrink: ratio && layout.axis === "column" ? 0 : undefined,
     ...(props.grow ? { flex: "1 1 0" } : {}),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),

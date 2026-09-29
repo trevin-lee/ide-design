@@ -72,7 +72,8 @@ ided setup                         # skills for your agents + the MCP server
 ```
 
 Upgrade with `brew upgrade ide-design`. Before `brew uninstall ide-design`, run `ided setup --remove`
-to take the skills and MCP server out of your agents. Everything ided writes outside its own
+to take the skills and MCP server out of your agents, and `ided browser remove` to delete the
+downloaded Chromium. Everything ided writes outside its own
 install survives upgrades: the workspace's editor types point at Homebrew's version-independent
 path, and the skills (and the links agents read them through) refresh on the next `ided` command.
 The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents started
@@ -156,6 +157,11 @@ your-repo/
       DESIGN.md              # why it looks the way it does (every project has one)
 ```
 
+Frames are ordered by the number in their file name. To insert or reorder frames, rename the
+files; to remove a frame or a project, delete its file or folder. They are plain files, so `git mv`
+and `git rm` are the tools, and `ided check` flags whatever still imports a removed package and
+review comments left on a renamed frame.
+
 ### Packages
 
 Reuse works like code. Every project folder is a package named by its folder, and every import
@@ -203,14 +209,14 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided check [project] [--json] [--no-render]` | verify everything; exit 1 on errors |
 | `ided brand [--json]` | every token in the brand |
 | `ided rules` | the primitive reference agents read |
-| `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts |
+| `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts (PDF by default; PNG for web) |
 | `ided export brand [--zip]` | export the brand kit |
 | `ided screenshot <project> <frame>` | one frame to PNG, for agents to look at their work |
 | `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
-| `ided browser [install]` | show or download the pinned Chromium used for export |
+| `ided browser [install\|remove]` | show, download or delete the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` (`--author`, default `agent`) | review loop |
 | `ided mcp` | MCP server on stdio |
-| `ided setup [--project] [--no-mcp] [--remove]` | install the skills for every agent (user-wide or in this repository) and register the MCP server; `--remove` undoes it |
+| `ided setup [--project] [--agent <names…>] [--no-mcp] [--remove]` | install the skills for your agents (user-wide or in this repository) and register the MCP server; `--remove` undoes it |
 | `ided ci` | write a GitHub Actions workflow that publishes the brand kit |
 
 ## Agents
@@ -220,22 +226,26 @@ skills follow the [Agent Skills](https://agentskills.io) standard, so Claude Cod
 GitHub Copilot, Gemini CLI, OpenCode, Cline and the rest read the same files.
 
 ```sh
-ided setup              # user-wide: every agent on this machine
+ided setup              # user-wide, for the agents on this machine
+ided setup --agent trae # also an agent that keeps its own skills folder
 ided setup --project    # this repository: every agent, for everyone who clones it
 ```
 
-- **User-wide**, ided runs the standard skills installer ([vercel-labs/skills](https://github.com/vercel-labs/skills),
-  pinned, with its telemetry turned off) on the installed package, so the skills always match
-  your ided version. It puts one copy in `~/.agents/skills`, which most agents read directly, and
-  links it into agents with their own folder, such as `~/.claude/skills`. It also registers the MCP
-  server with Claude Code and Codex when they are installed (`--no-mcp` to skip); other MCP clients
-  can run `ided mcp`.
+- **User-wide**, ided writes one copy to `~/.agents/skills`, which Codex, Cursor, Copilot, Gemini
+  CLI and most other agents read directly, and links it into `~/.claude/skills` when Claude Code
+  is installed. Nothing is written for an agent that is not there. Agents that keep their own
+  folder (Trae, Junie, Kiro, Windsurf and others) get the skills when you name them with
+  `--agent`; ided then runs the standard skills installer ([vercel-labs/skills](https://github.com/vercel-labs/skills),
+  pinned, with its telemetry turned off), which knows where each one looks. Setup keeps a receipt
+  of every folder it creates, so `ided setup --remove` leaves your home folder as it found it. It
+  also registers the MCP server with Claude Code and Codex when they are installed (`--no-mcp` to
+  skip); other MCP clients can run `ided mcp`.
 - **Per project**, ided writes the skills to `.agents/skills/` (the shared project location) with
   relative links from `.claude/skills/`, adds `ided mcp` to `.mcp.json`, and keeps a short section in
   `AGENTS.md`, the cross-agent instructions file, so even an agent without the skills knows to run
   `ided rules`. `ided init` adds that section on its own (`--no-agents-md` to skip).
-- After an upgrade, the next `ided` command refreshes both copies. Folders ided did not create are
-  never touched.
+- After an upgrade, the next `ided` command refreshes every copy. Files and folders ided did not
+  create are never touched.
 - Without ided installed, the skills alone install anywhere with `npx skills add trevin-lee/ide-design`.
 
 - **ided**: the mechanics (scaffold, write, `ided check`, screenshot, review comments) and the
@@ -253,12 +263,15 @@ ided setup --project    # this repository: every agent, for everyone who clones 
   brand kit.
 
 The MCP server exposes `ided_rules`, `ided_list_projects`, `ided_get_brand`, `ided_check`,
-`ided_new_project`, `ided_add_frame`, `ided_screenshot` (returns images), `ided_export`, and the
-comment tools. The CLI covers the same ground for agents that prefer shell commands.
+`ided_new_project`, `ided_add_frame`, `ided_use_library`, `ided_screenshot` (returns images),
+`ided_export`, and the comment tools. It runs the same code as the CLI, so both give the same
+results; use whichever your agent prefers.
 
 The intended loop: you review in the browser, reading each project's design document beside its
 frames, and leave comments on elements; the agent runs `ided comments`, edits the recorded
 lines, runs `ided check`, looks at `ided screenshot`, and resolves each comment with a note.
+Agents (and the VS Code extension) reply and resolve; reopening or deleting a comment is a
+reviewer's call, made in the viewer.
 
 ## VS Code
 
@@ -409,6 +422,9 @@ your files at run time.
 
 ## Current limits
 
+- `ided check` does not measure layout yet: text that overflows its box, or content pushed past
+  the frame, is not reported (the render audit runs without a browser). Look at `ided screenshot`.
+  A layout check is the plan for 0.4.0 ([ROADMAP.md](ROADMAP.md)).
 - Doc pages are explicit, one file per page. Text does not flow across pages automatically.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.

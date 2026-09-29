@@ -16,15 +16,21 @@ const FACT_PATTERNS: { kind: string; re: RegExp }[] = [
   { kind: "a domain", re: new RegExp(`\\b[a-z0-9][a-z0-9-]*(?:\\.[a-z0-9-]+)*\\.(?:${TLDS})\\b(?![.\\w-])`, "i") },
 ];
 
-/** A URL, email, domain or phone number in visible text, if any. */
-function rawFact(text: string): { kind: string; text: string } | null {
+/** Every URL, email, domain and phone number in visible text. */
+function rawFacts(text: string): { kind: string; text: string }[] {
+  const found: { kind: string; text: string }[] = [];
+  // Each match is blanked out, so the domain inside a URL or an email is not reported again.
+  let rest = text;
   for (const { kind, re } of FACT_PATTERNS) {
-    const m = re.exec(text);
-    if (m) return { kind, text: m[0] };
+    rest = rest.replace(new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`), (m) => {
+      found.push({ kind, text: m });
+      return " ".repeat(m.length);
+    });
   }
-  const phone = /\+?\(?\d[\d\s().-]{8,}\d/.exec(text);
-  if (phone && (phone[0].match(/\d/g) ?? []).length >= 10) return { kind: "a phone number", text: phone[0].trim() };
-  return null;
+  for (const m of rest.matchAll(/\+?\(?\d[\d\s().-]{8,}\d/g)) {
+    if ((m[0].match(/\d/g) ?? []).length >= 10) found.push({ kind: "a phone number", text: m[0].trim() });
+  }
+  return found;
 }
 
 const LAYOUT_PRIMITIVES = new Set(["Slide", "Page", "Artboard", "Screen", "Stack", "Row", "Grid", "Box", "Place"]);
@@ -191,8 +197,7 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
     // (TeX is exempt: long numbers in an equation are not phone numbers.)
     const isTex = !!node.parent && ts.isJsxAttribute(node.parent) && node.parent.name.getText(sf) === "tex";
     if (role !== "brand" && !isTex && (ts.isJsxText(node) || ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent)))) {
-      const found = rawFact(node.text);
-      if (found) {
+      for (const found of rawFacts(node.text)) {
         report(
           node,
           "no-raw-facts",

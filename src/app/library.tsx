@@ -78,6 +78,25 @@ function ProjectLinks(props: { ids: string[]; empty: string }) {
   );
 }
 
+/** A package's components with the line that imports each one. */
+export function ComponentList(props: { project: WsProject }) {
+  const p = props.project;
+  if (p.components.length === 0) return <p className="lib-empty">No components yet.</p>;
+  return (
+    <div className="lib-components">
+      {p.components.map((c) => {
+        const slug = c.replace(/^components\//, "").replace(/\.tsx$/, "");
+        return (
+          <div key={c} className="lib-component">
+            <strong>{pascal(slug)}</strong>
+            <CopyLine code={`import { ${pascal(slug)} } from "@${p.id}/components/${slug}";`} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function LibraryBoard(props: { project: WsProject }) {
   const p = props.project;
   return (
@@ -107,21 +126,7 @@ export function LibraryBoard(props: { project: WsProject }) {
             <h2>Components</h2>
             <p>Named exports in components/. Add one with <code>ided add {p.id} &lt;name&gt;</code>.</p>
           </header>
-          {p.components.length === 0 ? (
-            <p className="lib-empty">No components yet.</p>
-          ) : (
-            <div className="lib-components">
-              {p.components.map((c) => {
-                const slug = c.replace(/^components\//, "").replace(/\.tsx$/, "");
-                return (
-                  <div key={c} className="lib-component">
-                    <strong>{pascal(slug)}</strong>
-                    <CopyLine code={`import { ${pascal(slug)} } from "@${p.id}/components/${slug}";`} />
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <ComponentList project={p} />
         </section>
 
         <section className="bb-section">

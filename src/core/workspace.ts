@@ -213,7 +213,12 @@ function scanProject(root: string, designDir: string, id: string): Project {
         rule: "design-doc",
         message: `${DESIGN_DOC}: ${status.empty.join(", ")} ${status.empty.length === 1 ? "is" : "are"} not written yet.`,
         severity: "warning",
-        hint: "Each section's prompt says what it must answer. Write the brief, message and concept before designing the frames.",
+        hint:
+          manifest.kind === "brand"
+            ? "Each section's prompt says what it must answer. Write the positioning and the idea before changing the brand's values."
+            : manifest.kind === "library"
+              ? "Each section's prompt says what it must answer: what the library is for, what it holds, and the rules for using it."
+              : "Each section's prompt says what it must answer. Write the brief, message and concept before designing the frames.",
       });
     }
   }
@@ -245,6 +250,7 @@ function scanProject(root: string, designDir: string, id: string): Project {
     if (project.frames.length === 0) {
       issues.push({ file: rel(dir), rule: "empty", message: `No ${frameDir} yet.`, severity: "warning", hint: `Add one with \`ided add ${id} <name>\`.` });
     }
+    orphanedComments(root, project, rel);
   }
 
   if (manifest.kind === "library" && !existsSync(join(dir, "components")) && !existsSync(join(dir, "assets"))) {
@@ -262,6 +268,31 @@ function scanProject(root: string, designDir: string, id: string): Project {
     project.components.push(`components/${entry.name}`);
   }
   return project;
+}
+
+/** Open review comments whose file (or frame) is gone, typically after a frame was renamed or deleted. */
+function orphanedComments(root: string, project: Project, rel: (p: string) => string): void {
+  const file = join(project.dir, "comments.json");
+  if (!existsSync(file)) return;
+  let comments: { id: string; status: string; frame: string | null; target: { src: string | null } | null }[];
+  try {
+    comments = (JSON.parse(readFileSync(file, "utf8")) as { comments?: typeof comments }).comments ?? [];
+  } catch {
+    return;
+  }
+  for (const c of comments) {
+    if (c.status !== "open") continue;
+    const src = c.target?.src?.replace(/:\d+(?::\d+)?$/, "");
+    const gone = src ? !existsSync(join(root, src)) : c.frame !== null && !project.frames.some((f) => f.id === c.frame);
+    if (!gone) continue;
+    project.issues.push({
+      file: rel(file),
+      rule: "comments",
+      severity: "warning",
+      message: `Comment ${c.id} points at ${src ?? `frame ${c.frame}`}, which no longer exists.`,
+      hint: `If the frame was renamed, the note may still apply: address it and resolve it (\`ided comments resolve ${c.id} -m "…"\`), or leave it again in the viewer.`,
+    });
+  }
 }
 
 const IMAGES = new Set<string>(IMAGE_EXTENSIONS);

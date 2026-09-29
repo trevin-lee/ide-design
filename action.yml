@@ -15,7 +15,7 @@ inputs:
     description: Run `ided check` first and fail on errors.
     default: "true"
   version:
-    description: ided version to run, e.g. 0.1.0, or "latest".
+    description: ided version to run, e.g. 0.3.1, or "latest".
     default: latest
 
 outputs:
@@ -42,6 +42,8 @@ runs:
           url="https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz"
         else
           url="https://github.com/trevin-lee/ide-design/releases/download/v${VERSION}/ide-design-${VERSION}.tgz"
+          # Releases before 0.3.0 were named ided-<version>.tgz.
+          case "$VERSION" in 0.1.*|0.2.*) url="https://github.com/trevin-lee/ide-design/releases/download/v${VERSION}/ided-${VERSION}.tgz" ;; esac
         fi
         npm install -g "$url"
 

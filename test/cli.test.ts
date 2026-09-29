@@ -1,11 +1,11 @@
 // End-to-end: drives the built CLI (run `npm run build` first).
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { CLI, run } from "./helpers.ts";
+import { CLI, run, runWith, workspace } from "./helpers.ts";
 
 test("init → check → break it → check → structure rules", { timeout: 60_000 }, () => {
   assert.ok(existsSync(CLI), "build first: npm run build");
@@ -126,4 +126,37 @@ test("use --remove drops a dependency and names files still importing it", { tim
   assert.match(r.stdout, /no longer uses kit/);
   assert.match(r.stdout, /design\/pitch\/slides\/02-kit\.tsx/);
   assert.equal(JSON.parse(readFileSync(join(dir, "design/pitch/project.json"), "utf8")).dependencies, undefined);
+});
+
+test("open comments on a renamed frame are flagged; unknown projects are errors", { timeout: 60_000 }, () => {
+  const dir = workspace("--bare");
+  run(dir, "new", "deck", "d");
+  const comments = join(dir, "design/d/comments.json");
+  const comment = (id: string, src: string, status = "open") => ({ id, project: "d", frame: "01-title", target: { src, primitive: "Text", ancestors: [], text: "", rect: null }, body: "x", author: "user", status, createdAt: "2026-09-28T00:00:00.000Z", replies: [] });
+  writeFileSync(comments, JSON.stringify({ comments: [comment("c1", "design/d/slides/01-title.tsx:5:7"), comment("c2", "design/d/slides/01-title.tsx:5:7", "resolved")] }));
+  const warnings = () => (JSON.parse(run(dir, "check", "d", "--json", "--no-render").stdout).issues as { rule: string; message: string }[]).filter((i) => i.rule === "comments");
+  assert.deepEqual(warnings(), []);
+  renameSync(join(dir, "design/d/slides/01-title.tsx"), join(dir, "design/d/slides/01-opening.tsx"));
+  assert.deepEqual(warnings().map((w) => w.message), ["Comment c1 points at design/d/slides/01-title.tsx, which no longer exists."], "open ones only");
+
+  const unknown = run(dir, "comments", "nope");
+  assert.notEqual(unknown.status, 0);
+  assert.match(unknown.stderr, /No project "nope"/);
+});
+
+test("list gives frame sizes to frame projects only", { timeout: 60_000 }, () => {
+  const dir = workspace("--bare");
+  run(dir, "new", "library", "kit");
+  run(dir, "new", "web", "site", "--viewport", "mobile");
+  const list = JSON.parse(run(dir, "list", "--json").stdout) as { id: string; size: string | null }[];
+  assert.deepEqual(Object.fromEntries(list.map((p) => [p.id, p.size])), { brand: null, kit: null, site: "390xauto" });
+});
+
+test("browser remove deletes only the builds ided downloaded", { timeout: 30_000 }, () => {
+  const cache = mkdtempSync(join(tmpdir(), "ided-browsers-"));
+  for (const d of ["chromium_headless_shell-1", "ffmpeg-2", "someone-elses"]) mkdirSync(join(cache, d));
+  const r = runWith({ IDED_BROWSERS_PATH: cache }, cache, "browser", "remove");
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(readdirSync(cache), ["someone-elses"]);
+  rmSync(cache, { recursive: true, force: true });
 });

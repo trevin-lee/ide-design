@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
-import { AssetGrid } from "./library.tsx";
+import { AssetGrid, ComponentList } from "./library.tsx";
 import { factNames, formatFact } from "../shared/brand-facts.ts";
 import { colorValue, isSurface, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
@@ -14,7 +14,14 @@ function LogoArt(props: { b: BrandInput; variant: string; colorway: string; heig
   } catch (e) {
     return <span className="bb-error">{(e as Error).message}</span>;
   }
-  return <span className="bb-logo" style={{ width: aspect * props.height, height: props.height }} dangerouslySetInnerHTML={{ __html: html }} />;
+  // Shown at its design height, scaled down (never clipped) when the tile is narrower.
+  return (
+    <span
+      className="bb-logo"
+      style={{ width: aspect * props.height, maxWidth: "calc(100% - 24px)", aspectRatio: String(aspect), height: "auto" }}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
 }
 
 /** The surface a colorway is meant for: declared by the surface, else the most legible. */
@@ -229,6 +236,10 @@ export function BrandBoard(props: { project: WsProject }) {
           ) : (
             <p className="lib-empty">No facts yet. Add names, links, contact details, locations, social handles and abbreviations to brand.ts.</p>
           )}
+        </Section>
+
+        <Section title="Components" note="Every project can import these without declaring anything. Add one with ided add brand <name>.">
+          <ComponentList project={props.project} />
         </Section>
 
         <Section title="Assets" note="Shared images. Every project can import these: @brand/assets/<file>.">

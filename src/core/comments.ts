@@ -4,7 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { Workspace } from "./workspace.ts";
+import { getProject, type Workspace } from "./workspace.ts";
 
 export interface CommentTarget {
   /** Source location of the clicked primitive: `design/x/slides/01-a.tsx:12:7`. */
@@ -61,7 +61,7 @@ function save(ws: Workspace, project: string, data: CommentFile) {
 }
 
 export function listComments(ws: Workspace, opts: { project?: string; status?: "open" | "resolved" | "all" } = {}): Comment[] {
-  const projects = opts.project ? [opts.project] : ws.projects.map((p) => p.id);
+  const projects = opts.project ? [getProject(ws, opts.project).id] : ws.projects.map((p) => p.id);
   const status = opts.status ?? "open";
   return projects
     .flatMap((p) => load(ws, p).comments)

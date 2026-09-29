@@ -39,7 +39,11 @@ const AXES = {
   ],
 };
 
-const { values } = parseArgs({ options: { medium: { type: "string" }, seed: { type: "string" } } });
+const { values } = parseArgs({ options: { medium: { type: "string" }, seed: { type: "string" }, help: { type: "boolean", short: "h" } } });
+if (values.help) {
+  console.log("Usage: node roll.mjs --medium deck|doc|graphic|web [--seed <any text>]\n\nRolls the open design axes (structure, color strategy, scale, density, axis, one constraint)\nfor a new piece. The same seed always gives the same roll.");
+  process.exit(0);
+}
 const medium = values.medium ?? "deck";
 if (!STRUCTURES[medium]) {
   console.error(`--medium is one of: ${Object.keys(STRUCTURES).join(", ")}`);

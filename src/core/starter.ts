@@ -113,8 +113,8 @@ export default function Concentric() {
 export function sampleDesignDoc(): string {
   return `# Design as Code
 
-The sample deck \`ided init\` writes. It is here to be read, presented and taken apart; delete the
-project when you no longer need it.
+The sample deck \`ided init\` writes. It is here to be read, presented and taken apart; delete its
+folder (\`design/intro\`) when you no longer need it.
 
 ## Brief
 

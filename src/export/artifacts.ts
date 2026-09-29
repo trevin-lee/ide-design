@@ -53,7 +53,7 @@ export async function exportProject(opts: ExportOptions): Promise<ExportedFile[]
   const run = async (browser: Browser): Promise<ExportedFile[]> => {
     const p = opts.project;
     if (!p.geometry || p.kind === "brand") throw new Error(`"${p.id}" has no frames to export; use \`ided export brand\` for the brand kit.`);
-    if (p.kind === "web" && opts.format === "pdf") throw new Error("Web screens grow with their content and have no page size. Export them with -f png or -f jpeg.");
+    if (p.kind === "web" && opts.format === "pdf") throw new Error("Web screens grow with their content and have no page size, so they export as PNG or JPEG, not PDF.");
     const frames = opts.frames?.length ? p.frames.filter((f) => opts.frames!.includes(f.id)) : p.frames;
     if (opts.frames?.length && frames.length !== opts.frames.length) {
       const missing = opts.frames.filter((f) => !p.frames.some((x) => x.id === f));

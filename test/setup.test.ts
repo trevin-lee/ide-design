@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { FAKE_HOME, run, runWith, workspace } from "./helpers.ts";
@@ -113,4 +114,33 @@ test("setup --project --remove takes out only what ided added", { timeout: 60_00
   const plain = workspace("--bare");
   run(plain, "setup", "--project", "--remove");
   assert.ok(!existsSync(join(plain, "AGENTS.md")));
+});
+
+test("setup writes only for agents that are there, and --remove leaves the home folder as it was", { timeout: 120_000 }, () => {
+  const home = mkdtempSync(join(tmpdir(), "ided-empty-home-"));
+  const clean = { ...env, HOME: home, CODEX_HOME: join(home, ".codex") };
+  const entries = () => readdirSync(home).sort();
+
+  assert.equal(runWith(clean, home, "setup").status, 0);
+  assert.deepEqual(entries(), [".agents"], "no agent installed: only the shared folder");
+  assert.ok(existsSync(join(home, ".agents/skills/ided/SKILL.md")));
+
+  const named = runWith(clean, home, "setup", "--agent", "trae");
+  assert.equal(named.status, 0, named.stderr);
+  assert.deepEqual(entries(), [".agents", ".trae"], "a named agent gets its own folder");
+  assert.ok(existsSync(join(home, ".trae/skills/ided-design/SKILL.md")));
+
+  assert.equal(runWith(clean, home, "setup", "--remove").status, 0);
+  assert.deepEqual(entries(), [], "everything setup created is gone");
+  rmSync(home, { recursive: true, force: true });
+});
+
+test("setup --project --no-mcp writes no .mcp.json, and --agent is user-wide only", { timeout: 60_000 }, () => {
+  const dir = workspace("--bare");
+  assert.equal(run(dir, "setup", "--project", "--no-mcp").status, 0);
+  assert.ok(existsSync(join(dir, ".agents/skills/ided/SKILL.md")));
+  assert.ok(!existsSync(join(dir, ".mcp.json")));
+  const r = run(dir, "setup", "--project", "--agent", "trae");
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /--agent is for user-wide setup/);
 });

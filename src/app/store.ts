@@ -98,7 +98,10 @@ export async function refreshComments() {
 }
 
 if (import.meta.hot) {
-  import.meta.hot.on("ided:comments", () => void refreshComments());
+  import.meta.hot.on("ided:comments", () => {
+    void refreshComments();
+    refreshStaticIssues(100);
+  });
   // Projects or files were added, removed or renamed. Export pages keep the snapshot they loaded.
   import.meta.hot.on("ided:structure", () => {
     if (!window.location.hash.startsWith("#/render/")) window.location.reload();

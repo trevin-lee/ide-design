@@ -11,6 +11,7 @@ import {
   PROJECT_DIR_RE,
   type FrameKind,
   type ProjectManifest,
+  type WebViewport,
 } from "../shared/formats.ts";
 import { dependencyDir, DESIGN_DIR, GENERATED_DIR, TYPES_DIR, WORKSPACE_MARKER } from "./paths.ts";
 import { DESIGN_DOC, designDocTemplate } from "./design-doc.ts";
@@ -383,15 +384,38 @@ export function newProject(ws: Workspace, kind: FrameKind | "library", id: strin
   write(join(dir, "project.json"), JSON.stringify(manifest, null, 2) + "\n");
   write(join(dir, DESIGN_DOC), designDocTemplate(kind, title));
   const first = join(dir, FRAME_DIR[kind], `01-${kind === "deck" ? "title" : kind === "doc" ? "cover" : kind === "web" ? "home" : "main"}.tsx`);
-  write(first, frameTemplate(kind, first.split("/").pop()!.replace(/^\d+-|\.tsx$/g, ""), title));
+  write(first, frameTemplate(kind, first.split("/").pop()!.replace(/^\d+-|\.tsx$/g, ""), title, "viewport" in manifest ? manifest.viewport : undefined));
   return [rel(join(dir, "project.json")), rel(join(dir, DESIGN_DOC)), rel(first)];
 }
 
-export function frameTemplate(kind: FrameKind, slug: string, heading = titleCase(slug)): string {
+export function frameTemplate(kind: FrameKind, slug: string, heading = titleCase(slug), viewport?: WebViewport): string {
   const root = FRAME_ROOT[kind];
   const fn = pascal(slug);
   const text = JSON.stringify(heading).slice(1, -1);
+  if (kind === "web" && viewport === "mobile") {
+    // A phone is too narrow for a row of links: the mark and a menu, and a headline sized to fit.
+    return `import { Row, Screen, Stack, Text, Logo } from "ided";
+
+export default function ${fn}() {
+  return (
+    <${root} surface="paper" gap="3xl">
+      <Row justify="between" align="center">
+        <Logo variant="mark" size="xs" />
+        <Text type="small">Menu</Text>
+      </Row>
+      <Stack gap="m">
+        <Text type="heading">${text}</Text>
+        <Text type="body" color="muted">
+          One sentence that says what this is for.
+        </Text>
+      </Stack>
+    </${root}>
+  );
+}
+`;
+  }
   if (kind === "web") {
+    const tablet = viewport === "tablet";
     return `import { Row, Screen, Stack, Text, Logo } from "ided";
 
 export default function ${fn}() {
@@ -405,8 +429,8 @@ export default function ${fn}() {
           <Text type="small">About</Text>
         </Row>
       </Row>
-      <Stack gap="l" width="2/3">
-        <Text type="display">${text}</Text>
+      <Stack gap="l"${tablet ? "" : ' width="2/3"'}>
+        <Text type="${tablet ? "title" : "display"}">${text}</Text>
         <Text type="subhead" color="muted">
           One sentence that says what this is for.
         </Text>
@@ -459,7 +483,7 @@ export function addFrame(ws: Workspace, projectId: string, name: string): AddFra
   const width = Math.max(2, String(next).length);
   const fileName = `${String(next).padStart(width, "0")}-${slug}.tsx`;
   const abs = join(p.dir, FRAME_DIR[kind], fileName);
-  write(abs, frameTemplate(kind, slug));
+  write(abs, frameTemplate(kind, slug, undefined, "viewport" in p.manifest ? p.manifest.viewport : undefined));
   return { file: relative(ws.root, abs) };
 }
 

@@ -6,10 +6,11 @@ import { addComment, deleteComment, listComments, updateComment } from "../core/
 import { DESIGN_DOC } from "../core/design-doc.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION } from "../core/paths.ts";
-import { slugify, writeGenerated } from "../core/scaffold.ts";
+import { writeGenerated } from "../core/scaffold.ts";
 import { canonical, getProject, scanWorkspace } from "../core/workspace.ts";
 import { exportProject, type ExportFormat } from "../export/artifacts.ts";
-import { buildBrandKit, zipBrandKit } from "../export/brand-kit.ts";
+import { buildKit, defaultFormat } from "../export/operations.ts";
+import { zipBrandKit } from "../export/brand-kit.ts";
 import { staticCheck } from "../check/index.ts";
 import { svgColorIssues } from "../check/svg-colors.ts";
 import { createIdedVite } from "./vite.ts";
@@ -81,8 +82,9 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
         return json(res, 200, { file: `design/${project.id}/${DESIGN_DOC}`, markdown: existsSync(file) ? readFileSync(file, "utf8") : null });
       }
       if (parts[0] === "check" && req.method === "GET") {
-        // Structure comes with the page; design-doc warnings change as the document is written, so they come from here.
-        const list = staticCheck(opts.root).filter((i) => i.source !== "structure" || i.rule === "design-doc");
+        // Structure comes with the page; design-doc and comment warnings change as documents and comments
+        // are edited, so they come from here.
+        const list = staticCheck(opts.root).filter((i) => i.source !== "structure" || i.rule === "design-doc" || i.rule === "comments");
         // SVG colors are checked against the brand, which the viewer validates itself; skip them while it is broken.
         const loaded = await loadBrand(vite, ws);
         if (loaded.brand && !loaded.issues.some((i) => i.severity === "error")) {
@@ -120,25 +122,22 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
       }
       if (parts[0] === "export" && req.method === "GET") {
         const project = getProject(ws, url.searchParams.get("project") ?? "");
-        const format = (url.searchParams.get("format") ?? "pdf") as ExportFormat;
+        const format = (url.searchParams.get("format") as ExportFormat | null) ?? defaultFormat(project);
         const frames = url.searchParams.get("frames")?.split(",").filter(Boolean);
         const files = await exportProject({ baseUrl, project, format, frames, scale: Number(url.searchParams.get("scale") ?? 2) });
         if (files.length === 1) {
           const f = files[0]!;
-          return download(res, f.name, f.name.endsWith(".pdf") ? "application/pdf" : f.name.endsWith(".png") ? "image/png" : "image/jpeg", f.data);
+          // A PDF is already named for its project; a single image gets the project's name too.
+          const name = f.name.endsWith(".pdf") ? f.name : `${project.id}-${f.name}`;
+          return download(res, name, f.name.endsWith(".pdf") ? "application/pdf" : f.name.endsWith(".png") ? "image/png" : "image/jpeg", f.data);
         }
         const { zipSync } = await import("fflate");
         const zip = zipSync(Object.fromEntries(files.map((f) => [`${project.id}/${f.name}`, new Uint8Array(f.data)])));
         return download(res, `${project.id}-${format}.zip`, "application/zip", zip);
       }
       if (parts[0] === "brand-kit" && req.method === "GET") {
-        const loaded = await loadBrand(vite, ws);
-        if (!loaded.brand) throw new Error(loaded.error ?? "Brand could not be loaded.");
-        const errors = loaded.issues.filter((i) => i.severity === "error");
-        if (errors.length) throw new Error(`Fix the brand first:\n${errors.map((e) => `${e.path}: ${e.message}`).join("\n")}`);
-        const files = buildBrandKit({ brand: loaded.brand, svgs: loaded.svgs, brandAssetsDir: join(ws.designDir, "brand", "assets") });
-        const folder = `${slugify(loaded.brand.name) || "brand"}-brand-kit`;
-        return download(res, `${folder}.zip`, "application/zip", zipBrandKit(files, folder));
+        const kit = await buildKit(vite, ws);
+        return download(res, `${kit.folder}.zip`, "application/zip", zipBrandKit(kit.files, kit.folder));
       }
       json(res, 404, { error: `No route ${req.method} ${url.pathname}` });
     } catch (e) {

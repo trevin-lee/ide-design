@@ -35,6 +35,9 @@ the user wants these skills available to every agent and teammate who opens the 
 1. **Scaffold, never hand-create structure.**
    - New project: `ided new deck q3-review --title "Q3 Review"` (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`).
    - New frame: `ided add q3-review agenda` creates the next `NN-agenda.tsx` from a template.
+     Frames are ordered by their number: to insert or reorder, rename the files (`git mv`,
+     numbers unique); to drop a frame or a whole project, delete its file or folder. `ided check`
+     then flags anything still importing it and comments left on it.
    - Shared components and assets live in a library: `ided new library kit`, `ided add kit stat`
      (adds a component), and `ided use q3-review kit` to let a project import from it.
 2. **Write the frame** with primitives and tokens only. Pull repeated structure into the
@@ -64,6 +67,10 @@ location of the element (`design/deck/slides/02-x.tsx:14:11`) and its enclosing 
 4. If a comment changes the design's reasoning (a new audience, a different message, a
    rejected concept), update DESIGN.md too.
 
+Reply and resolve are yours; reopening or deleting a comment is the reviewer's, in the viewer.
+Renaming or deleting a frame leaves its open comments pointing at nothing (`ided check` warns):
+address and resolve them rather than letting them go stale.
+
 ## Hard rules (the checker enforces them; do not try to get around them)
 
 - No HTML elements, no `style`, no `className`, no CSS files, no npm imports, no React import.
@@ -83,8 +90,11 @@ design decision the user should see.
 
 - Exports and screenshots render with ided's pinned Chromium. The first one downloads it (about
   100 MB, one time); if a command seems to pause on first use, that is why.
-- `ided export <project>` gives a PDF (docs print at true Letter/A4 size); `-f png` or `-f jpeg` gives
-  per-frame images at 2× (`--frames 01-title,03-x` to limit).
+- `ided export <project>` gives a PDF (docs print at true Letter/A4 size; web projects export
+  PNG, since screens have no page size); `-f png` or `-f jpeg` gives per-frame images at 2×
+  (`--frames 01-title,03-x` to limit).
+- `ided check` does not measure layout yet: look at `ided screenshot` for text that overflows
+  its box or content pushed past the frame.
 - `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG
   and PNG, plus tokens as CSS, Tailwind v4, DTCG JSON and TypeScript.
 

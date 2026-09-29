@@ -1,5 +1,6 @@
-// MCP server: the same capabilities as the CLI, plus screenshots returned as
-// images so an agent can look at what it made.
+// MCP server: the CLI's capabilities through the same code paths (src/core, src/check,
+// src/export/operations.ts), plus screenshots returned as images so an agent can look at
+// what it made.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -10,9 +11,9 @@ import { z } from "zod";
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR } from "../core/paths.ts";
-import { addFrame, newProject, useLibrary, writeGenerated } from "../core/scaffold.ts";
+import { addFrame, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
-import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 import type { RunningServer } from "../server/index.ts";
 
@@ -54,7 +55,7 @@ export async function runMcpServer() {
         const r = rootFor(root);
         const ws = scanWorkspace(r);
         const lines = ws.projects.map((p) => {
-          const size = p.geometry ? ` ${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : "";
+          const size = p.geometry && isFrameKind(p.kind) ? ` ${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : "";
           return [`${p.id} (${p.kind}${size}) "${p.title}"`, ...p.frames.map((f) => `  ${relative(r, f.abs)}`), ...p.issues.map((i) => `  ! ${i.file}: ${i.message}`)].join("\n");
         });
         return text(`workspace ${r}\n\n${lines.join("\n\n")}`);
@@ -142,10 +143,17 @@ export async function runMcpServer() {
 
   server.registerTool(
     "ided_use_library",
-    { title: "Use library", description: "Declare that a project imports from a library (adds it to project.json dependencies).", inputSchema: { ...rootArg, project: z.string(), library: z.string() } },
-    async ({ root, project, library }) => {
+    {
+      title: "Use library",
+      description: "Declare that a project imports from a library (adds it to project.json dependencies), or stop using it with remove: true.",
+      inputSchema: { ...rootArg, project: z.string(), library: z.string(), remove: z.boolean().optional() },
+    },
+    async ({ root, project, library, remove }) => {
       try {
-        return text(useLibrary(scanWorkspace(rootFor(root)), project, library));
+        const ws = scanWorkspace(rootFor(root));
+        if (!remove) return text(useLibrary(ws, project, library));
+        const { message, stillImporting } = unuseLibrary(ws, project, library);
+        return text(stillImporting.length ? `${message}\nThese files still import from @${library}; ided check flags them until they change:\n${stillImporting.join("\n")}` : message);
       } catch (e) {
         return failure(e);
       }
@@ -197,34 +205,20 @@ export async function runMcpServer() {
     "ided_export",
     {
       title: "Export",
-      description: 'Export a project to PDF, PNG or JPEG files, or project "brand" to a brand kit folder.',
+      description: 'Export a project to PDF, PNG or JPEG files (default PDF; PNG for web projects), or project "brand" to the brand kit (a folder and a .zip).',
       inputSchema: { ...rootArg, project: z.string(), format: z.enum(["pdf", "png", "jpeg"]).optional(), frames: z.array(z.string()).optional(), out: z.string().optional().describe("Output directory, default <root>/out") },
     },
     async ({ root, project, format, frames, out }) => {
       try {
         const r = rootFor(root);
-        const ws = scanWorkspace(r);
         const outDir = resolve(r, out ?? "out");
+        const { exportArtifacts, exportBrandKit } = await import("../export/operations.ts");
         if (project === "brand") {
-          const { createIdedVite } = await import("../server/vite.ts");
-          const { buildBrandKit, writeBrandKit } = await import("../export/brand-kit.ts");
-          const vite = await createIdedVite({ root: r, ssrOnly: true });
-          try {
-            const loaded = await loadBrand(vite, ws);
-            if (!loaded.brand) throw new Error(loaded.error ?? "Brand did not load.");
-            const files = buildBrandKit({ brand: loaded.brand, svgs: loaded.svgs, brandAssetsDir: join(ws.designDir, "brand", "assets") });
-            const dir = join(outDir, "brand-kit");
-            writeBrandKit(files, dir);
-            return text(`${files.length} files → ${dir}`);
-          } finally {
-            await vite.close();
-          }
+          const kit = await exportBrandKit(r, { out: outDir, zip: true });
+          return text(`${kit.count} files → ${kit.dir}\n${kit.zip}`);
         }
-        const p = getProject(ws, project);
-        const { exportProject, writeExport } = await import("../export/artifacts.ts");
         const rs = await renderer(r);
-        const files = await exportProject({ baseUrl: rs.server.url, project: p, format: format ?? "pdf", frames, browser: rs.browser });
-        return text(writeExport(files, format === "pdf" || !format ? outDir : join(outDir, p.id)).join("\n"));
+        return text((await exportArtifacts(r, project, { out: outDir, format, frames, baseUrl: rs.server.url, browser: rs.browser })).join("\n"));
       } catch (e) {
         return failure(e);
       }

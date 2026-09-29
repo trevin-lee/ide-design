@@ -254,6 +254,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `svg-colors` | an SVG asset uses a color that is not in the brand (error) or one ided cannot read, like `hsl()` (warning) | recolor it with the brand hex values the message suggests; add a color to brand.ts only if the brand truly needs it |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
 | `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `facts` in brand.ts or ask, never invent one |
+| `comments` | an open review comment points at a file or frame that no longer exists (warning) | address it and `ided comments resolve <id> -m …`, or have the reviewer leave it again |
 | `design-doc` | DESIGN.md missing (error), a section heading missing (error), or sections not written yet (warning) | write each section; its prompt says what it must answer |
 | `pure`, `deterministic` | hooks, globals, `Date`, `Math.random` | hard-code data; artifacts are pure |
 | `frame-export`, `component-export` | wrong file shape | see "File shapes" |

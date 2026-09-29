@@ -1,10 +1,13 @@
 // Agent integration, agent-agnostic by default.
 //
-// Skills follow the Agent Skills standard (SKILL.md folders). User-wide, they are
-// installed with the ecosystem's installer (vercel-labs/skills, pinned), which
-// keeps the canonical copy in ~/.agents/skills (read directly by Codex, Cursor,
-// Copilot, Gemini CLI and most others) and links it into agents that use their
-// own folder, such as Claude Code. ided does not keep its own list of agents.
+// Skills follow the Agent Skills standard (SKILL.md folders). User-wide, ided
+// writes the canonical copy to ~/.agents/skills (read directly by Codex, Cursor,
+// Copilot, Gemini CLI and most others) and links it into ~/.claude/skills when
+// Claude Code is present. Agents with a folder of their own (Trae, Junie, Kiro…)
+// get the skills only when named with `ided setup --agent`, through the
+// ecosystem's installer (vercel-labs/skills, pinned), which knows where each one
+// looks. Nothing is written for an agent that is not there, and a receipt of
+// every folder setup creates lets `--remove` undo exactly that.
 // Per project, ided writes .agents/skills (the shared project location) and
 // .claude/skills links itself, so nothing machine-specific is committed.
 //
@@ -27,7 +30,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { dependencyDir, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
 import { findWorkspaceRoot } from "./workspace.ts";
 
@@ -164,34 +167,99 @@ function runInstaller(args: string[], cwd: string): { ok: boolean; output: strin
   return { ok: r.status === 0, output };
 }
 
-/** Which agents the installer reached, from its summary ("universal: …", "symlinked: …"). */
-function installerAgents(output: string): string {
-  const pick = (label: string) => new RegExp(`${label}:\\s*([^│\\n]+)`).exec(output)?.[1]?.trim();
-  return [pick("universal") && `reads ~/.agents/skills: ${pick("universal")}`, pick("symlinked") && `linked: ${pick("symlinked")}`]
-    .filter(Boolean)
-    .join("; ");
-}
-
 function sweepRetired(roots: string[]): void {
   for (const root of roots) for (const n of RETIRED_SKILLS) removeOwned(join(root, n), n);
 }
 
 const globalRoots = () => [agentsSkillsDir(), claudeSkillsDir(), codexSkillsDir()];
 
-export function installGlobalSkills(): SetupStep {
-  const names = skillNames();
-  // Setups from ided 0.1 put copies in ~/.codex/skills and links in ~/.claude/skills. Codex now reads
-  // the shared folder directly (a second copy would appear twice), and the installer replaces the links.
-  for (const root of [codexSkillsDir(), claudeSkillsDir()]) for (const n of names) removeOwned(join(root, n), n);
-  sweepRetired(globalRoots());
-  const r = runInstaller(["add", STABLE_PKG_ROOT, "--global", "--yes", "--skill", "*"], homedir());
-  const canonical = agentsSkillsDir();
-  const placed = names.filter((n) => existsSync(join(canonical, n, "SKILL.md")));
-  for (const n of placed) writeFileSync(join(canonical, n, MARKER), `${PKG_VERSION}\n`);
-  if (!r.ok || placed.length !== names.length) {
-    return { what: "skills", ok: false, detail: r.output.trim().split("\n").slice(-6).join("\n") || "the skills installer failed" };
+/** What user-wide setup placed, so upgrades refresh it and `--remove` undoes exactly it. */
+interface Receipt {
+  /** Agents named with `--agent`, whose own folders the installer filled. */
+  agents: string[];
+  /** Folders setup created. `--remove` deletes each one it leaves empty. */
+  created: string[];
+}
+
+const receiptFile = () => join(homedir(), ".agents", ".ided-setup.json");
+
+function readReceipt(): Receipt {
+  try {
+    const r = JSON.parse(readFileSync(receiptFile(), "utf8")) as Partial<Receipt>;
+    return { agents: r.agents ?? [], created: r.created ?? [] };
+  } catch {
+    return { agents: [], created: [] };
   }
-  return { what: `skills → ${canonical.replace(homedir(), "~")}`, ok: true, detail: `${names.join(", ")}${installerAgents(r.output) ? ` (${installerAgents(r.output)})` : ""}` };
+}
+
+/** mkdir -p that notes every folder it had to create. */
+function ensureDir(dir: string, created: string[]): void {
+  const missing: string[] = [];
+  for (let d = dir; !existsSync(d) && d !== dirname(d); d = dirname(d)) missing.push(d);
+  mkdirSync(dir, { recursive: true });
+  for (const d of missing) if (!created.includes(d)) created.push(d);
+}
+
+const claudePresent = () => existsSync(join(homedir(), ".claude")) || which("claude") !== null;
+
+/**
+ * The shared copy, Claude Code's links when Claude Code is there, and the folders of any agents
+ * named in `agents` (plus those named in earlier setups).
+ */
+export function installGlobalSkills(agents: string[] = []): SetupStep[] {
+  const names = skillNames();
+  const receipt = readReceipt();
+  const created = [...receipt.created];
+  // Setups from ided 0.1 put copies in ~/.codex/skills; Codex now reads the shared folder.
+  for (const n of names) removeOwned(join(codexSkillsDir(), n), n);
+  sweepRetired(globalRoots());
+
+  const shared = agentsSkillsDir();
+  ensureDir(shared, created);
+  const kept = names.filter((n) => copySkill(shared, n) === "kept");
+  const steps: SetupStep[] = [
+    {
+      what: "skills → ~/.agents/skills (read by Codex, Cursor, Copilot, Gemini CLI and most others)",
+      ok: kept.length === 0,
+      detail: kept.length ? `left your own ${kept.join(", ")} untouched` : names.join(", "),
+    },
+  ];
+
+  if (claudePresent()) {
+    const dir = claudeSkillsDir();
+    ensureDir(dir, created);
+    for (const n of names) {
+      const link = join(dir, n);
+      if (lstatSync(link, { throwIfNoEntry: false }) && !removeOwned(link, n)) continue;
+      symlinkSync(join(shared, n), link, "dir");
+    }
+    steps.push({ what: "Claude Code → ~/.claude/skills (links)", ok: true });
+  }
+
+  const named = [...new Set([...receipt.agents, ...agents])];
+  let placedFor: string[] = receipt.agents;
+  if (named.length) {
+    const topLevel = new Set(readdirSync(homedir()));
+    const r = runInstaller(["add", STABLE_PKG_ROOT, "--global", "--yes", "--skill", "*", "--agent", ...named], homedir());
+    // The installer lists where it put each skill ("→ ~/.trae/skills/ided"); note the folders it made.
+    const placed = [...r.output.matchAll(/→\s*(~?\/[^\s│]+)/g)].map((m) => m[1]!.replace(/^~/, homedir()));
+    for (const p of placed) {
+      for (let d = dirname(p); d.startsWith(homedir() + sep); d = dirname(d)) {
+        if (dirname(d) === homedir() && topLevel.has(basename(d))) break;
+        if (!d.startsWith(shared) && !created.includes(d)) created.push(d);
+      }
+    }
+    if (r.ok) placedFor = named;
+    steps.push({
+      what: `skills → ${named.join(", ")}`,
+      ok: r.ok,
+      detail: r.ok ? [...new Set(placed.map((p) => dirname(p).replace(homedir(), "~")))].join(", ") : r.output.trim().split("\n").slice(-6).join("\n"),
+    });
+  }
+
+  mkdirSync(dirname(receiptFile()), { recursive: true });
+  writeFileSync(receiptFile(), JSON.stringify({ agents: placedFor, created } satisfies Receipt, null, 2) + "\n");
+  return steps;
 }
 
 // ---------------------------------------------------------------------------
@@ -250,7 +318,7 @@ function writeProjectMcp(root: string): string {
 
 const projectRoots = (root: string) => [join(root, ".agents", "skills"), join(root, ".claude", "skills")];
 
-export function installProjectSkills(root: string): SetupStep[] {
+export function installProjectSkills(root: string, opts: { mcp?: boolean } = {}): SetupStep[] {
   const names = skillNames();
   const [shared, claude] = projectRoots(root) as [string, string];
   sweepRetired([claude, shared]);
@@ -270,7 +338,7 @@ export function installProjectSkills(root: string): SetupStep[] {
       detail: kept.length ? `left your own ${kept.join(", ")} untouched` : names.join(", "),
     },
     { what: `AGENTS.md: ided section ${writeAgentsMd(root)}`, ok: true },
-    { what: `MCP server → ${writeProjectMcp(root)}`, ok: true, detail: "ided mcp" },
+    ...(opts.mcp === false ? [] : [{ what: `MCP server → ${writeProjectMcp(root)}`, ok: true, detail: "ided mcp" }]),
   ];
 }
 
@@ -297,7 +365,8 @@ export function refreshSkills(cwd = process.cwd()): void {
   try {
     if (stale(agentsSkillsDir())) installGlobalSkills();
     const project = findWorkspaceRoot(cwd);
-    if (project && stale(join(project, ".agents", "skills"))) installProjectSkills(project);
+    // Refresh the skills only: .mcp.json is left as the last explicit setup wrote it.
+    if (project && stale(join(project, ".agents", "skills"))) installProjectSkills(project, { mcp: false });
     refreshLegacy();
   } catch {
     // Never let housekeeping break the command the user actually ran.
@@ -325,12 +394,22 @@ function refreshLegacy(): void {
 // Removing everything setup added
 // ---------------------------------------------------------------------------
 
-/** Undoes `ided setup`: the skills in every agent, and the MCP registrations. */
+/** Undoes `ided setup`: the skills in every agent, the folders setup created, and the MCP registrations. */
 export function removeGlobal(): SetupStep[] {
   const names = skillNames();
+  const receipt = readReceipt();
+  // The installer placed skills for named agents (and, before 0.3.1, for every agent it detected).
   const r = runInstaller(["remove", ...names, "--global", "--yes"], homedir());
-  // Whatever the installer did not place (older setups, retired names) is removed here, ours only.
   for (const root of globalRoots()) for (const n of [...names, ...RETIRED_SKILLS]) removeOwned(join(root, n), n);
+  rmSync(receiptFile(), { force: true });
+  // Deepest first, and only folders that are now empty: anything else in them is someone else's.
+  for (const dir of [...receipt.created].sort((a, b) => b.length - a.length)) {
+    try {
+      if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
+    } catch {
+      // already gone
+    }
+  }
   const left = names.filter((n) => existsSync(join(agentsSkillsDir(), n)));
   const steps: SetupStep[] = [{ what: "skills removed from every agent", ok: r.ok && left.length === 0, detail: left.length ? `still present: ${left.join(", ")}` : names.join(", ") }];
   const claude = which("claude");
