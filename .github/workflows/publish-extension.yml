@@ -1,9 +1,13 @@
 # Publishes a release's VS Code extension (the .vsix the Release workflow built and tested)
-# to Open VSX, which Cursor, VSCodium and Windsurf install from. Called by release.yml for
-# each new tag; run it by hand to publish an existing release.
+# to the Visual Studio Marketplace, which VS Code installs from, and to Open VSX, which
+# Cursor, VSCodium and Windsurf install from. Called by release.yml for each new tag; run it
+# by hand to publish an existing release. Each registry is skipped until it is set up.
 #
-# Secrets: OVSX_TOKEN (an open-vsx.org access token for the trevin-lee namespace). Without
-# it, publishing is skipped.
+# Open VSX: secret OVSX_TOKEN, an open-vsx.org access token for the trevin-lee namespace.
+# Marketplace: variables AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID of a
+# user-assigned managed identity with a federated credential for this repository's
+# `marketplace` environment, added as a Contributor member of the trevin-lee publisher.
+# No token: the job signs in with GitHub's OIDC token (Marketplace PATs retire 2026-12-01).
 
 name: Publish extension
 
@@ -24,6 +28,52 @@ permissions:
   contents: read
 
 jobs:
+  marketplace:
+    runs-on: ubuntu-latest
+    environment: marketplace
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - name: Skipped
+        if: env.CLIENT_ID == ''
+        run: echo "No AZURE_CLIENT_ID variable; the extension was not published to the Marketplace." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: azure/login@v3
+        if: env.CLIENT_ID != ''
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Identity to add to the publisher
+        if: env.CLIENT_ID != ''
+        run: |
+          # The Marketplace knows the identity by this ID; add it once under the publisher's
+          # Members as Contributor (marketplace.visualstudio.com/manage).
+          id=$(az rest -u https://app.vssps.visualstudio.com/_apis/profile/profiles/me --resource 499b84ac-1321-427f-aa17-267ca6975798 --query id -o tsv)
+          echo "Publisher member ID of this workflow: \`$id\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Download the release's extension
+        if: env.CLIENT_ID != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --pattern "ide-design-$VERSION.vsix"
+
+      - uses: actions/setup-node@v7
+        if: env.CLIENT_ID != ''
+        with:
+          node-version: 22
+
+      - name: Publish to the Marketplace
+        if: env.CLIENT_ID != ''
+        run: |
+          npx --yes @vscode/vsce@4.0.0 publish --packagePath "ide-design-$VERSION.vsix" --azure-credential --skip-duplicate
+          echo "https://marketplace.visualstudio.com/items?itemName=trevin-lee.ide-design" >> "$GITHUB_STEP_SUMMARY"
+
   open-vsx:
     runs-on: ubuntu-latest
     env:
