@@ -380,10 +380,11 @@ comments
   .description("Mark a comment resolved, optionally with a note on what changed.")
   .argument("<id>")
   .option("-m, --message <note>", "reply explaining the fix")
+  .option("--author <name>", "who is replying", "agent")
   .action(
-    action((id: string, opts: { message?: string }) => {
+    action((id: string, opts: { message?: string; author: string }) => {
       const ws = scanWorkspace(requireWorkspaceRoot());
-      updateComment(ws, id, { status: "resolved", reply: opts.message ? { author: "agent", body: opts.message } : undefined });
+      updateComment(ws, id, { status: "resolved", reply: opts.message ? { author: opts.author, body: opts.message } : undefined });
       console.log(`${pc.green("✔")} Resolved ${id}`);
     }),
   );
@@ -392,10 +393,11 @@ comments
   .description("Reply to a comment without resolving it.")
   .argument("<id>")
   .argument("<message...>")
+  .option("--author <name>", "who is replying", "agent")
   .action(
-    action((id: string, message: string[]) => {
+    action((id: string, message: string[], opts: { author: string }) => {
       const ws = scanWorkspace(requireWorkspaceRoot());
-      updateComment(ws, id, { reply: { author: "agent", body: message.join(" ") } });
+      updateComment(ws, id, { reply: { author: opts.author, body: message.join(" ") } });
       console.log(`${pc.green("✔")} Replied to ${id}`);
     }),
   );

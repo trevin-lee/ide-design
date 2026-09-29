@@ -1,0 +1,124 @@
+{
+  "name": "ide-design",
+  "displayName": "ide-design",
+  "description": "The ide-design viewer linked to your code, ided check in Problems, and design review comments on the lines they point at.",
+  "version": "0.3.0",
+  "publisher": "trevin-lee",
+  "license": "MIT",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trevin-lee/ide-design",
+    "directory": "vscode"
+  },
+  "homepage": "https://github.com/trevin-lee/ide-design/tree/main/vscode#readme",
+  "bugs": "https://github.com/trevin-lee/ide-design/issues",
+  "engines": {
+    "vscode": "^1.100.0"
+  },
+  "categories": [
+    "Visualization",
+    "Linters",
+    "Other"
+  ],
+  "keywords": [
+    "design",
+    "slides",
+    "brand",
+    "design system",
+    "react"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/ided.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "ideDesign.openViewer",
+        "title": "Open Viewer",
+        "category": "ide-design",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "ideDesign.check",
+        "title": "Run Check",
+        "category": "ide-design"
+      },
+      {
+        "command": "ideDesign.reply",
+        "title": "Reply",
+        "enablement": "!commentIsEmpty"
+      },
+      {
+        "command": "ideDesign.resolve",
+        "title": "Resolve"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "ideDesign.openViewer",
+          "when": "ideDesign.designFile",
+          "group": "navigation"
+        }
+      ],
+      "comments/commentThread/context": [
+        {
+          "command": "ideDesign.reply",
+          "group": "inline@1",
+          "when": "commentController == ide-design"
+        },
+        {
+          "command": "ideDesign.resolve",
+          "group": "inline@2",
+          "when": "commentController == ide-design"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "ideDesign.reply",
+          "when": "false"
+        },
+        {
+          "command": "ideDesign.resolve",
+          "when": "false"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ide-design",
+      "properties": {
+        "ideDesign.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `ided` command. Empty: look on `PATH` and in the usual Homebrew and npm locations."
+        },
+        "ideDesign.checkOnSave": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Run `ided check` when the workspace opens and whenever a file in `design/` is saved, and show the results in Problems."
+        },
+        "ideDesign.followCursor": {
+          "type": "boolean",
+          "default": true,
+          "description": "In the viewer, show the frame of the active file and outline the primitives at the cursor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "esbuild src/extension.ts --bundle --platform=node --format=cjs --target=node20 --external:vscode --outfile=dist/extension.js",
+    "typecheck": "tsc --noEmit",
+    "package": "npm run build && vsce package --no-dependencies --out ide-design.vsix",
+    "test": "npm run build && node test/run.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/vscode": "~1.100.0",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^6.0.3"
+  }
+}

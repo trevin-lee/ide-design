@@ -1,5 +1,5 @@
 # Push a tag that matches package.json (git tag -a v0.1.0 -m "0.1.0" && git push --follow-tags).
-# Tests, attaches the package to a GitHub release, publishes to npm when an
+# Tests, attaches the package and the VS Code extension to a GitHub release, publishes to npm when an
 # NPM_TOKEN secret exists, then installs the rendered formula with real Homebrew
 # and pushes it to <owner>/homebrew-tap only if that install and `brew test` pass.
 #
@@ -48,6 +48,8 @@ jobs:
             exit 1
           fi
           grep -q "^## $version" CHANGELOG.md || { echo "::error::CHANGELOG.md has no section for $version"; exit 1; }
+          extension=$(node -p 'require("./vscode/package.json").version')
+          [ "$extension" = "$version" ] || { echo "::error::vscode/package.json is $extension, package.json is $version"; exit 1; }
           if [ "$PUBLISH" = "true" ] && grep -q "^## $version.*unreleased" CHANGELOG.md; then
             echo "::error::CHANGELOG.md still marks $version as unreleased; give it a date"
             exit 1
@@ -77,10 +79,22 @@ jobs:
           cp "$versioned" ided.tgz
           echo "sha256=$(sha256sum ide-design.tgz | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
+      - name: VS Code extension
+        working-directory: vscode
+        run: |
+          npm ci
+          npm run typecheck
+          npm run package
+          cp ide-design.vsix "../ide-design-${{ steps.meta.outputs.version }}.vsix"
+          cp ide-design.vsix ../ide-design.vsix
+          xvfb-run -a npm test
+
       - uses: actions/upload-artifact@v7
         with:
           name: package
-          path: ide-design-${{ steps.meta.outputs.version }}.tgz
+          path: |
+            ide-design-${{ steps.meta.outputs.version }}.tgz
+            ide-design-${{ steps.meta.outputs.version }}.vsix
 
       - name: Release notes from CHANGELOG.md
         run: |
@@ -97,6 +111,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "ide-design-${{ steps.meta.outputs.version }}.tgz" ide-design.tgz ided.tgz \
+            "ide-design-${{ steps.meta.outputs.version }}.vsix" ide-design.vsix \
             --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
 
       - name: Publish to npm

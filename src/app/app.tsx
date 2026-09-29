@@ -4,6 +4,7 @@ import { BrandProvider } from "../runtime/host.tsx";
 import { FRAME_DIR, isFrameKind } from "../shared/formats.ts";
 import { BrandBoard } from "./brand-board.tsx";
 import { ProjectCanvas } from "./canvas.tsx";
+import { embedded } from "./editor.ts";
 import { LibraryBoard } from "./library.tsx";
 import { SidePanel, useProjectIssues } from "./panel.tsx";
 import { enterPresentation, Presentation } from "./present.tsx";
@@ -245,6 +246,7 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
               : `${project.components.length} components · ${project.assets.length} assets`}
           {g && isFrameKind(project.kind) && ` · ${g.width}×${g.fixedHeight ? g.height : "auto"}`}
           {project.dependencies.length > 0 && ` · uses ${project.dependencies.join(", ")}`}
+          {embedded && isFrameKind(project.kind) && " · ⌥-click opens the code"}
           {errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
         </span>
       </div>

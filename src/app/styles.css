@@ -1288,3 +1288,15 @@ html.render-mode #root {
 .bb-fact code {
   justify-self: start;
 }
+
+/* Inside an editor (the VS Code extension): source links and the cursor's primitives. */
+.embedded .issue-where,
+.embedded .comment-src,
+.embedded .frame-file {
+  cursor: pointer;
+  text-decoration: underline dotted;
+}
+.ided-reveal {
+  outline: calc(2px / var(--ided-scale, 1)) solid var(--ui-accent);
+  outline-offset: calc(2px / var(--ided-scale, 1));
+}

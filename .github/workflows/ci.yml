@@ -33,6 +33,31 @@ jobs:
         run: node node_modules/playwright-core/cli.js install-deps chromium-headless-shell
       - run: npm test
 
+  vscode:
+    name: VS Code extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            vscode/package-lock.json
+      - name: Extension and CLI versions agree
+        run: test "$(node -p 'require("./vscode/package.json").version')" = "$(node -p 'require("./package.json").version')"
+      - run: npm ci && npm run build
+      - working-directory: vscode
+        run: npm ci && npm run typecheck && npm run package
+      # A downloaded VS Code with its own profile runs the extension against a fresh workspace.
+      - working-directory: vscode
+        run: xvfb-run -a npm test
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vsix
+          path: vscode/ide-design.vsix
+
   package:
     name: global install smoke test
     runs-on: ubuntu-latest
@@ -43,7 +68,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci && npm run build && npm pack
-      - run: npm install -g ./ided-*.tgz
+      - run: npm install -g ./ide-design-*.tgz
       - uses: actions/cache@v6
         with:
           path: ~/.cache/ided/browsers

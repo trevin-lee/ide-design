@@ -61,6 +61,35 @@ test("a comment left on an element records its source line", { skip, timeout: 60
   await page.close();
 });
 
+test("inside an editor, the viewer opens source lines and follows the cursor", { skip, timeout: 60_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  await page.setContent(`<iframe id="v" src="${server.url}/?embed=vscode#/p/intro/02-one-way" style="width:1580px;height:980px;border:0"></iframe>
+    <script>window.messages = []; addEventListener("message", (e) => messages.push(e.data));</script>`);
+  const viewer = page.frameLocator("#v");
+  const text = viewer.locator('[data-ided="Text"]', { hasText: "one way to write" });
+  await text.waitFor({ timeout: 30_000 });
+  const src = (await text.getAttribute("data-ided-src"))!;
+
+  await text.click({ modifiers: ["Alt"] });
+  await page.waitForFunction(() => (window as unknown as { messages: unknown[] }).messages.length > 0);
+  assert.deepEqual(await page.evaluate(() => (window as unknown as { messages: unknown[] }).messages), [{ type: "ided:open", src }]);
+
+  const line = src.replace(/:\d+$/, "");
+  await page.evaluate((s) => (document.getElementById("v") as HTMLIFrameElement).contentWindow!.postMessage({ type: "ided:reveal", src: s }, "*"), line);
+  await viewer.locator(".ided-reveal").first().waitFor({ timeout: 5_000 });
+  assert.equal(await viewer.locator(".ided-reveal").first().getAttribute("data-ided-src"), src);
+  await page.close();
+});
+
+test("comment replies and resolutions record who made them", { skip, timeout: 30_000 }, () => {
+  const [c] = JSON.parse(run(dir, "comments", "--json").stdout) as { id: string }[];
+  assert.equal(run(dir, "comments", "reply", c!.id, "--author", "user", "Which", "part?").status, 0);
+  assert.equal(run(dir, "comments", "resolve", c!.id, "-m", "Shortened it.").status, 0);
+  const [after] = JSON.parse(run(dir, "comments", "--all", "--json").stdout) as { status: string; replies: { author: string; body: string }[] }[];
+  assert.equal(after!.status, "resolved");
+  assert.deepEqual(after!.replies.map((r) => [r.author, r.body]), [["user", "Which part?"], ["agent", "Shortened it."]]);
+});
+
 test("runtime violations appear live in the Issues panel", { skip, timeout: 60_000 }, async () => {
   const file = join(dir, "design/intro/slides/04-concentric.tsx");
   const original = readFileSync(file, "utf8");

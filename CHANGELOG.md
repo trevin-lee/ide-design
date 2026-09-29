@@ -5,6 +5,11 @@
 - ided's full name is **ide-design**: the GitHub repository is `trevin-lee/ide-design`, the Homebrew
   formula `trevin-lee/tap/ide-design` (existing `ided` installs move over on `brew upgrade`), and
   release tarballs `ide-design-<version>.tgz`. The command stays `ided`.
+- **VS Code extension.** The viewer in a tab linked to the code: ⌥-click an element to open its
+  line, and the viewer follows the cursor. `ided check` results in Problems on save, and review
+  comments as comment threads with reply and resolve. Attached to each release as
+  `ide-design.vsix` (`code --install-extension ide-design.vsix`).
+- `ided comments reply` and `resolve` take `--author` (default `agent`).
 - **Full bleed.** `<Box bleed="top">` (or `"x"`, `"all"`, a list…) runs a color band, split or
   image past the frame margin to the edge while its content stays on the margin. `ided check`
   rejects a bleed toward an edge the Box cannot touch.

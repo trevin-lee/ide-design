@@ -198,7 +198,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided screenshot <project> <frame>` | one frame to PNG, for agents to look at their work |
 | `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
 | `ided browser [install]` | show or download the pinned Chromium used for export |
-| `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` | review loop |
+| `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` (`--author`, default `agent`) | review loop |
 | `ided mcp` | MCP server on stdio |
 | `ided setup [--project] [--no-mcp] [--remove]` | install the skills for every agent (user-wide or in this repository) and register the MCP server; `--remove` undoes it |
 | `ided ci` | write a GitHub Actions workflow that publishes the brand kit |
@@ -249,6 +249,22 @@ comment tools. The CLI covers the same ground for agents that prefer shell comma
 The intended loop: you review in the browser, reading each project's design document beside its
 frames, and leave comments on elements; the agent runs `ided comments`, edits the recorded
 lines, runs `ided check`, looks at `ided screenshot`, and resolves each comment with a note.
+
+## VS Code
+
+The extension puts the viewer in a VS Code tab, linked to the code: ⌥-click (Alt-click) any element
+in a frame to open the line that draws it, and the viewer follows your cursor, outlining the
+primitives written on that line. `ided check` runs on save with its results in Problems, and the
+viewer's open review comments appear as comment threads on the lines they point at, where you
+can reply or resolve them.
+
+```sh
+curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
+code --install-extension ide-design.vsix
+```
+
+It uses the `ided` command you already have (0.3.0 or newer) and turns on in any folder with an
+`ided.json`. Settings and details: [vscode/README.md](vscode/README.md).
 
 ## Design documents
 
@@ -335,14 +351,16 @@ load. `action.yml` packages the same steps as a composite action.
 
 Releases are cut by CI from a tag, never from a laptop:
 
-1. Set `version` in `package.json` and add a matching `## <version>` section to `CHANGELOG.md`.
+1. Set `version` in `package.json` and `vscode/package.json` (they must match) and add a matching
+   `## <version>` section to `CHANGELOG.md`.
 2. `git tag -a v<version> -m "<version>" && git push --follow-tags`.
 
 `.github/workflows/release.yml` then checks that the tag, `package.json` and the changelog agree,
 runs the full test suite, and attaches the package to a GitHub release (notes taken from the
 changelog): `ide-design-<version>.tgz` for the formula, and `ide-design.tgz`, which
 `releases/latest/download/ide-design.tgz` always points at (plus `ided.tgz`, the same file, for
-workflows generated before 0.3). It publishes to npm too when an `NPM_TOKEN`
+workflows generated before 0.3), and the VS Code extension as `ide-design-<version>.vsix` and
+`ide-design.vsix`, after its integration test passes. It publishes to npm too when an `NPM_TOKEN`
 secret exists. A macOS job then renders the formula with `packaging/homebrew/formula.mjs`,
 installs it with real Homebrew, runs `brew test` and `brew audit --strict`, and only then commits
 it to `trevin-lee/homebrew-tap` as `ide-design` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to
@@ -361,12 +379,17 @@ npm test             # unit, lint, CLI, MCP, viewer and export tests (build firs
                      # browser tests skip themselves when no Chrome is installed)
 npm run typecheck
 node dist/cli.js run # inside any workspace
+
+cd vscode            # the VS Code extension
+npm install
+npm run package      # ide-design.vsix
+npm test             # runs it in a downloaded VS Code with its own profile (needs the CLI built)
 ```
 
 `src/runtime` is the `ided` module (primitives, tokens, JSX types), `src/shared` holds pure
 isomorphic logic (brand schema, lockups, tokens, color), `src/app` is the viewer, `src/check` holds the
-four check layers, `src/export` the PDF/PNG and brand-kit exporters, `src/mcp` the MCP server, and
-`skills/` the agent skills. The app and runtime ship as source because Vite compiles them next to
+four check layers, `src/export` the PDF/PNG and brand-kit exporters, `src/mcp` the MCP server,
+`skills/` the agent skills, and `vscode/` the VS Code extension (which only drives the CLI). The app and runtime ship as source because Vite compiles them next to
 your files at run time.
 
 ## Current limits

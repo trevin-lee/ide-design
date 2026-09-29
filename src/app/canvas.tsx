@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { WsFrame, WsProject } from "virtual:ided/workspace";
+import { openSource } from "./editor.ts";
 import { FrameRender, Scaled, useFrameHeight, useSize } from "./frame.tsx";
 import {
   activeComment,
@@ -122,7 +123,11 @@ function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; s
           {openCount > 0 && <span className="pill pill-comment">{openCount}</span>}
           {errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
           {warnings > 0 && <span className="pill pill-warn">{warnings}</span>}
-          {props.focused && <span className="frame-file">{frame.src}</span>}
+          {props.focused && (
+            <span className="frame-file" onClick={() => openSource(frame.src)}>
+              {frame.src}
+            </span>
+          )}
         </span>
       </figcaption>
     </figure>

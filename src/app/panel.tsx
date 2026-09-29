@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { brand, svgs, workspace, type WsProject } from "virtual:ided/workspace";
 import { validateBrand } from "../shared/brand-schema.ts";
 import { DesignDocView } from "./design-doc.tsx";
+import { openSource } from "./editor.ts";
 import {
   activeComment,
   comments as commentsStore,
@@ -121,7 +122,14 @@ export function SidePanel(props: { project: WsProject }) {
             </div>
           )}
           {issues.map((i, k) => (
-            <div key={k} className={`issue issue-${i.severity}`} onClick={() => i.frame && go(`#/p/${project.id}/${i.frame}`)}>
+            <div
+              key={k}
+              className={`issue issue-${i.severity}`}
+              onClick={() => {
+                if (i.frame) go(`#/p/${project.id}/${i.frame}`);
+                openSource(i.where);
+              }}
+            >
               <div className="issue-head">
                 <span className="dot" />
                 <span className="issue-source">{i.source}</span>
@@ -174,7 +182,11 @@ function CommentCard(props: { c: Comment; n: number | null; project: WsProject; 
           <span className="comment-author">{r.author}</span> {r.body}
         </div>
       ))}
-      {c.target?.src && <div className="comment-src">{shortSrc(c.target.src)}</div>}
+      {c.target?.src && (
+        <div className="comment-src" onClick={() => openSource(c.target?.src)}>
+          {shortSrc(c.target.src)}
+        </div>
+      )}
       {props.active && (
         <div className="comment-actions" onClick={(e) => e.stopPropagation()}>
           <input

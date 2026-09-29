@@ -86,7 +86,7 @@ function FrameError(props: { geometry: { width: number; height: number }; title:
 export function Scaled(props: { width: number; height: number; scale: number; children: ReactNode; className?: string; overlay?: ReactNode }) {
   return (
     <div className={props.className} style={{ width: props.width * props.scale, height: props.height * props.scale, position: "relative" }}>
-      <div style={{ width: props.width, height: props.height, transform: `scale(${props.scale})`, transformOrigin: "0 0", position: "absolute", left: 0, top: 0 }}>
+      <div style={{ width: props.width, height: props.height, transform: `scale(${props.scale})`, transformOrigin: "0 0", position: "absolute", left: 0, top: 0, ["--ided-scale" as string]: props.scale }}>
         {props.children}
       </div>
       {props.overlay}
