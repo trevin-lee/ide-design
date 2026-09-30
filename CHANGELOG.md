@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 (2026-09-29)
+
+Documents that run as long as their text.
+
+- **Flowing pages.** `<Page flow>` lets one page file run onto as many pages as its content
+  needs, all with the page's margin and its `chrome`: page furniture (`Place` elements such as a
+  running footer or page number) repeated on every page. Paragraphs break between lines and keep
+  at least two lines together; boxes, images, lists, rows and grids move whole to the next page;
+  a heading stays with what follows it. `FrameNumber` counts every page of the document. The
+  viewer shows one card per page, export writes every page (`01-report-1.png`, `-2.png`, … and
+  one PDF page each), the contact sheet and presentation include them, and
+  `ided screenshot --page <n>` (MCP `page`) picks one. Pages with a layout of their own (cover,
+  chapter opener, full-bleed figure) stay separate files.
+- **The layout check reads flowing pages:** a block taller than a page, or anything wider than
+  the text column, is an error. `ided check` rejects `Place` or `bleed` inside flowing content
+  and anything in `chrome` that is not pinned with `Place`.
+- Review comments left on a later page of a flowing page remember which page they are on.
+
 ## 0.4.0 (2026-09-28)
 
 Layout you can trust: `ided check` now sees what the page looks like, not only what the code says.

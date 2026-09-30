@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+No changes; the version follows ided's.
+
 ## 0.4.0
 
 Problems include the layout check (overflow, ratios, crops) that `ided check` runs from 0.4.0.
