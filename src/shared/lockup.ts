@@ -3,7 +3,16 @@
 // All lockup geometry is relative to the wordmark height, so it is scale-free.
 
 import type { BrandInput, LockupDef } from "./brand-schema.ts";
-import { colorValue } from "./brand-schema.ts";
+import { colorwayInks, normalizeHex, partFile, partInks } from "./brand-schema.ts";
+
+/**
+ * How a part is recolored: each of its colors as drawn (`currentColor`, or brand values for a
+ * part drawn in several colors) and the color it becomes.
+ */
+export interface Ink {
+  from: readonly string[];
+  to: readonly string[];
+}
 
 export interface ParsedSvg {
   /** viewBox origin and size. */
@@ -40,7 +49,7 @@ export interface Placed {
   y: number;
   w: number;
   h: number;
-  color: string;
+  ink: Ink;
   id: string;
 }
 
@@ -61,17 +70,17 @@ export function layoutLogo(
   mark: ParsedSvg,
   wordmark: ParsedSvg,
   lockups: Readonly<Record<string, LockupDef>>,
-  colors: { mark: string; wordmark: string },
+  colors: { mark: Ink; wordmark: Ink },
 ): LogoLayout {
   const aspect = (s: ParsedSvg) => s.width / s.height;
   if (variant === "mark") {
-    return { width: aspect(mark), height: 1, parts: [{ svg: mark, x: 0, y: 0, w: aspect(mark), h: 1, color: colors.mark, id: "m" }] };
+    return { width: aspect(mark), height: 1, parts: [{ svg: mark, x: 0, y: 0, w: aspect(mark), h: 1, ink: colors.mark, id: "m" }] };
   }
   if (variant === "wordmark") {
     return {
       width: aspect(wordmark),
       height: 1,
-      parts: [{ svg: wordmark, x: 0, y: 0, w: aspect(wordmark), h: 1, color: colors.wordmark, id: "w" }],
+      parts: [{ svg: wordmark, x: 0, y: 0, w: aspect(wordmark), h: 1, ink: colors.wordmark, id: "w" }],
     };
   }
   const l = lockups[variant];
@@ -88,8 +97,8 @@ export function layoutLogo(
       width: mw + l.gap + ww,
       height,
       parts: [
-        { svg: mark, x: 0, y: offset(height, mh), w: mw, h: mh, color: colors.mark, id: "m" },
-        { svg: wordmark, x: mw + l.gap, y: offset(height, wh), w: ww, h: wh, color: colors.wordmark, id: "w" },
+        { svg: mark, x: 0, y: offset(height, mh), w: mw, h: mh, ink: colors.mark, id: "m" },
+        { svg: wordmark, x: mw + l.gap, y: offset(height, wh), w: ww, h: wh, ink: colors.wordmark, id: "w" },
       ],
     };
   }
@@ -98,8 +107,8 @@ export function layoutLogo(
     width,
     height: mh + l.gap + wh,
     parts: [
-      { svg: mark, x: offset(width, mw), y: 0, w: mw, h: mh, color: colors.mark, id: "m" },
-      { svg: wordmark, x: offset(width, ww), y: mh + l.gap, w: ww, h: wh, color: colors.wordmark, id: "w" },
+      { svg: mark, x: offset(width, mw), y: 0, w: mw, h: mh, ink: colors.mark, id: "m" },
+      { svg: wordmark, x: offset(width, ww), y: mh + l.gap, w: ww, h: wh, ink: colors.wordmark, id: "w" },
     ],
   };
 }
@@ -116,8 +125,9 @@ export function renderLogoSvg(layout: LogoLayout, heightPx?: number, opts: { tit
   const size = heightPx ? ` width="${r((layout.width / layout.height) * heightPx)}" height="${heightPx}"` : "";
   const parts = layout.parts
     .map((p) => {
-      const inner = scopeIds(p.svg.inner, p.id).replace(/currentColor/g, p.color);
-      return `<svg x="${r(p.x * scale)}" y="${r(p.y * scale)}" width="${r(p.w * scale)}" height="${r(p.h * scale)}" viewBox="${p.svg.x} ${p.svg.y} ${p.svg.width} ${p.svg.height}" color="${p.color}" fill="${p.color}">${inner}</svg>`;
+      const inner = recolor(scopeIds(p.svg.inner, p.id), p.ink);
+      const base = p.ink.to[0]!;
+      return `<svg x="${r(p.x * scale)}" y="${r(p.y * scale)}" width="${r(p.w * scale)}" height="${r(p.h * scale)}" viewBox="${p.svg.x} ${p.svg.y} ${p.svg.width} ${p.svg.height}" color="${base}" fill="${base}">${inner}</svg>`;
     })
     .join("");
   const title = opts.title ? `<title>${escapeXml(opts.title)}</title>` : "";
@@ -128,22 +138,30 @@ export function logoVariants(brand: BrandInput): string[] {
   return ["mark", "wordmark", ...Object.keys(brand.logo.lockups)];
 }
 
-/** Resolve a colorway to hex values. */
-export function colorwayHex(brand: BrandInput, colorway: string): { mark: string; wordmark: string } {
+/** Swap each color a part is drawn in for its colorway color. */
+function recolor(inner: string, ink: Ink): string {
+  if (ink.from.length === 1 && ink.from[0] === "currentColor") return inner.replace(/currentColor/g, ink.to[0]!);
+  const map = new Map(ink.from.map((c, i) => [normalizeHex(c), ink.to[i] ?? ink.to[0]!]));
+  return inner.replace(/#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?\b/g, (hex) => map.get(normalizeHex(hex)) ?? hex);
+}
+
+/** Resolve a colorway to the inks of each logo part. */
+export function colorwayHex(brand: BrandInput, colorway: string): { mark: Ink; wordmark: Ink } {
   const c = brand.logo.colorways[colorway];
   if (!c) throw new Error(`Unknown colorway "${colorway}"`);
-  return { mark: colorValue(brand, c.mark) ?? "#000000", wordmark: colorValue(brand, c.wordmark) ?? "#000000" };
+  const ink = (part: "mark" | "wordmark"): Ink => ({ from: partInks(brand, brand.logo[part]), to: colorwayInks(brand, brand.logo[part], c[part]) });
+  return { mark: ink("mark"), wordmark: ink("wordmark") };
 }
 
 export function composeLogo(
   brand: BrandInput,
   svgs: Record<string, string>,
   variant: LogoVariant,
-  colors: { mark: string; wordmark: string },
+  colors: { mark: Ink; wordmark: Ink },
   heightPx?: number,
 ): { svg: string; aspect: number } {
-  const markSrc = svgs[brand.logo.mark];
-  const wordSrc = svgs[brand.logo.wordmark];
+  const markSrc = svgs[partFile(brand.logo.mark)];
+  const wordSrc = svgs[partFile(brand.logo.wordmark)];
   if (!markSrc || !wordSrc) throw new Error("Logo SVGs are missing from design/brand/assets/");
   const layout = layoutLogo(variant, parseSvg(markSrc), parseSvg(wordSrc), brand.logo.lockups, colors);
   return { svg: renderLogoSvg(layout, heightPx, { title: brand.name }), aspect: layout.width / layout.height };

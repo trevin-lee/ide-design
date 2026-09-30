@@ -75,14 +75,17 @@ test("fixed-color and text-based logos are flagged", () => {
   assert.ok(problems.some((p) => p.includes("<text>")));
 });
 
+/** A one-color part drawn with currentColor, painted `color`. */
+const ink = (color: string) => ({ from: ["currentColor"], to: [color] });
+
 test("lockup geometry is relative to the wordmark height", () => {
   const mark = parseSvg('<svg viewBox="0 0 100 100"></svg>');
   const word = parseSvg('<svg viewBox="0 0 400 100"></svg>');
-  const row = layoutLogo("horizontal", mark, word, { horizontal: { direction: "row", mark: 2, gap: 1 } }, { mark: "#000", wordmark: "#111" });
+  const row = layoutLogo("horizontal", mark, word, { horizontal: { direction: "row", mark: 2, gap: 1 } }, { mark: ink("#000"), wordmark: ink("#111") });
   assert.equal(row.height, 2);
   assert.equal(row.width, 2 + 1 + 4);
   assert.equal(row.parts[1]!.y, 0.5); // wordmark centered on the mark
-  const stacked = layoutLogo("stacked", mark, word, { stacked: { direction: "column", mark: 2, gap: 0.5 } }, { mark: "#000", wordmark: "#111" });
+  const stacked = layoutLogo("stacked", mark, word, { stacked: { direction: "column", mark: 2, gap: 0.5 } }, { mark: ink("#000"), wordmark: ink("#111") });
   assert.equal(stacked.height, 3.5);
   assert.equal(stacked.parts[0]!.x, 1); // mark centered over the wider wordmark
   const svg = renderLogoSvg(row, 64);
@@ -92,6 +95,6 @@ test("lockup geometry is relative to the wordmark height", () => {
 
 test("logo titles escape markup characters instead of dropping them", () => {
   const mark = parseSvg('<svg viewBox="0 0 10 10"></svg>');
-  const svg = renderLogoSvg(layoutLogo("mark", mark, mark, {}, { mark: "#000", wordmark: "#000" }), 32, { title: "Kiln & Copper <Studio>" });
+  const svg = renderLogoSvg(layoutLogo("mark", mark, mark, {}, { mark: ink("#000"), wordmark: ink("#000") }), 32, { title: "Kiln & Copper <Studio>" });
   assert.match(svg, /<title>Kiln &amp; Copper &lt;Studio&gt;<\/title>/);
 });

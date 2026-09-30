@@ -4,7 +4,7 @@
 
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { colorValue, type BrandInput } from "../shared/brand-schema.ts";
+import { colorValue, partFile, type BrandInput } from "../shared/brand-schema.ts";
 import type { Issue, Project } from "../core/workspace.ts";
 
 const NAMED: Record<string, string> = {
@@ -58,12 +58,12 @@ export function svgColorIssues(root: string, projects: Project[], brand: BrandIn
     const hex = colorValue(brand, token);
     if (hex) palette.set(hex.toUpperCase(), token);
   }
-  const logoFiles = new Set([brand.logo?.mark, brand.logo?.wordmark]);
+  const logoFiles = new Set(brand.logo ? [partFile(brand.logo.mark), partFile(brand.logo.wordmark)] : []);
   const issues: (Issue & { project: string })[] = [];
   for (const p of projects) {
     for (const asset of p.assets) {
       if (!asset.endsWith(".svg") || asset.startsWith("fonts/")) continue;
-      if (p.kind === "brand" && logoFiles.has(asset)) continue; // logo parts are checked as currentColor art
+      if (p.kind === "brand" && logoFiles.has(asset)) continue; // logo parts have their own rules (brand.ts validation)
       const abs = join(p.dir, "assets", asset);
       const off = new Map<string, string>();
       const unknown = new Set<string>();

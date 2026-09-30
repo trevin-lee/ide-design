@@ -60,17 +60,25 @@ export interface LockupDef {
 }
 
 export interface Colorway {
-  /** Color token for the mark. */
-  readonly mark: string;
-  /** Color token for the wordmark. */
-  readonly wordmark: string;
+  /**
+   * Color token for the mark. For a mark drawn in several colors: one token for a one-color
+   * version, or a list with one token per color of the mark, in the order of its `colors`.
+   */
+  readonly mark: string | readonly string[];
+  /** Color token for the wordmark (or a list, like `mark`). */
+  readonly wordmark: string | readonly string[];
 }
 
+/**
+ * A logo part: an SVG file in `design/brand/assets/` drawn with `currentColor` (one color, set
+ * per colorway), or `{ file, colors }` for a part drawn in several of the brand's colors: the SVG
+ * uses exactly those colors' values, and each colorway maps them to its own.
+ */
+export type LogoPart = string | { readonly file: string; readonly colors: readonly string[] };
+
 export interface LogoDef {
-  /** SVG file in `design/brand/assets/`, drawn with `currentColor`. */
-  readonly mark: string;
-  /** SVG file in `design/brand/assets/`, drawn with `currentColor`. */
-  readonly wordmark: string;
+  readonly mark: LogoPart;
+  readonly wordmark: LogoPart;
   readonly lockups: Readonly<Record<string, LockupDef>>;
   readonly colorways: Readonly<Record<string, Colorway>>;
   /** Rendered logo heights in px. */
@@ -108,6 +116,23 @@ export function colorValue(brand: BrandInput, token: string): string | undefined
   const def = brand.color[token];
   if (def === undefined) return undefined;
   return isSurface(def) ? def.value : def;
+}
+
+/** A logo part's SVG file. */
+export function partFile(part: LogoPart): string {
+  return typeof part === "string" ? part : part?.file;
+}
+
+/** The colors a part is drawn in as they appear in its SVG: `currentColor`, or its brand colors' values. */
+export function partInks(brand: BrandInput, part: LogoPart): string[] {
+  return typeof part === "string" ? ["currentColor"] : part.colors.map((t) => colorValue(brand, t) ?? "#000000");
+}
+
+/** The colors a colorway draws a part in, one per ink (a single token paints every ink). */
+export function colorwayInks(brand: BrandInput, part: LogoPart, value: string | readonly string[]): string[] {
+  const inks = typeof part === "string" ? 1 : part.colors.length;
+  const tokens = typeof value === "string" ? Array.from({ length: inks }, () => value) : value;
+  return tokens.map((t) => colorValue(brand, t) ?? "#000000");
 }
 
 export function surfaceNames(brand: BrandInput): string[] {
@@ -275,9 +300,11 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
     err("logo", "Brand needs a logo: { mark, wordmark, lockups, colorways, sizes }.");
   } else {
     for (const part of ["mark", "wordmark"] as const) {
-      const file = logo[part];
+      const def = logo[part] as LogoPart | undefined;
+      const multi = typeof def === "object" && def !== null;
+      const file = multi ? def.file : def;
       if (typeof file !== "string" || !file.endsWith(".svg")) {
-        err(`logo.${part}`, "Logo parts are SVG files in design/brand/assets/.");
+        err(`logo.${part}`, 'Logo parts are SVG files in design/brand/assets/: "mark.svg", or { file: "mark.svg", colors: ["ink", "accent"] } for one drawn in several colors.');
         continue;
       }
       const svg = svgs[file];
@@ -285,7 +312,21 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
         err(`logo.${part}`, `design/brand/assets/${file} does not exist.`);
         continue;
       }
-      for (const problem of svgProblems(svg)) err(`logo.${part}`, `${file}: ${problem}`);
+      if (!multi) {
+        for (const problem of svgProblems(svg)) err(`logo.${part}`, `${file}: ${problem}`);
+        continue;
+      }
+      const tokens = Array.isArray(def.colors) ? def.colors : [];
+      if (tokens.length < 2 || new Set(tokens).size !== tokens.length) {
+        err(`logo.${part}.colors`, 'A part drawn in several colors lists at least two different color tokens; one color is drawn with currentColor and named as a plain string.');
+        continue;
+      }
+      const bad = tokens.filter((t) => colors[t] === undefined);
+      if (bad.length) {
+        err(`logo.${part}.colors`, `${bad.map((t) => `"${t}"`).join(", ")} ${bad.length === 1 ? "is not a color token" : "are not color tokens"}.`);
+        continue;
+      }
+      for (const problem of svgProblems(svg, tokens.map((t) => colorValue(brand, t)!))) err(`logo.${part}`, `${file}: ${problem}`);
     }
     checkNames("logo.lockups", logo.lockups as Record<string, unknown>);
     for (const [k, l] of Object.entries(logo.lockups ?? {})) {
@@ -296,8 +337,20 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
     }
     checkNames("logo.colorways", logo.colorways as Record<string, unknown>);
     for (const [k, c] of Object.entries(logo.colorways ?? {})) {
-      if (colors[c.mark] === undefined) err(`logo.colorways.${k}.mark`, `"${c.mark}" is not a color token.`);
-      if (colors[c.wordmark] === undefined) err(`logo.colorways.${k}.wordmark`, `"${c.wordmark}" is not a color token.`);
+      for (const part of ["mark", "wordmark"] as const) {
+        const value = c[part];
+        const def = logo[part] as LogoPart | undefined;
+        const inks = typeof def === "object" && def !== null && Array.isArray(def.colors) ? def.colors.length : 1;
+        const list = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+        if (!list.length) err(`logo.colorways.${k}.${part}`, "is a color token, or a list of them for a part drawn in several colors.");
+        for (const t of list) if (colors[t] === undefined) err(`logo.colorways.${k}.${part}`, `"${t}" is not a color token.`);
+        if (Array.isArray(value) && value.length !== inks) {
+          err(
+            `logo.colorways.${k}.${part}`,
+            inks === 1 ? `The ${part} is drawn in one color: give one token, not a list.` : `The ${part} is drawn in ${inks} colors: give ${inks} tokens (in the order of its colors), or one for a one-color version.`,
+          );
+        }
+      }
     }
     onGrid("logo.sizes", logo.sizes, { ascending: true });
   }
@@ -305,21 +358,42 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
 }
 
 /** Logos must be single-color vector art so colorways can recolor them. */
-export function svgProblems(svg: string): string[] {
+/**
+ * What makes an SVG unusable as a logo part. Without `inks`, the part is drawn with currentColor
+ * so colorways can recolor it; with them, it is drawn in exactly those color values.
+ */
+export function svgProblems(svg: string, inks?: readonly string[]): string[] {
   const out: string[] = [];
   if (!/<svg[\s>]/.test(svg)) return ["not an SVG document."];
   if (!/viewBox\s*=\s*"[^"]+"/.test(svg)) out.push("needs a viewBox.");
   if (/<text[\s>]/.test(svg)) out.push("contains <text>; convert type to outlines.");
   if (/<image[\s>]/.test(svg)) out.push("embeds a raster <image>; logos must be vector.");
   const colorRe = /(?:fill|stroke|stop-color|color)\s*[:=]\s*"?\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|(?!none|currentColor|inherit|transparent)[a-z]+)/g;
-  const bad = new Set<string>();
+  const found = new Set<string>();
   for (const m of svg.matchAll(colorRe)) {
     const v = m[1]!;
     if (/^url$/i.test(v)) continue;
-    bad.add(v);
+    found.add(v);
   }
-  if (bad.size) out.push(`uses fixed colors (${[...bad].slice(0, 3).join(", ")}); draw with currentColor so colorways can recolor it.`);
+  if (!inks) {
+    if (found.size) out.push(`uses fixed colors (${[...found].slice(0, 3).join(", ")}); draw with currentColor so colorways can recolor it.`);
+    return out;
+  }
+  const allowed = new Set(inks.map(normalizeHex));
+  const stray = [...found].filter((v) => !allowed.has(normalizeHex(v)));
+  if (stray.length) out.push(`uses colors that are not its declared colors (${stray.slice(0, 3).join(", ")}); draw it only in ${inks.join(", ")}.`);
+  if (/currentColor/.test(svg)) out.push("uses currentColor; a part drawn in several colors uses its declared colors' values.");
+  const used = new Set([...found].map(normalizeHex));
+  const unused = inks.filter((c) => !used.has(normalizeHex(c)));
+  if (unused.length) out.push(`never uses ${unused.join(", ")}; list only the colors it is drawn in.`);
   return out;
+}
+
+/** #abc → #AABBCC, #aabbcc → #AABBCC; anything else upper-cased as is. */
+export function normalizeHex(v: string): string {
+  const s = v.trim().toUpperCase();
+  const short = /^#([0-9A-F])([0-9A-F])([0-9A-F])$/.exec(s);
+  return short ? `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}` : s.slice(0, 7);
 }
 
 /** Identity function that gives brand.ts literal token types. */

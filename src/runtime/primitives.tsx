@@ -11,7 +11,7 @@ import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
 import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
 import { contrast, requiredContrast } from "../shared/color.ts";
 import { FRAME_ROOT, type FrameKind } from "../shared/formats.ts";
-import { composeLogo } from "../shared/lockup.ts";
+import { colorwayHex, composeLogo } from "../shared/lockup.ts";
 import { brandVariables, cssVar } from "../shared/tokens.ts";
 import {
   FlowPageContext,
@@ -1166,11 +1166,12 @@ export function Logo(raw: LogoProps) {
     report("invalid-token", `\`colorway\` "${colorway}" is not defined.`, `Use one of: ${Object.keys(brand.logo.colorways).join(", ")}.`);
     return null;
   }
-  const colors = { mark: colorValue(brand, cw.mark) ?? "#000000", wordmark: colorValue(brand, cw.wordmark) ?? "#000000" };
+  const colors = colorwayHex(brand, colorway);
   if (isSurface(surfaceDef)) {
     const parts = props.variant === "mark" ? (["mark"] as const) : props.variant === "wordmark" ? (["wordmark"] as const) : (["mark", "wordmark"] as const);
     for (const part of parts) {
-      const ratio = contrast(colors[part], surfaceDef.value);
+      // Every color a part is drawn in must read on the surface, not only its main one.
+      const ratio = Math.min(...colors[part].to.map((c) => contrast(c, surfaceDef.value)));
       if (ratio < 3) {
         report("contrast", `${part} in colorway "${colorway}" is ${ratio.toFixed(2)}:1 on "${surface}"; logos need 3:1.`, `Declare \`logo\` on the "${surface}" surface or pass a legible colorway.`);
       }

@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
 import { AssetGrid, ComponentList } from "./library.tsx";
 import { factNames, formatFact } from "../shared/brand-facts.ts";
-import { colorValue, isSurface, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
+import { colorValue, isSurface, partFile, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
 
@@ -32,8 +32,8 @@ function surfaceFor(b: BrandInput, colorway: string): string {
     return isSurface(def) && def.logo === colorway;
   });
   if (declared) return declared;
-  const hex = colorwayHex(b, colorway);
-  return [...surfaces].sort((x, y) => contrast(hex.wordmark, colorValue(b, y)!) - contrast(hex.wordmark, colorValue(b, x)!))[0]!;
+  const ink = colorwayHex(b, colorway).wordmark.to[0]!;
+  return [...surfaces].sort((x, y) => contrast(ink, colorValue(b, y)!) - contrast(ink, colorValue(b, x)!))[0]!;
 }
 
 function Section(props: { title: string; note?: string; children: React.ReactNode }) {
@@ -243,7 +243,7 @@ export function BrandBoard(props: { project: WsProject }) {
         </Section>
 
         <Section title="Assets" note="Shared images. Every project can import these: @brand/assets/<file>.">
-          <AssetGrid project={props.project} exclude={[b.logo.mark, b.logo.wordmark]} />
+          <AssetGrid project={props.project} exclude={[partFile(b.logo.mark), partFile(b.logo.wordmark)]} />
         </Section>
       </div>
     </div>

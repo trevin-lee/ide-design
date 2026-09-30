@@ -63,7 +63,7 @@ defineBrand({
   font: { sans: { family, fallback, files: [{ src: "fonts/x.woff2", weight: "100 900" }] } },
   type: { display: { font: "sans", size: 160, weight: 700, leading: 0.95, tracking: -0.045 }, … },
   margin: { deck: "4xl", doc: "5xl", graphic: "3xl", web: "3xl" },
-  logo: { mark: "mark.svg", wordmark: "wordmark.svg", lockups, colorways, sizes },
+  logo: { mark: "mark.svg" /* or { file, colors } */, wordmark: "wordmark.svg", lockups, colorways, sizes },
   facts?: { names, links, contact, locations, social, abbreviations },  // used via <Fact>
 })
 ```
@@ -135,22 +135,28 @@ scale only needs outer radii.
 The mark and wordmark are separate SVG files in `design/brand/assets/`, and lockups are
 composed from them by rule. Requirements the checker enforces:
 
-- Single color, drawn with `currentColor` (fill or stroke). Colorways recolor them.
+- Drawn in one color with `currentColor` (fill or stroke), named as a plain file: `"mark.svg"`.
+- Or drawn in several of the brand's colors: `{ file: "mark.svg", colors: ["ink", "accent"] }`.
+  The SVG then uses exactly those colors' values (every one of them, and nothing else).
 - A `viewBox`, cropped tight to the artwork (no built-in padding; clear space is a layout concern).
 - No `<text>` (convert type to outlines) and no embedded raster images.
 
-To import a logo the user provides: crop the viewBox to the artwork, replace every fill/stroke
-color with `currentColor` (a multi-color logo needs to become one mark per color or a
-single-color version), remove `width`/`height` attributes, and split mark and wordmark into
-two files if they arrive as one lockup.
+To import a logo the user provides: crop the viewBox to the artwork, remove `width`/`height`
+attributes, and split mark and wordmark into two files if they arrive as one lockup. Then its
+colors: a one-color logo gets `currentColor`; a multi-color logo keeps its colors, each changed
+to the value of the brand color it is (add the color to the palette if the logo needs one the
+brand lacks, which is a brand decision to confirm with the user).
 
 **Lockups** are relative to the wordmark height, so they are scale-free:
 `{ direction: "row" | "column", mark: <mark height ÷ wordmark height>, gap: <gap ÷ wordmark height>, align }`.
 Typical: horizontal `mark ≈ 1.8–2.4, gap ≈ 0.8–1.2`; stacked `mark ≈ 3–4, gap ≈ 1–1.4`.
 
 **Colorways** map mark and wordmark to color tokens (`primary`, `reversed`, `black`, `white`).
-Each surface names its default colorway via `logo`, which is what `<Logo>` uses unless told
-otherwise. The checker requires 3:1 logo contrast on the surface.
+For a part drawn in several colors, a colorway gives one token per color, in the order of its
+`colors` (`reversed: { mark: ["paper", "accent"], … }`), or one token for a one-color version
+(`black: { mark: "ink", … }`). Each surface names its default colorway via `logo`, which is what
+`<Logo>` uses unless told otherwise. The checker requires 3:1 contrast on the surface for every
+color a logo is drawn in.
 
 **Sizes** are rendered heights in px, on the unit grid.
 

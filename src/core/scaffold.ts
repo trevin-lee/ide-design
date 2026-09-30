@@ -181,6 +181,9 @@ export default defineBrand({
   margin: { deck: "4xl", doc: "5xl", graphic: "3xl", web: "3xl" },
 
   logo: {
+    // One color, drawn with currentColor. A mark drawn in several brand colors is
+    // { file: "mark.svg", colors: ["ink", "accent"] }, and each colorway then gives one token
+    // per color (or one token for a one-color version).
     mark: "mark.svg",
     wordmark: "wordmark.svg",
     // Geometry relative to the wordmark height, so lockups are scale-free.

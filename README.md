@@ -430,7 +430,6 @@ your files at run time.
   same furniture. Paragraphs break between lines; other blocks move whole. Pages with a layout of
   their own are separate files. To run text through designed pages, write it once as a story
   and thread it through `<Thread>` boxes.
-- Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
 - The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic
   names). Shapes with no fill at all draw black and are not flagged; `hsl()` and other names are
   reported as unreadable.
