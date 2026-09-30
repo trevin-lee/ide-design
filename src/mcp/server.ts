@@ -121,7 +121,10 @@ export async function runMcpServer() {
         title: z.string().optional(),
         page: z.enum(Object.keys(DOC_PAGES) as ["letter", "a4"]).optional(),
         size: z.enum(Object.keys(GRAPHIC_SIZES) as [string, ...string[]]).optional(),
-        viewport: z.enum(Object.keys(WEB_VIEWPORTS) as [string, ...string[]]).optional(),
+        viewport: z
+          .union([z.enum(Object.keys(WEB_VIEWPORTS) as [string, ...string[]]), z.array(z.enum(Object.keys(WEB_VIEWPORTS) as [string, ...string[]])).min(1)])
+          .optional()
+          .describe("One viewport, or a list for a responsive screen rendered at each."),
       },
     },
     async ({ root, kind, name, ...opts }) => {
@@ -177,10 +180,11 @@ export async function runMcpServer() {
         sheet: z.boolean().optional().describe("All frames on one image, for judging rhythm and sameness across the piece."),
         zoom: z.string().optional().describe('Cut one frame (pass exactly one in frames) into full-resolution tiles, columns x rows like "2x2", to inspect detail.'),
         page: z.number().int().min(1).optional().describe("With zoom: which page of a flowing doc page (default 1)."),
+        viewport: z.enum(["desktop", "tablet", "mobile"]).optional().describe("With zoom: which viewport of a responsive web screen (default: the widest)."),
         scale: z.number().min(0.25).max(2).optional(),
       },
     },
-    async ({ root, project, frames, sheet, zoom, page, scale }) => {
+    async ({ root, project, frames, sheet, zoom, page, viewport, scale }) => {
       try {
         const r = rootFor(root);
         writeGenerated(r);
@@ -189,7 +193,7 @@ export async function runMcpServer() {
           if (frames?.length !== 1) throw new Error("zoom cuts one frame into tiles: pass exactly one frame id in frames.");
           const { exportTiles, parseZoom } = await import("../export/artifacts.ts");
           const rs = await renderer(r);
-          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, page, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
+          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, page, viewport, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
           return {
             content: tiles.flatMap((t) => [
               { type: "text" as const, text: t.name },

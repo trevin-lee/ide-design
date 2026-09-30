@@ -11,7 +11,7 @@ declare global {
     __IDED_ERROR__?: string;
     __IDED_VIOLATIONS__?: unknown;
     /** Measures every rendered frame's layout (used by `ided check`). */
-    __IDED_LAYOUT__?: () => { frame: string; violations: Violation[] }[];
+    __IDED_LAYOUT__?: () => { frame: string; viewport?: string; violations: Violation[] }[];
   }
 }
 
@@ -25,7 +25,9 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
   const [loaded, setLoaded] = useState(false);
   const g = project.geometry!;
   const counts = useStore(pageCounts);
-  const pages = pageList(counts, project.id, frames);
+  // Every page of every frame, and for a responsive web screen every viewport.
+  const viewports = g.viewports && g.viewports.length > 1 ? g.viewports : [null];
+  const pages = pageList(counts, project.id, frames).flatMap((p) => viewports.map((v) => ({ ...p, viewport: v })));
 
   useEffect(() => {
     document.documentElement.classList.add("render-mode");
@@ -68,7 +70,8 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
       window.__IDED_LAYOUT__ = () =>
         [...document.querySelectorAll<HTMLElement>("[data-ided-frame][data-ided-page='0']")].map((el) => {
           const root = el.querySelector<HTMLElement>(".ided-root");
-          return { frame: el.dataset.idedFrame!, violations: root && brand ? measureLayout(root, { width: g.width, bodySize: bodySize(brand.type) }) : [] };
+          const width = Number(el.dataset.idedWidth) || g.width;
+          return { frame: el.dataset.idedFrame!, viewport: el.dataset.idedViewport, violations: root && brand ? measureLayout(root, { width, bodySize: bodySize(brand.type) }) : [] };
         });
       window.__IDED_READY__ = true;
     };
@@ -86,14 +89,15 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
     return (
       <div className="render-sheet" data-ided-sheet>
         {loaded &&
-          pages.map(({ frame: f, page, pages: n }) => (
-            <figure key={`${f.id}/${page}`} className="render-sheet-item">
-              <div className="render-frame" style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom: scale }}>
-                <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} />
+          pages.map(({ frame: f, page, pages: n, viewport: v }) => (
+            <figure key={`${f.id}/${page}/${v?.name ?? ""}`} className="render-sheet-item">
+              <div className="render-frame" style={{ width: v?.width ?? g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom: scale }}>
+                <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} viewport={v?.name} />
               </div>
               <figcaption>
                 {String(f.number).padStart(2, "0")} {f.title}
                 {n > 1 && ` · ${page + 1}/${n}`}
+                {v && ` · ${v.name}`}
               </figcaption>
             </figure>
           ))}
@@ -105,15 +109,17 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
     <div className="render-root">
       {print && <style>{`@page { size: ${pageW} ${pageH}; margin: 0; } html, body { margin: 0; padding: 0; background: none; }`}</style>}
       {loaded &&
-        pages.map(({ frame: f, page }) => (
+        pages.map(({ frame: f, page, viewport: v }) => (
           <div
-            key={`${f.id}/${page}`}
+            key={`${f.id}/${page}/${v?.name ?? ""}`}
             data-ided-frame={f.id}
             data-ided-page={page}
+            data-ided-viewport={v?.name}
+            data-ided-width={v?.width ?? g.width}
             className="render-frame"
-            style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom, breakAfter: print ? "page" : undefined }}
+            style={{ width: v?.width ?? g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom, breakAfter: print ? "page" : undefined }}
           >
-            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} measure={false} />
+            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} viewport={v?.name} measure={false} />
           </div>
         ))}
     </div>

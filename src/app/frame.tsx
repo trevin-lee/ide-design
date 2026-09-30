@@ -48,7 +48,7 @@ export function useFrameComponent(project: string, frame: string): { Component: 
  * to, and adds the layout check's findings once fonts and images have settled (unless `measure`
  * is false).
  */
-export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; page?: number; publish?: boolean; measure?: boolean }) {
+export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; page?: number; viewport?: string; publish?: boolean; measure?: boolean }) {
   const { project, frame, index } = props;
   const page = props.page ?? 0;
   const rev = useStore(revision);
@@ -59,12 +59,15 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
   const flow = useMemo(() => ({ page }), [page]);
   const threads = useThreadEnv(project, index);
   const { Component, error } = useFrameComponent(project.id, frame.id);
-  const geometry = project.geometry!;
+  // A responsive web screen renders once per viewport; the widest is the primary one.
+  const variant = variantOf(project, props.viewport);
+  const geometry = variant ? { ...project.geometry!, width: variant.width, height: variant.height } : project.geometry!;
+  const primary = !variant || variant.name === project.geometry!.viewports![0]!.name;
   const sink = useMemo(() => new Collector(), [rev, Component]);
-  const key = `${project.id}/${frame.id}`;
+  const key = violationKey(project.id, frame.id, primary ? undefined : variant?.name);
   const host = useRef<HTMLDivElement>(null);
   const first = page === 0 && props.publish !== false;
-  const settle = useAfterRender(host, project, key, { publish: first, count: page === 0, measure: first && props.measure !== false });
+  const settle = useAfterRender(host, geometry.width, project, key, { publish: first, count: page === 0 && primary, measure: first && props.measure !== false });
   if (error) {
     return <FrameError geometry={geometry} title={frame.src} message={error.message} />;
   }
@@ -79,6 +82,7 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
       index={before + page}
       total={total}
       sink={sink}
+      viewport={variant?.name}
       onRendered={(hasRoot) => {
         const list = sink.list();
         if (!hasRoot && !list.some((v) => v.rule === "render-error")) list.push(missingRootViolation(project.kind as FrameKind, frame.src));
@@ -94,6 +98,18 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
       </FlowPageContext.Provider>
     </FrameHost>
   );
+}
+
+/** The viewport of a responsive web screen to render (the widest when none is named); null for other projects. */
+export function variantOf(project: WsProject, viewport?: string): { name: "desktop" | "tablet" | "mobile"; width: number; height: number } | null {
+  const all = project.geometry?.viewports;
+  if (!all?.length) return null;
+  return all.find((v) => v.name === viewport) ?? all[0]!;
+}
+
+/** Violations are kept per frame, and per viewport for a responsive screen's narrower viewports. */
+export function violationKey(project: string, frame: string, viewport?: string): string {
+  return `${project}/${frame}${viewport ? `@${viewport}` : ""}`;
 }
 
 /** Where this frame's thread boxes sit in their stories, from what the other frames measured. */
@@ -118,6 +134,7 @@ function useThreadEnv(project: WsProject, index: number): ThreadEnv {
  */
 function useAfterRender(
   host: React.RefObject<HTMLDivElement | null>,
+  width: number,
   project: WsProject,
   key: string,
   opts: { publish: boolean; count: boolean; measure: boolean },
@@ -143,7 +160,7 @@ function useAfterRender(
         // Threads: how many boxes of each story this frame holds, and where each box's text ends.
         const perStory: Record<string, number> = {};
         const root = host.current.querySelector<HTMLElement>(".ided-root");
-        const scale = root ? root.getBoundingClientRect().width / project.geometry!.width || 1 : 1;
+        const scale = root ? root.getBoundingClientRect().width / width || 1 : 1;
         for (const box of host.current.querySelectorAll<HTMLElement>("[data-ided-thread]")) {
           const story = box.dataset.idedThread!;
           perStory[story] = (perStory[story] ?? 0) + 1;
@@ -156,7 +173,7 @@ function useAfterRender(
       }
       const root = host.current.querySelector<HTMLElement>(".ided-root");
       if (!opts.measure || !root || !brand) return;
-      const found = measureLayout(root, { width: project.geometry!.width, bodySize: bodySize(brand.type) });
+      const found = measureLayout(root, { width, bodySize: bodySize(brand.type) });
       if (JSON.stringify(found) === JSON.stringify(layout.current)) return;
       layout.current = found;
       publishViolations(key, [...list, ...found]);

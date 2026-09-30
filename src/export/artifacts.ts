@@ -76,7 +76,10 @@ export async function exportProject(opts: ExportOptions): Promise<ExportedFile[]
       if (!els.length) throw new Error(`Frame ${id} did not render.`);
       for (const [i, el] of els.entries()) {
         const data = await el.screenshot({ type: opts.format, ...(opts.format === "jpeg" ? { quality: 92 } : {}) });
-        out.push({ name: els.length > 1 ? `${id}-${i + 1}.${ext}` : `${id}.${ext}`, data: Buffer.from(data) });
+        // A responsive web screen: one image per viewport (01-home-desktop.png, 01-home-mobile.png).
+        const viewport = await el.getAttribute("data-ided-viewport");
+        const suffix = viewport ? `-${viewport}` : els.length > 1 ? `-${i + 1}` : "";
+        out.push({ name: `${id}${suffix}.${ext}`, data: Buffer.from(data) });
       }
     }
     await page.close();
@@ -111,13 +114,13 @@ export function parseZoom(zoom: string): { cols: number; rows: number } {
  * One frame cut into a grid of full-resolution tiles, left to right, top to bottom, for
  * inspecting detail a whole-frame or contact-sheet image is too small to show.
  */
-export async function exportTiles(opts: { baseUrl: string; project: Project; frame: string; page?: number; cols: number; rows: number; scale?: number; browser?: Browser }): Promise<ExportedFile[]> {
+export async function exportTiles(opts: { baseUrl: string; project: Project; frame: string; page?: number; viewport?: string; cols: number; rows: number; scale?: number; browser?: Browser }): Promise<ExportedFile[]> {
   const run = async (browser: Browser): Promise<ExportedFile[]> => {
     const p = opts.project;
     if (!p.geometry) throw new Error(`"${p.id}" has no frames.`);
     const page = await openRender(browser, renderUrl(opts.baseUrl, p.id, [opts.frame]), opts.scale ?? 1, p.geometry.width);
     const n = opts.page ?? 1;
-    const box = await (await page.$(`[data-ided-frame="${opts.frame}"][data-ided-page="${n - 1}"]`))?.boundingBox();
+    const box = await (await page.$(`[data-ided-frame="${opts.frame}"][data-ided-page="${n - 1}"]${opts.viewport ? `[data-ided-viewport="${opts.viewport}"]` : ""}`))?.boundingBox();
     if (!box) throw new Error(n > 1 ? `Frame ${opts.frame} has no page ${n}.` : `Frame ${opts.frame} did not render.`);
     const w = box.width / opts.cols;
     const h = box.height / opts.rows;
@@ -125,7 +128,7 @@ export async function exportTiles(opts: { baseUrl: string; project: Project; fra
     for (let r = 0; r < opts.rows; r++) {
       for (let c = 0; c < opts.cols; c++) {
         const data = await page.screenshot({ type: "png", fullPage: true, clip: { x: box.x + c * w, y: box.y + r * h, width: w, height: h } });
-        out.push({ name: `${opts.frame}${n > 1 ? `-${n}` : ""}-r${r + 1}c${c + 1}.png`, data: Buffer.from(data) });
+        out.push({ name: `${opts.frame}${n > 1 ? `-${n}` : ""}${opts.viewport ? `-${opts.viewport}` : ""}-r${r + 1}c${c + 1}.png`, data: Buffer.from(data) });
       }
     }
     await page.close();

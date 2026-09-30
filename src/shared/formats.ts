@@ -71,7 +71,13 @@ export type ProjectManifest =
   | ({ kind: "deck"; title: string } & Deps)
   | ({ kind: "doc"; title: string; page: DocPage } & Deps)
   | ({ kind: "graphic"; title: string; size: GraphicSize } & Deps)
-  | ({ kind: "web"; title: string; viewport: WebViewport } & Deps);
+  | ({ kind: "web"; title: string; viewport: WebViewport | readonly WebViewport[] } & Deps);
+
+/** A web project's viewports, widest first (a single one, or several for a responsive screen). */
+export function webViewports(m: { viewport: WebViewport | readonly WebViewport[] }): WebViewport[] {
+  const listed = typeof m.viewport === "string" ? [m.viewport] : m.viewport;
+  return (Object.keys(WEB_VIEWPORTS) as WebViewport[]).filter((v) => listed.includes(v));
+}
 
 export interface FrameGeometry {
   width: number;
@@ -80,6 +86,8 @@ export interface FrameGeometry {
   fixedHeight: boolean;
   /** Physical PDF page size and the scale from design px to CSS px, when not 1:1. */
   print?: { width: string; height: string; scale: number };
+  /** Web screens: every viewport the screen renders at, widest first. `width`/`height` are the first's. */
+  viewports?: { name: WebViewport; width: number; height: number }[];
 }
 
 export function frameGeometry(m: ProjectManifest): FrameGeometry {
@@ -92,8 +100,10 @@ export function frameGeometry(m: ProjectManifest): FrameGeometry {
     }
     case "graphic":
       return { ...GRAPHIC_SIZES[m.size], fixedHeight: true };
-    case "web":
-      return { ...WEB_VIEWPORTS[m.viewport], fixedHeight: false };
+    case "web": {
+      const viewports = webViewports(m).map((name) => ({ name, ...WEB_VIEWPORTS[name] }));
+      return { width: viewports[0]!.width, height: viewports[0]!.height, fixedHeight: false, viewports };
+    }
     case "brand":
     case "library":
       return { width: 1440, height: 900, fixedHeight: false };

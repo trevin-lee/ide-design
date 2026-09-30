@@ -146,20 +146,35 @@ export async function runCheck(rootPath: string, opts: CheckOptions = {}): Promi
               continue;
             }
             if (typeof mod.default !== "function") continue; // reported by lint
-            const { violations } = ssr.renderFrame({
-              brand: loaded.brand,
-              svgs: loaded.svgs,
-              kind: p.kind as FrameKind,
-              project: p.id,
-              file: rel,
-              geometry: p.geometry,
-              index,
-              total: p.frames.length,
-              Component: mod.default as never,
-            });
-            for (const v of violations) {
+            // A responsive web screen renders once per viewport; what fails on only some says where.
+            const variants = p.geometry.viewports ?? [null];
+            const variantViolations = variants.flatMap((vp) =>
+              ssr
+                .renderFrame({
+                  brand: loaded.brand!,
+                  svgs: loaded.svgs,
+                  kind: p.kind as FrameKind,
+                  project: p.id,
+                  file: rel,
+                  geometry: vp ? { ...p.geometry!, width: vp.width, height: vp.height } : p.geometry!,
+                  index,
+                  total: p.frames.length,
+                  Component: mod.default as never,
+                  viewport: vp?.name,
+                })
+                .violations.map((v) => ({ ...v, viewport: vp?.name })),
+            );
+            const found = new Map<string, { v: (typeof variantViolations)[number]; on: string[] }>();
+            for (const v of variantViolations) {
+              const key = `${v.rule}|${v.src}|${v.message}`;
+              const entry = found.get(key) ?? { v, on: [] };
+              if (v.viewport) entry.on.push(v.viewport);
+              found.set(key, entry);
+            }
+            for (const { v, on } of found.values()) {
               const loc = parseSrc(v.src) ?? { file: rel };
-              issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message, hint: v.hint, severity: v.severity, source: "render", project: p.id });
+              const where = on.length && on.length < variants.length ? ` (${on.join(", ")})` : "";
+              issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message + where, hint: v.hint, severity: v.severity, source: "render", project: p.id });
             }
           }
         }

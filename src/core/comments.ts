@@ -19,6 +19,8 @@ export interface CommentTarget {
   rect: { x: number; y: number; width: number; height: number } | null;
   /** For a flowing doc page: which of its pages (0-based) the element was on. Absent for the first. */
   page?: number;
+  /** For a responsive web screen: which narrower viewport the element was on. Absent for the widest. */
+  viewport?: "tablet" | "mobile" | "desktop";
 }
 
 export interface Reply {

@@ -34,6 +34,8 @@ export interface FrameEnv {
   root: { rendered: boolean };
   /** How many <Thread> boxes of each story this frame has rendered so far, in order. */
   threads: Map<string, number>;
+  /** The viewport this render of a web screen is for (a web screen renders once per viewport); null elsewhere. */
+  viewport: "desktop" | "tablet" | "mobile" | null;
 }
 
 /** The frame root's direct flow children, in render order: how bleed knows who touches which edge. */

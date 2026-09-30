@@ -98,6 +98,8 @@ export interface FrameHostProps {
   onRendered?: (hasRoot: boolean) => void;
   /** Supplied by server rendering, where effects do not run. */
   rootState?: { rendered: boolean };
+  /** For a web screen: which of its viewports this render is. */
+  viewport?: "desktop" | "tablet" | "mobile";
   children: ReactNode;
 }
 
@@ -115,6 +117,7 @@ export function FrameHost(props: FrameHostProps) {
     total: props.total,
     root,
     threads: new Map(),
+    viewport: props.viewport ?? null,
   };
   const { onRendered } = props;
   useEffect(() => {

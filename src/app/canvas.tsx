@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WsFrame, WsProject } from "virtual:ided/workspace";
 import { openSource } from "./editor.ts";
-import { FrameRender, Scaled, ThreadMeasurer, useFrameHeight, useSize } from "./frame.tsx";
+import { FrameRender, Scaled, ThreadMeasurer, useFrameHeight, useSize, variantOf, violationKey } from "./frame.tsx";
 import {
   activeComment,
   commentMode,
@@ -60,6 +60,27 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
 
   // useSize reports the content box, so the canvas padding is already excluded.
   const g = project.geometry;
+  // A responsive web screen: each frame's viewports side by side, all at one scale, so the
+  // narrow ones look as narrow as they are.
+  const variants = g.viewports && g.viewports.length > 1 ? g.viewports : null;
+  if (variants) {
+    const gap = 32;
+    const inner = Math.max(200, size.width);
+    const scale = (inner - gap * (variants.length - 1)) / variants.reduce((n, v) => n + v.width, 0);
+    const frames = focusIndex >= 0 ? [project.frames[focusIndex]!] : project.frames;
+    return (
+      <div className="canvas" ref={ref}>
+        {size.width > 0 &&
+          frames.map((f) => (
+            <div key={f.id} className="variant-row" style={{ gap }}>
+              {variants.map((v) => (
+                <FrameCard key={v.name} project={project} frame={f} index={project.frames.indexOf(f)} viewport={v.name} scale={scale} focused={focusIndex >= 0} />
+              ))}
+            </div>
+          ))}
+      </div>
+    );
+  }
   if (focusIndex >= 0) {
     const frame = project.frames[focusIndex]!;
     const availW = Math.max(200, size.width);
@@ -97,19 +118,23 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
 }
 
 /** One page of a frame: a frame is one card, a flowing page one card per page. */
-function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; page?: number; pages?: number; scale: number; focused?: boolean }) {
+function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; page?: number; pages?: number; viewport?: string; scale: number; focused?: boolean }) {
   const { project, frame, index, scale } = props;
   const page = props.page ?? 0;
   const pages = props.pages ?? 1;
-  const g = project.geometry!;
+  const variant = variantOf(project, props.viewport);
+  const g = variant ? { ...project.geometry!, width: variant.width, height: variant.height } : project.geometry!;
+  const primary = !variant || variant.name === project.geometry!.viewports![0]!.name;
   const hostRef = useRef<HTMLDivElement>(null);
   const height = useFrameHeight(hostRef, g.height);
   const all = useStore(violationStore);
-  const issues = all[`${project.id}/${frame.id}`] ?? [];
+  const issues = all[violationKey(project.id, frame.id, primary ? undefined : variant?.name)] ?? [];
   const errors = issues.filter((v) => v.severity === "error").length;
   const warnings = issues.length - errors;
   const mode = useStore(commentMode);
-  const openCount = useStore(commentsStore).filter((c) => c.project === project.id && c.frame === frame.id && (c.target?.page ?? 0) === page && c.status === "open").length;
+  const openCount = useStore(commentsStore).filter(
+    (c) => c.project === project.id && c.frame === frame.id && (c.target?.page ?? 0) === page && c.target?.viewport === (primary ? undefined : variant?.name) && c.status === "open",
+  ).length;
   return (
     <figure className={`frame-card${props.focused ? " focused" : ""}`}>
       <div
@@ -123,9 +148,9 @@ function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; p
           width={g.width}
           height={height}
           scale={scale}
-          overlay={<CommentLayer project={project} frame={frame} page={page} scale={scale} hostRef={hostRef} />}
+          overlay={<CommentLayer project={project} frame={frame} page={page} viewport={primary ? undefined : variant?.name} scale={scale} hostRef={hostRef} />}
         >
-          <FrameRender project={project} frame={frame} index={index} page={page} />
+          <FrameRender project={project} frame={frame} index={index} page={page} viewport={variant?.name} />
         </Scaled>
       </div>
       <figcaption>
@@ -133,6 +158,7 @@ function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; p
         <span className="frame-title">
           {frame.title}
           {pages > 1 && <span className="frame-page">{` ${page + 1}/${pages}`}</span>}
+          {variant && project.geometry!.viewports!.length > 1 && <span className="frame-page">{` ${variant.name}`}</span>}
         </span>
         <span className="frame-meta">
           {openCount > 0 && <span className="pill pill-comment">{openCount}</span>}
@@ -184,8 +210,8 @@ function describe(el: HTMLElement, root: HTMLElement, scale: number): CommentTar
   };
 }
 
-function CommentLayer(props: { project: WsProject; frame: WsFrame; page: number; scale: number; hostRef: React.RefObject<HTMLDivElement | null> }) {
-  const { project, frame, page, scale, hostRef } = props;
+function CommentLayer(props: { project: WsProject; frame: WsFrame; page: number; viewport?: "desktop" | "tablet" | "mobile"; scale: number; hostRef: React.RefObject<HTMLDivElement | null> }) {
+  const { project, frame, page, viewport, scale, hostRef } = props;
   const mode = useStore(commentMode);
   const all = useStore(commentsStore);
   const active = useStore(activeComment);
@@ -194,7 +220,7 @@ function CommentLayer(props: { project: WsProject; frame: WsFrame; page: number;
   const [draft, setDraft] = useState<{ target: CommentTarget | null; x: number; y: number } | null>(null);
 
   const projectComments = all.filter((c) => c.project === project.id && c.status === "open");
-  const pins = projectComments.map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.frame === frame.id && (c.target?.page ?? 0) === page);
+  const pins = projectComments.map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.frame === frame.id && (c.target?.page ?? 0) === page && c.target?.viewport === viewport);
 
   const pick = (e: React.MouseEvent): Hover | null => {
     const host = hostRef.current;
@@ -220,7 +246,7 @@ function CommentLayer(props: { project: WsProject; frame: WsFrame; page: number;
         const h = pick(e);
         const lr = layerRef.current!.getBoundingClientRect();
         const target = h ? describe(h.el, hostRef.current!, scale) : null;
-        setDraft({ target: target && page > 0 ? { ...target, page } : target, x: e.clientX - lr.left, y: e.clientY - lr.top });
+        setDraft({ target: target ? { ...target, ...(page > 0 ? { page } : {}), ...(viewport ? { viewport } : {}) } : target, x: e.clientX - lr.left, y: e.clientY - lr.top });
       }}
     >
       {mode && hover && !draft && (

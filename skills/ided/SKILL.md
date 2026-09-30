@@ -5,7 +5,7 @@ description: Create and edit design artifacts (slide decks, documents, social gr
 
 # ided: design as code
 
-In an ided workspace every artifact is a pure React function built from 19 primitives, and
+In an ided workspace every artifact is a pure React function built from 20 primitives, and
 every value (color, space, radius, type, logo) is a named token from `design/brand/brand.ts`.
 There is one way to do each thing, and `ided check` rejects anything else. That is the point:
 the output is consistent because nothing can drift from the brand.
@@ -33,7 +33,7 @@ the user wants these skills available to every agent and teammate who opens the 
    before designing frames: they decide the frames. `ided check` warns until every section is
    written, and the viewer shows the document beside the frames.
 1. **Scaffold, never hand-create structure.**
-   - New project: `ided new deck q3-review --title "Q3 Review"` (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`).
+   - New project: `ided new deck q3-review --title "Q3 Review"` (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`, or `desktop,mobile` for a responsive screen checked at each).
    - New frame: `ided add q3-review agenda` creates the next `NN-agenda.tsx` from a template.
      Frames are ordered by their number: to insert or reorder, rename the files (`git mv`,
      numbers unique); to drop a frame or a whole project, delete its file or folder. `ided check`

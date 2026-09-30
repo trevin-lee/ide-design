@@ -155,7 +155,15 @@ function readManifest(file: string, rel: string, issues: Issue[]): ProjectManife
   };
   if (kind === "doc") need("page", Object.keys(DOC_PAGES));
   if (kind === "graphic") need("size", Object.keys(GRAPHIC_SIZES));
-  if (kind === "web") need("viewport", Object.keys(WEB_VIEWPORTS));
+  if (kind === "web") {
+    // One viewport, or a list for a responsive screen rendered at each.
+    const names = Object.keys(WEB_VIEWPORTS);
+    const v = m.viewport;
+    const list = Array.isArray(v) ? v : [v];
+    if (!list.length || list.some((x) => !names.includes(x as string)) || new Set(list).size !== list.length) {
+      err(`A web project needs "viewport": one of ${names.map((o) => `"${o}"`).join(", ")}, or a list of them for a responsive screen, e.g. ["desktop", "mobile"].`);
+    }
+  }
   if (m.dependencies !== undefined && (!Array.isArray(m.dependencies) || m.dependencies.some((d) => typeof d !== "string"))) {
     err('"dependencies" is an array of library names, e.g. ["kit"].');
   }

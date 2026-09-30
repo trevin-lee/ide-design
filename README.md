@@ -41,7 +41,7 @@ ided makes those mistakes unrepresentable:
 
 - **Every value is a token.** Colors, spacing, radii, type styles, logo sizes and margins come from
   one file, `design/brand/brand.ts`. Artifacts contain only token names, typed as closed unions.
-- **One way to do each thing.** 19 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
+- **One way to do each thing.** 20 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
   style. Math is TeX in an `<Equation>`. Chrome is `Place` with an anchor and an inset. There are
   no alternatives to choose between.
 - **Parametric by construction.** Fractional widths subtract the parent's gap, so columns meet
@@ -194,7 +194,7 @@ import { Timeline } from "@q3-review/components/timeline";    // this project's 
 | `deck`    | `slides/`    | `<Slide>`    | 1920×1080                                                     |
 | `doc`     | `pages/`     | `<Page>`     | Letter or A4, laid out at 2× and printed at true size; `<Page flow>` runs onto as many pages as its text needs, and `<Thread>` runs one story through boxes on designed pages |
 | `graphic` | `artboards/` | `<Artboard>` | square, portrait, story, landscape, og, banner                |
-| `web`     | `screens/`   | `<Screen>`   | desktop 1440, tablet 834, mobile 390; grows vertically        |
+| `web`     | `screens/`   | `<Screen>`   | desktop 1440, tablet 834, mobile 390; grows vertically; list several viewports for a responsive screen checked at each |
 
 Anything else in these folders is an error. Create things with the CLI so they start in shape.
 
@@ -214,7 +214,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided rules` | the primitive reference agents read |
 | `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts (PDF by default; PNG for web) |
 | `ided export brand [--zip]` | export the brand kit |
-| `ided screenshot <project> <frame> [--zoom 2x2] [--page n]` | one frame to PNG (or full-resolution tiles; `--page` for a flowing doc page), for agents to look at their work |
+| `ided screenshot <project> <frame> [--zoom 2x2] [--page n] [--viewport v]` | one frame to PNG (or full-resolution tiles; `--page` for a flowing doc page), for agents to look at their work |
 | `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
 | `ided browser [install\|remove]` | show, download or delete the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` (`--author`, default `agent`) | review loop |
@@ -430,7 +430,6 @@ your files at run time.
   same furniture. Paragraphs break between lines; other blocks move whole. Pages with a layout of
   their own are separate files. To run text through designed pages, write it once as a story
   and thread it through `<Thread>` boxes.
-- Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
 - The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic
   names). Shapes with no fill at all draw black and are not flagged; `hsl()` and other names are

@@ -34,7 +34,7 @@ export async function layoutIssues(root: string, projects: Project[], parseSrc: 
   const issues: CheckIssue[] = [];
   try {
     for (const p of targets) {
-      let results: { frame: string; violations: Violation[] }[];
+      let results: { frame: string; viewport?: string; violations: Violation[] }[];
       try {
         const page = await openRender(browser, renderUrl(server.url, p.id), 1, p.geometry!.width);
         results = await page.evaluate(() => window.__IDED_LAYOUT__?.() ?? []);
@@ -42,12 +42,22 @@ export async function layoutIssues(root: string, projects: Project[], parseSrc: 
       } catch {
         continue; // a frame that does not load or render is already reported by the render audit
       }
-      for (const { frame, violations } of results) {
-        const file = relative(root, p.frames.find((f) => f.id === frame)?.abs ?? p.dir);
+      // A responsive screen is measured at every viewport; what fails on only some says where.
+      const viewports = p.geometry!.viewports?.length ?? 1;
+      const found = new Map<string, { v: Violation; frame: string; on: string[] }>();
+      for (const { frame, viewport, violations } of results) {
         for (const v of violations) {
-          const loc = parseSrc(v.src) ?? { file };
-          issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message, hint: v.hint, severity: v.severity, source: "layout", project: p.id });
+          const key = `${frame}|${v.rule}|${v.src}|${v.message}`;
+          const entry = found.get(key) ?? { v, frame, on: [] };
+          if (viewport) entry.on.push(viewport);
+          found.set(key, entry);
         }
+      }
+      for (const { v, frame, on } of found.values()) {
+        const file = relative(root, p.frames.find((f) => f.id === frame)?.abs ?? p.dir);
+        const loc = parseSrc(v.src) ?? { file };
+        const where = on.length && on.length < viewports ? ` (${on.join(", ")})` : "";
+        issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message + where, hint: v.hint, severity: v.severity, source: "layout", project: p.id });
       }
     }
   } finally {

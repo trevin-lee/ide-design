@@ -17,6 +17,8 @@ export interface RenderFrameInput {
   index: number;
   total: number;
   Component: ComponentType;
+  /** For a web screen: which viewport to render (with `geometry` for that viewport). */
+  viewport?: "desktop" | "tablet" | "mobile";
 }
 
 export function renderFrame(input: RenderFrameInput): { html: string; violations: Violation[] } {
@@ -35,6 +37,7 @@ export function renderFrame(input: RenderFrameInput): { html: string; violations
           total={input.total}
           sink={sink}
           rootState={rootState}
+          viewport={input.viewport}
         >
           <input.Component />
         </FrameHost>

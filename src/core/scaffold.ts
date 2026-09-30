@@ -12,6 +12,8 @@ import {
   type FrameKind,
   type ProjectManifest,
   type WebViewport,
+  webViewports,
+  WEB_VIEWPORTS,
 } from "../shared/formats.ts";
 import { dependencyDir, DESIGN_DIR, GENERATED_DIR, TYPES_DIR, WORKSPACE_MARKER } from "./paths.ts";
 import { DESIGN_DOC, designDocTemplate } from "./design-doc.ts";
@@ -326,7 +328,8 @@ export interface NewProjectOptions {
   title?: string;
   page?: "letter" | "a4";
   size?: string;
-  viewport?: string;
+  /** One viewport, or several separated by commas ("desktop,mobile") for a responsive screen. */
+  viewport?: string | readonly string[];
 }
 
 export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOptions): ProjectManifest {
@@ -337,8 +340,13 @@ export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOpti
       return { kind, title, page: opts.page ?? "letter" };
     case "graphic":
       return { kind, title, size: (opts.size ?? "square") as never };
-    case "web":
-      return { kind, title, viewport: (opts.viewport ?? "desktop") as never };
+    case "web": {
+      const list = typeof opts.viewport === "string" ? opts.viewport.split(",").map((v) => v.trim()) : (opts.viewport ?? ["desktop"]);
+      const known = Object.keys(WEB_VIEWPORTS);
+      const bad = list.filter((v) => !known.includes(v));
+      if (bad.length || !list.length) throw new Error(`--viewport is one of ${known.join(", ")}, or several separated by commas (got "${bad.join(", ")}").`);
+      return { kind, title, viewport: (list.length === 1 ? list[0] : list) as never };
+    }
   }
 }
 
@@ -384,14 +392,47 @@ export function newProject(ws: Workspace, kind: FrameKind | "library", id: strin
   write(join(dir, "project.json"), JSON.stringify(manifest, null, 2) + "\n");
   write(join(dir, DESIGN_DOC), designDocTemplate(kind, title));
   const first = join(dir, FRAME_DIR[kind], `01-${kind === "deck" ? "title" : kind === "doc" ? "cover" : kind === "web" ? "home" : "main"}.tsx`);
-  write(first, frameTemplate(kind, first.split("/").pop()!.replace(/^\d+-|\.tsx$/g, ""), title, "viewport" in manifest ? manifest.viewport : undefined));
+  write(first, frameTemplate(kind, first.split("/").pop()!.replace(/^\d+-|\.tsx$/g, ""), title, manifest.kind === "web" ? webViewports(manifest) : undefined));
   return [rel(join(dir, "project.json")), rel(join(dir, DESIGN_DOC)), rel(first)];
 }
 
-export function frameTemplate(kind: FrameKind, slug: string, heading = titleCase(slug), viewport?: WebViewport): string {
+export function frameTemplate(kind: FrameKind, slug: string, heading = titleCase(slug), viewports: WebViewport[] = []): string {
   const root = FRAME_ROOT[kind];
   const fn = pascal(slug);
   const text = JSON.stringify(heading).slice(1, -1);
+  const viewport = viewports.length === 1 ? viewports[0] : undefined;
+  if (kind === "web" && viewports.length > 1) {
+    // One screen, every viewport: values per viewport where the layout changes, Show where parts do.
+    const narrow = viewports.includes("mobile");
+    return `import { Row, Screen, Show, Stack, Text, Logo } from "ided";
+
+export default function ${fn}() {
+  return (
+    <${root} surface="paper" gap={{ desktop: "4xl", mobile: "3xl" }}>
+      <Row justify="between" align="center">
+        <Logo variant={{ desktop: "horizontal"${narrow ? ', mobile: "mark"' : ""} }} size="xs" />
+        <Show on={${JSON.stringify(viewports.filter((v) => v !== "mobile"))}}>
+          <Row gap="xl">
+            <Text type="small">Product</Text>
+            <Text type="small">Pricing</Text>
+            <Text type="small">About</Text>
+          </Row>
+        </Show>${narrow ? `
+        <Show on="mobile">
+          <Text type="small">Menu</Text>
+        </Show>` : ""}
+      </Row>
+      <Stack gap={{ desktop: "l", mobile: "m" }} width={{ desktop: "2/3", tablet: "full" }}>
+        <Text type={{ desktop: "display", tablet: "title", mobile: "heading" }}>${text}</Text>
+        <Text type={{ desktop: "subhead", mobile: "body" }} color="muted">
+          One sentence that says what this is for.
+        </Text>
+      </Stack>
+    </${root}>
+  );
+}
+`;
+  }
   if (kind === "web" && viewport === "mobile") {
     // A phone is too narrow for a row of links: the mark and a menu, and a headline sized to fit.
     return `import { Row, Screen, Stack, Text, Logo } from "ided";
@@ -483,7 +524,7 @@ export function addFrame(ws: Workspace, projectId: string, name: string): AddFra
   const width = Math.max(2, String(next).length);
   const fileName = `${String(next).padStart(width, "0")}-${slug}.tsx`;
   const abs = join(p.dir, FRAME_DIR[kind], fileName);
-  write(abs, frameTemplate(kind, slug, undefined, "viewport" in p.manifest ? p.manifest.viewport : undefined));
+  write(abs, frameTemplate(kind, slug, undefined, p.manifest.kind === "web" ? webViewports(p.manifest) : undefined));
   return { file: relative(ws.root, abs) };
 }
 

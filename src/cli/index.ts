@@ -122,7 +122,7 @@ program
   .option("-t, --title <title>", "display title")
   .addOption(new Option("--page <page>", "doc page size").choices(Object.keys(DOC_PAGES)))
   .addOption(new Option("--size <size>", "graphic size").choices(Object.keys(GRAPHIC_SIZES)))
-  .addOption(new Option("--viewport <viewport>", "web viewport").choices(Object.keys(WEB_VIEWPORTS)))
+  .option("--viewport <viewports>", `web viewport (${Object.keys(WEB_VIEWPORTS).join(", ")}), or several separated by commas for a responsive screen, e.g. desktop,mobile`)
   .action(
     action((kind: string, name: string, opts: { title?: string; page?: "letter" | "a4"; size?: string; viewport?: string }) => {
       const kinds = [...FRAME_KINDS, "library"];
@@ -321,10 +321,11 @@ program
   .option("--sheet", "every frame of the project on one labeled image")
   .option("--zoom <grid>", "cut the frame into full-resolution tiles, columns x rows (e.g. 2x2), to inspect detail")
   .option("--page <n>", "which page of a flowing doc page (default 1)")
+  .option("--viewport <name>", "which viewport of a responsive web screen (default: the widest)")
   .option("-o, --out <path>", "output file (a folder with --zoom)")
   .option("--scale <n>", "pixel density", "1")
   .action(
-    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string; page?: string }) => {
+    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string; page?: string; viewport?: string }) => {
       const pageNo = opts.page === undefined ? 1 : Number(opts.page);
       if (!Number.isInteger(pageNo) || pageNo < 1) throw new Error("--page is a page number, 1 or more.");
       const root = requireWorkspaceRoot();
@@ -332,6 +333,11 @@ program
       if (!isFrameKind(p.kind)) throw new Error(`"${p.id}" is ${p.kind === "brand" ? "the brand" : "a library"} and has no frames; screenshot a project that uses it, or open it in the viewer (\`ided run\`).`);
       if (!opts.sheet && !frame) throw new Error("Name a frame, or pass --sheet for all of them on one image.");
       if (opts.sheet && opts.zoom) throw new Error("--zoom cuts one frame into tiles; it does not combine with --sheet.");
+      const viewports = p.geometry?.viewports?.map((v) => v.name) ?? [];
+      if (opts.viewport && !viewports.includes(opts.viewport as never)) {
+        throw new Error(viewports.length > 1 ? `${p.id} renders at ${viewports.join(", ")}.` : `--viewport is for responsive web screens; ${p.id} has ${viewports.length ? "one viewport" : "no viewports"}.`);
+      }
+      const viewport = viewports.length > 1 ? (opts.viewport ?? viewports[0]) : undefined;
       const f = frame ? p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`)) : undefined;
       if (frame && !f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
       const { startServer } = await import("../server/index.ts");
@@ -340,7 +346,7 @@ program
       const server = await startServer({ root, port: 0 });
       try {
         if (grid) {
-          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, page: pageNo, ...grid, scale: Number(opts.scale) });
+          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, page: pageNo, viewport, ...grid, scale: Number(opts.scale) });
           const dir = resolve(opts.out ?? join(root, "design", ".ided", "screenshots"));
           mkdirSync(dir, { recursive: true });
           for (const t of tiles) {
@@ -353,12 +359,13 @@ program
         let file;
         if (opts.sheet) file = await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) });
         else {
-          const pages = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) });
+          const all = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) });
+          const pages = viewport ? all.filter((x) => x.name === `${f!.id}-${viewport}.png`) : all;
           if (pageNo > pages.length) throw new Error(`${f!.id} has ${pages.length} page${pages.length === 1 ? "" : "s"}.`);
           file = pages[pageNo - 1]!;
           if (pages.length > 1 && opts.page === undefined) console.error(pc.dim(`${f!.id} flows onto ${pages.length} pages; this is page 1 (--page <n> for another, --sheet for all).`));
         }
-        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", opts.sheet ? `${p.id}-sheet.png` : `${p.id}-${f!.id}${pageNo > 1 ? `-${pageNo}` : ""}.png`));
+        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", opts.sheet ? `${p.id}-sheet.png` : `${p.id}-${f!.id}${pageNo > 1 ? `-${pageNo}` : ""}${viewport ? `-${viewport}` : ""}.png`));
         mkdirSync(resolve(target, ".."), { recursive: true });
         writeFileSync(target, file.data);
         console.log(target);

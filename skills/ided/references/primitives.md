@@ -69,7 +69,7 @@ library (or to the brand, if it is part of the identity), never import across pr
 | deck    | `slides/`    | `<Slide>`      | 1920×1080                                                    | none                                             |
 | doc     | `pages/`     | `<Page>`       | letter 1632×2112, a4 1588×2246 (2×, prints at true size)     | `"page": "letter" \| "a4"`                       |
 | graphic | `artboards/` | `<Artboard>`   | square 1080², portrait 1080×1350, story 1080×1920, landscape 1920×1080, og 1200×630, banner 1500×500 | `"size": …` |
-| web     | `screens/`   | `<Screen>`     | desktop 1440, tablet 834, mobile 390 wide; height grows      | `"viewport": …`                                  |
+| web     | `screens/`   | `<Screen>`     | desktop 1440, tablet 834, mobile 390 wide; height grows      | `"viewport": …`, or a list for a responsive screen |
 
 ## File shapes
 
@@ -138,6 +138,32 @@ is the space between blocks. No `align`/`justify`, no `Place` in the content (it
   <Text type="heading">Findings</Text>
   <Text type="body">…</Text>
 </Page>
+```
+
+### Responsive web screens
+A web project with several viewports (`"viewport": ["desktop", "tablet", "mobile"]`, or
+`ided new web site --viewport desktop,mobile`) renders every screen once per viewport, and the
+viewer, export and `ided check` see each. Where the layout changes, give a prop one value per
+viewport; a viewport without its own value takes the nearest wider one's:
+
+```tsx
+<Screen surface="paper" gap={{ desktop: "4xl", mobile: "3xl" }}>
+  <Text type={{ desktop: "display", tablet: "title", mobile: "heading" }}>Launch</Text>
+  <Row wrap gap="l">
+    <Box width={{ desktop: "1/3", mobile: "full" }}>…</Box>   {/* a row that stacks on mobile */}
+  </Row>
+</Screen>
+```
+
+Values per viewport work for layout and type props: `gap`, `align`, `justify`, `width`, `height`,
+`grow`, `wrap`, `columns`, `pad`, `radius`, `ratio`, `fit`, `type`, `inset`, `anchor`, and a
+Logo's `variant` and `size`. Colors and surfaces stay the same everywhere.
+
+### `Show`
+Keeps a part on some viewports only: `on` a viewport or a list. Adds no box.
+```tsx
+<Show on={["desktop", "tablet"]}><Row gap="xl">…links…</Row></Show>
+<Show on="mobile"><Text type="small">Menu</Text></Show>
 ```
 
 ### `Stack` (vertical) and `Row` (horizontal)
@@ -299,6 +325,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame; in a flowing page, past the text column or a block taller than a page; a story that does not end in its last `Thread` (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design; split tall blocks |
 | `ratio` | a `ratio` shape was laid out at another shape because its width and height are both fixed (warning) | drop the height (or width), or change the ratio |
 | `crop` | a crop Box cuts nothing, or cuts reading-size text (warning) | remove `crop`; give reading text room instead of cutting it |
+| `responsive` | a value per viewport or `Show` outside a web screen | give it one value; viewports are for web projects |
 | `thread` | a `Thread` with no `height` or `grow` | give it a height, or `grow` to fill the space left |
 | `bleed` | a Box bleeds to an edge it cannot touch (nested, not first/last, aligned away) or has a radius | make it the root's first/last child, span the width, or drop that side |
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |

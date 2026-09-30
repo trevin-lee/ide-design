@@ -200,3 +200,13 @@ test("the viewer shows a flowing page as one card per page", { skip, timeout: 60
   assert.ok(captions.length > 1 && captions.every((c, i) => c.trim() === `${i + 1}/${captions.length}`), captions.join());
   await page.close();
 });
+
+test("the viewer shows a responsive screen at each viewport, side by side", { skip, timeout: 60_000 }, async () => {
+  assert.equal(run(dir, "new", "web", "site", "--viewport", "desktop,mobile").status, 0);
+  const { page } = await open("#/p/site");
+  await page.waitForFunction(() => document.querySelectorAll(".variant-row .frame-card").length === 2, null, { timeout: 20_000 });
+  assert.deepEqual((await page.locator(".variant-row .frame-page").allInnerTexts()).map((t) => t.trim()), ["desktop", "mobile"]);
+  const [desktop, mobile] = await page.locator(".variant-row .frame-surface").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().width));
+  assert.ok(Math.abs(desktop! / mobile! - 1440 / 390) < 0.05, "one scale for every viewport");
+  await page.close();
+});

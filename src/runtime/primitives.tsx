@@ -52,6 +52,8 @@ import {
   type TypeToken,
   type ImageAsset,
   type FactName,
+  type Viewport,
+  type WithResponsive,
 } from "./tokens.ts";
 
 type Reporter = (rule: string, message: string, hint?: string, severity?: "error" | "warning") => void;
@@ -61,12 +63,39 @@ const SRC = "data-ided-src";
 const SPLITTABLE = "data-ided-splittable";
 const ALWAYS_ALLOWED = new Set(["children", SRC, "key", SPLITTABLE]);
 
-function usePrimitive(name: string, props: object, allowed: readonly string[], required: readonly string[] = []) {
+const VIEWPORTS: readonly Viewport[] = ["desktop", "tablet", "mobile"];
+
+/** A plain object keyed only by viewport names: one value per viewport. */
+function isPerViewport(v: unknown): v is Record<string, unknown> {
+  if (v === null || typeof v !== "object" || Array.isArray(v) || isValidElement(v)) return false;
+  const keys = Object.keys(v);
+  return keys.length > 0 && keys.every((k) => (VIEWPORTS as readonly string[]).includes(k));
+}
+
+/** The value for `viewport`: its own, else the nearest wider viewport's, else the nearest narrower one's. */
+function forViewport(v: Record<string, unknown>, viewport: Viewport): unknown {
+  const i = VIEWPORTS.indexOf(viewport);
+  for (let j = i; j >= 0; j--) if (v[VIEWPORTS[j]!] !== undefined) return v[VIEWPORTS[j]!];
+  for (let j = i + 1; j < VIEWPORTS.length; j++) if (v[VIEWPORTS[j]!] !== undefined) return v[VIEWPORTS[j]!];
+  return undefined;
+}
+
+/**
+ * Validates a primitive's props and resolves values given per viewport to this render's
+ * viewport: a web screen renders once per viewport, so each render sees plain values.
+ */
+function usePrimitive<P extends object>(name: string, raw: object, allowed: readonly string[], required: readonly string[] = []) {
   const sink = useContext(SinkContext);
-  const p = props as Record<string, unknown>;
+  const viewport = useContext(FrameContext)?.viewport ?? null;
+  let p = raw as Record<string, unknown>;
   const src = typeof p[SRC] === "string" ? (p[SRC] as string) : undefined;
   const report: Reporter = (rule, message, hint, severity = "error") =>
     sink.report({ rule, severity, message: `<${name}> ${message}`, src, hint });
+  for (const [k, v] of Object.entries(p)) {
+    if (k === "children" || !isPerViewport(v)) continue;
+    if (!viewport) report("responsive", `\`${k}\` has a value per viewport, but only web screens have viewports.`, "Give it one value.");
+    p = { ...p, [k]: forViewport(v, viewport ?? "desktop") };
+  }
   for (const k of Object.keys(p)) {
     if (!ALWAYS_ALLOWED.has(k) && !allowed.includes(k)) {
       report("unknown-prop", `does not accept \`${k}\`.`, allowed.length ? `Allowed props: ${allowed.join(", ")}.` : "It takes no props.");
@@ -75,7 +104,7 @@ function usePrimitive(name: string, props: object, allowed: readonly string[], r
   for (const k of required) {
     if (p[k] === undefined) report("missing-prop", `requires \`${k}\`.`);
   }
-  return { src, report, dom: { [SRC]: src, "data-ided": name, [SPLITTABLE]: p[SPLITTABLE] === "" ? "" : undefined } };
+  return { props: p as P, src, report, dom: { [SRC]: src, "data-ided": name, [SPLITTABLE]: p[SPLITTABLE] === "" ? "" : undefined } };
 }
 
 function oneOf<T>(value: T | undefined, options: readonly T[], prop: string, report: Reporter): T | undefined {
@@ -173,7 +202,7 @@ const ALIGN_CSS: Record<Align, CSSProperties["alignItems"]> = {
 // Roots
 // ---------------------------------------------------------------------------
 
-export interface RootProps {
+interface RootBase {
   /** Background of the whole frame. Must be a surface color. */
   surface: SurfaceToken;
   gap?: SpaceToken | "none";
@@ -181,8 +210,9 @@ export interface RootProps {
   justify?: Justify;
   children?: ReactNode;
 }
+export type RootProps = WithResponsive<RootBase, "gap" | "align" | "justify">;
 
-export interface PageProps extends RootProps {
+interface PageBase extends RootBase {
   /**
    * Let the content run across as many pages as it needs, all with this page's margin and
    * `chrome`. Paragraphs break between lines; everything else moves whole to the next page.
@@ -192,12 +222,13 @@ export interface PageProps extends RootProps {
   /** Page furniture repeated on every page of a flowing page: <Place> elements (running header, footer, page number). */
   chrome?: ReactNode;
 }
+export type PageProps = WithResponsive<PageBase, "gap" | "align" | "justify">;
 
 const variableCache = new WeakMap<object, Record<string, string>>();
 
 function makeRoot(name: string, kind: FrameKind) {
-  function Root(props: PageProps) {
-    const { report, dom } = usePrimitive(name, props, ["surface", "gap", "align", "justify", ...(kind === "doc" ? ["flow", "chrome"] : [])], ["surface"]);
+  function Root(raw: PageProps) {
+    const { props, report, dom } = usePrimitive<PageBase>(name, raw, ["surface", "gap", "align", "justify", ...(kind === "doc" ? ["flow", "chrome"] : [])], ["surface"]);
     const flowPage = useContext(FlowPageContext)?.page ?? 0;
     const { brand, token } = useTokens();
     const frame = useContext(FrameContext);
@@ -336,19 +367,19 @@ function ChromeAudit(props: { slots: RootSlots }) {
 }
 
 /** Root of every deck slide (1920×1080). */
-export const Slide = makeRoot("Slide", "deck");
+export const Slide = makeRoot("Slide", "deck") as (props: RootProps) => ReactElement;
 /** Root of every document page (Letter or A4). With `flow`, one file can run across many pages. */
 export const Page = makeRoot("Page", "doc") as (props: PageProps) => ReactElement;
 /** Root of every graphic (fixed social / print sizes). */
-export const Artboard = makeRoot("Artboard", "graphic");
+export const Artboard = makeRoot("Artboard", "graphic") as (props: RootProps) => ReactElement;
 /** Root of every web screen (fixed width, grows vertically). */
-export const Screen = makeRoot("Screen", "web");
+export const Screen = makeRoot("Screen", "web") as (props: RootProps) => ReactElement;
 
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
 
-export interface StackProps {
+interface StackBase {
   gap?: SpaceToken | "none";
   align?: Align;
   justify?: Justify;
@@ -358,16 +389,18 @@ export interface StackProps {
   grow?: boolean;
   children?: ReactNode;
 }
+export type StackProps = WithResponsive<StackBase, "gap" | "align" | "justify" | "width" | "height" | "grow">;
 
-export interface RowProps extends StackProps {
+interface RowBase extends StackBase {
   /** Wrap onto new lines when children overflow. */
   wrap?: boolean;
 }
+export type RowProps = WithResponsive<RowBase, "gap" | "align" | "justify" | "width" | "height" | "grow" | "wrap">;
 
 function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
   const allowed = ["gap", "align", "justify", "width", "height", "grow", ...(axis === "row" ? ["wrap"] : [])];
-  function Flex(props: RowProps) {
-    const { report, dom, src } = usePrimitive(name, props, allowed);
+  function Flex(raw: RowProps) {
+    const { props, report, dom, src } = usePrimitive<RowBase>(name, raw, allowed);
     const { token } = useTokens();
     const layout = useContext(LayoutContext);
     useRootSlot(layout, src);
@@ -403,6 +436,28 @@ function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
 export const Stack = makeFlex("Stack", "column") as (props: StackProps) => ReactElement;
 /** Horizontal layout. The only way to space things horizontally is `gap`. */
 export const Row = makeFlex("Row", "row") as (props: RowProps) => ReactElement;
+
+export interface ShowProps {
+  /** The viewports this part appears on, e.g. "mobile" or ["desktop", "tablet"]. */
+  on: Viewport | readonly Viewport[];
+  children?: ReactNode;
+}
+
+/**
+ * A part of a web screen that appears only on some viewports: a menu button on mobile, a row
+ * of links everywhere else. Adds no box of its own.
+ */
+export function Show(raw: ShowProps) {
+  const { props, report } = usePrimitive<ShowProps>("Show", raw, ["on"], ["on"]);
+  const frame = useContext(FrameContext);
+  const on = typeof props.on === "string" ? [props.on] : Array.isArray(props.on) ? props.on : [];
+  if (!on.length || on.some((v) => !VIEWPORTS.includes(v))) report("invalid-value", `\`on\` is a viewport or a list of them: ${VIEWPORTS.map((v) => `"${v}"`).join(", ")}.`);
+  if (!frame?.viewport) {
+    report("responsive", "only works in web screens, which render once per viewport.");
+    return <>{props.children}</>;
+  }
+  return on.includes(frame.viewport) ? <>{props.children}</> : null;
+}
 
 export interface ThreadProps {
   /**
@@ -444,8 +499,8 @@ function storyFrom(blocks: ReactElement[], p: StoryPosition): ReactNode[] {
  * A box on a designed page that shows the next part of a story. The story runs through every
  * <Thread> for it in page order, splitting paragraphs between lines where a box is full.
  */
-export function Thread(props: ThreadProps) {
-  const { report, dom, src } = usePrimitive("Thread", props, ["story", "gap", "width", "height", "grow"], ["story"]);
+export function Thread(raw: ThreadProps) {
+  const { props, report, dom, src } = usePrimitive<ThreadProps>("Thread", raw, ["story", "gap", "width", "height", "grow"], ["story"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -490,7 +545,7 @@ export function Thread(props: ThreadProps) {
   );
 }
 
-export interface GridProps {
+interface GridBase {
   /** Number of equal columns. */
   columns: Columns;
   gap?: SpaceToken | "none";
@@ -499,10 +554,11 @@ export interface GridProps {
   grow?: boolean;
   children?: ReactNode;
 }
+export type GridProps = WithResponsive<GridBase, "columns" | "gap" | "width" | "height" | "grow">;
 
 /** Equal-column grid. For unequal columns use <Row> with fractional widths. */
-export function Grid(props: GridProps) {
-  const { report, dom, src } = usePrimitive("Grid", props, ["columns", "gap", "width", "height", "grow"], ["columns"]);
+export function Grid(raw: GridProps) {
+  const { props, report, dom, src } = usePrimitive<GridBase>("Grid", raw, ["columns", "gap", "width", "height", "grow"], ["columns"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -525,7 +581,7 @@ export function Grid(props: GridProps) {
   );
 }
 
-export interface BoxProps {
+interface BoxBase {
   /** Background. Sets the default text and logo color for everything inside. */
   surface?: SurfaceToken;
   /** Padding: one token for all sides, or [vertical, horizontal]. */
@@ -554,6 +610,7 @@ export interface BoxProps {
   /** At most one child. Use <Stack> or <Row> inside for several. */
   children?: ReactNode;
 }
+export type BoxProps = WithResponsive<BoxBase, "pad" | "radius" | "width" | "height" | "grow" | "ratio">;
 
 export type Bleed = "top" | "bottom" | "left" | "right" | "x" | "y" | "all";
 const BLEEDS: readonly Bleed[] = ["top", "bottom", "left", "right", "x", "y", "all"];
@@ -577,8 +634,8 @@ function bleedSides(value: BoxProps["bleed"], report: Reporter): Set<BleedSide> 
 const MARGIN = "var(--brand-frame-margin)";
 
 /** A surface: background, padding, corners, border. Holds at most one child. */
-export function Box(props: BoxProps) {
-  const { report, dom, src } = usePrimitive("Box", props, [
+export function Box(raw: BoxProps) {
+  const { props, report, dom, src } = usePrimitive<BoxBase>("Box", raw, [
     "surface",
     "pad",
     "radius",
@@ -750,20 +807,21 @@ export function Box(props: BoxProps) {
   );
 }
 
-export interface PlaceProps {
+interface PlaceBase {
   /** Which corner, edge or center of the enclosing Box or frame to pin to. */
   anchor: Anchor;
   /** Distance from the anchored edges. "margin" aligns with the frame's content edge. */
   inset: SpaceToken | "margin" | "none";
   children?: ReactNode;
 }
+export type PlaceProps = WithResponsive<PlaceBase, "anchor" | "inset">;
 
 /**
  * Pin one child to an anchor of the enclosing Box or frame, out of the layout
  * flow. This is how a logo sits the same distance from a corner in every medium.
  */
-export function Place(props: PlaceProps) {
-  const { report, dom } = usePrimitive("Place", props, ["anchor", "inset"], ["anchor", "inset"]);
+export function Place(raw: PlaceProps) {
+  const { props, report, dom } = usePrimitive<PlaceBase>("Place", raw, ["anchor", "inset"], ["anchor", "inset"]);
   const { token } = useTokens();
   if (useContext(LayoutContext).flow) {
     report("misplaced", "cannot be pinned inside flowing content (a flowing page or a <Thread>'s story), which runs across pages.", "Put page furniture in a flowing page's `chrome`, or on the page itself.");
@@ -800,7 +858,7 @@ export function Place(props: PlaceProps) {
 // Type
 // ---------------------------------------------------------------------------
 
-export interface TextProps {
+interface TextBase {
   /** A type style from the brand: size, weight, leading and tracking come as one unit. */
   type: TypeToken;
   /** Defaults to the current surface's foreground. */
@@ -809,6 +867,7 @@ export interface TextProps {
   /** Strings, numbers, <Em>, <Fact>, <Equation> and <FrameNumber> only. */
   children?: ReactNode;
 }
+export type TextProps = WithResponsive<TextBase, "type" | "align">;
 
 function checkTextChildren(children: ReactNode, report: Reporter) {
   Children.forEach(children, (c) => {
@@ -822,8 +881,8 @@ function checkTextChildren(children: ReactNode, report: Reporter) {
 }
 
 /** All text. The only way to set type is a brand type style. */
-export function Text(props: TextProps) {
-  const { report, dom, src } = usePrimitive("Text", props, ["type", "color", "align"], ["type"]);
+export function Text(raw: TextProps) {
+  const { props, report, dom, src } = usePrimitive<TextBase>("Text", raw, ["type", "color", "align"], ["type"]);
   const { brand, token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -882,8 +941,8 @@ export interface EmProps {
 }
 
 /** Emphasis inside <Text>: the type style's emphasis weight, optionally a brand color. */
-export function Em(props: EmProps) {
-  const { report, dom } = usePrimitive("Em", props, ["color"]);
+export function Em(raw: EmProps) {
+  const { props, report, dom } = usePrimitive<EmProps>("Em", raw, ["color"]);
   const { brand, token } = useTokens();
   const text = useContext(TextContext);
   if (!text) report("misplaced", "only works inside <Text>.");
@@ -910,8 +969,8 @@ export interface FrameNumberProps {
 }
 
 /** The current slide/page number, inside <Text>. */
-export function FrameNumber(props: FrameNumberProps) {
-  const { report, dom } = usePrimitive("FrameNumber", props, ["format"]);
+export function FrameNumber(raw: FrameNumberProps) {
+  const { props, report, dom } = usePrimitive<FrameNumberProps>("FrameNumber", raw, ["format"]);
   const frame = useContext(FrameContext);
   const text = useContext(TextContext);
   if (!text) report("misplaced", "only works inside <Text>.");
@@ -932,8 +991,8 @@ export interface FactProps {
 }
 
 /** A fact from the brand's facts, inside <Text>. Links, addresses and names are never typed by hand. */
-export function Fact(props: FactProps) {
-  const { report, dom } = usePrimitive("Fact", props, ["name", "format"], ["name"]);
+export function Fact(raw: FactProps) {
+  const { props, report, dom } = usePrimitive<FactProps>("Fact", raw, ["name", "format"], ["name"]);
   const { brand } = useTokens();
   const text = useContext(TextContext);
   if (!text) report("misplaced", "only works inside <Text>.");
@@ -968,8 +1027,8 @@ const TEX_FORBIDDEN = new Set(
 );
 
 /** Math set from TeX, inside <Text>: the Text gives it its size, color and alignment. */
-export function Equation(props: EquationProps) {
-  const { report, dom } = usePrimitive("Equation", props, ["tex", "display"], ["tex"]);
+export function Equation(raw: EquationProps) {
+  const { props, report, dom } = usePrimitive<EquationProps>("Equation", raw, ["tex", "display"], ["tex"]);
   const { brand } = useTokens();
   const text = useContext(TextContext);
   const surface = useContext(SurfaceContext);
@@ -1010,17 +1069,18 @@ export function Equation(props: EquationProps) {
   return <span {...dom} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-export interface ListProps {
+interface ListBase {
   type: TypeToken;
   items: readonly string[];
   marker?: "bullet" | "number" | "dash";
   gap?: SpaceToken | "none";
   color?: ColorToken;
 }
+export type ListProps = WithResponsive<ListBase, "type" | "gap">;
 
 /** A list of short text items with aligned markers. */
-export function List(props: ListProps) {
-  const { report, dom, src } = usePrimitive("List", props, ["type", "items", "marker", "gap", "color"], ["type", "items"]);
+export function List(raw: ListProps) {
+  const { props, report, dom, src } = usePrimitive<ListBase>("List", raw, ["type", "items", "marker", "gap", "color"], ["type", "items"]);
   useRootSlot(useContext(LayoutContext), src);
   const { brand, token } = useTokens();
   const surface = useContext(SurfaceContext);
@@ -1074,17 +1134,18 @@ export function List(props: ListProps) {
 // Graphics
 // ---------------------------------------------------------------------------
 
-export interface LogoProps {
+interface LogoBase {
   /** "mark", "wordmark", or a lockup defined in brand.ts. */
   variant: LogoVariant;
   size: LogoSizeToken;
   /** Defaults to the colorway the current surface declares. */
   colorway?: ColorwayToken;
 }
+export type LogoProps = WithResponsive<LogoBase, "variant" | "size">;
 
 /** The brand logo, composed from the brand's mark and wordmark. */
-export function Logo(props: LogoProps) {
-  const { report, dom, src } = usePrimitive("Logo", props, ["variant", "size", "colorway"], ["variant", "size"]);
+export function Logo(raw: LogoProps) {
+  const { props, report, dom, src } = usePrimitive<LogoBase>("Logo", raw, ["variant", "size", "colorway"], ["variant", "size"]);
   useRootSlot(useContext(LayoutContext), src);
   const { brand, svgs } = useBrandEnv();
   const surface = useContext(SurfaceContext);
@@ -1133,7 +1194,7 @@ export function Logo(props: LogoProps) {
   );
 }
 
-export interface ImageProps {
+interface ImageBase {
   /** An imported asset: `import team from "@kit/assets/team.jpg"`. */
   src: ImageAsset;
   /** Describe the image. Required. */
@@ -1145,10 +1206,11 @@ export interface ImageProps {
   height?: Extent;
   grow?: boolean;
 }
+export type ImageProps = WithResponsive<ImageBase, "ratio" | "fit" | "radius" | "width" | "height" | "grow">;
 
 /** An image imported from a package's assets/. */
-export function Image(props: ImageProps) {
-  const { report, dom, src } = usePrimitive("Image", props, ["src", "alt", "ratio", "fit", "radius", "width", "height", "grow"], ["src", "alt"]);
+export function Image(raw: ImageProps) {
+  const { props, report, dom, src } = usePrimitive<ImageBase>("Image", raw, ["src", "alt", "ratio", "fit", "radius", "width", "height", "grow"], ["src", "alt"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -1195,8 +1257,8 @@ export interface DividerProps {
 }
 
 /** A rule. Horizontal inside a Stack, vertical inside a Row. */
-export function Divider(props: DividerProps) {
-  const { report, dom, src } = usePrimitive("Divider", props, ["color", "weight"], ["color", "weight"]);
+export function Divider(raw: DividerProps) {
+  const { props, report, dom, src } = usePrimitive<DividerProps>("Divider", raw, ["color", "weight"], ["color", "weight"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);

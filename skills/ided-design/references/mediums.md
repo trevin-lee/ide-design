@@ -47,6 +47,9 @@
 ## Web screens
 
 - The first viewport is a poster: one image or one sentence that the subject owns.
+- Design every viewport the project lists, not only the widest: the mobile screen is its own
+  composition (a smaller type style, one column, a menu instead of links), set with values per
+  viewport and `Show`, then look at all of them side by side in the contact sheet.
 - Write real content; the layout follows it. Sections do one job each.
 - Keep a readable measure with fractional widths even on wide screens.
 - Cards only for things that really are a set of comparable items.

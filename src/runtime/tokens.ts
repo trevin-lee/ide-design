@@ -45,6 +45,16 @@ export type Align = "start" | "center" | "end" | "stretch";
 export type Justify = "start" | "center" | "end" | "between";
 export type Columns = 1 | 2 | 3 | 4 | 5 | 6 | 12;
 
+/** Web screens render once per viewport, widest first. */
+export type Viewport = "desktop" | "tablet" | "mobile";
+/**
+ * A value, or one per viewport for web screens: `{ desktop: "xl", mobile: "m" }`. A viewport
+ * without its own value takes the nearest wider one's (then the nearest narrower one's).
+ */
+export type Responsive<T> = T | { readonly [V in Viewport]?: T };
+/** Props `K` of `P` accept a value per viewport. */
+export type WithResponsive<P, K extends keyof P> = Omit<P, K> & { [Q in keyof Pick<P, K>]: Responsive<P[Q]> };
+
 export const FRACTIONS: readonly Fraction[] = ["1/2", "1/3", "2/3", "1/4", "3/4", "1/5", "2/5", "3/5", "4/5"];
 export const RATIOS: readonly Ratio[] = ["1:1", "4:3", "3:2", "16:9", "21:9", "3:4", "2:3", "9:16"];
 export const ANCHORS: readonly Anchor[] = ["top-left", "top", "top-right", "left", "center", "right", "bottom-left", "bottom", "bottom-right"];

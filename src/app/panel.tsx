@@ -4,6 +4,7 @@ import { validateBrand } from "../shared/brand-schema.ts";
 import { isFrameKind } from "../shared/formats.ts";
 import { DesignDocView } from "./design-doc.tsx";
 import { openSource } from "./editor.ts";
+import { violationKey } from "./frame.tsx";
 import { LAYOUT_RULES } from "../runtime/layout.ts";
 import {
   activeComment,
@@ -42,9 +43,19 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
     if (project.kind === "brand" && brand) {
       for (const i of validateBrand(brand, svgs)) out.push({ severity: i.severity, message: i.message, where: `brand.ts › ${i.path}`, source: "brand" });
     }
+    // A responsive screen's narrower viewports keep their own findings; a finding they share with
+    // the widest viewport is listed once, and the rest say which viewport they are on.
+    const narrower = project.geometry?.viewports?.slice(1).map((v) => v.name) ?? [];
     for (const f of project.frames) {
-      for (const v of all[`${project.id}/${f.id}`] ?? []) {
-        out.push({ severity: v.severity, message: v.message, where: v.src ?? f.src, hint: v.hint, frame: f.id, source: (LAYOUT_RULES as readonly string[]).includes(v.rule) ? "layout" : "runtime" });
+      const seen = new Set<string>();
+      for (const viewport of [undefined, ...narrower]) {
+        for (const v of all[violationKey(project.id, f.id, viewport)] ?? []) {
+          const id = `${v.rule}|${v.src}|${v.message}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const message = viewport ? `${v.message} (${viewport})` : v.message;
+          out.push({ severity: v.severity, message, where: v.src ?? f.src, hint: v.hint, frame: f.id, source: (LAYOUT_RULES as readonly string[]).includes(v.rule) ? "layout" : "runtime" });
+        }
       }
     }
     // Same rule as `ided check`: a type error restating a runtime finding on the same line is noise.

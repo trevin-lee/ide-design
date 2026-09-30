@@ -1312,3 +1312,10 @@ html.render-mode #root {
   color: var(--ui-text-3);
   font-variant-numeric: tabular-nums;
 }
+
+/* A responsive web screen: its viewports side by side, top-aligned. */
+.variant-row {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 40px;
+}
