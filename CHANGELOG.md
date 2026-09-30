@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 (2026-09-29)
+
+Text that runs through designed pages.
+
+- **Threaded text.** `<Thread story={Essay} />` is a box that shows the next part of a story:
+  every `Thread` for the same story continues where the previous one stopped, across pages and
+  at whatever width and height each box has, like linked text frames. The story is a component
+  that returns its blocks. Paragraphs split between lines (two lines at least on each side,
+  down to the character), other blocks move whole, and a heading stays with what follows it.
+  Each box is clipped right below its last line. The viewer, exports, contact sheet and
+  presentation all show the threaded text, even when only one page is in view.
+- `ided check` fails when a story does not end in its last box, when a block is too big for a
+  box, or when a `Thread` has no height; a story cannot hold `Place`, `bleed` or another `Thread`.
+
 ## 0.5.0 (2026-09-29)
 
 Documents that run as long as their text.
