@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.0 (2026-09-29)
+
+Logos in more than one color.
+
+- **Multi-color logo parts.** A mark or wordmark can be drawn in several of the brand's colors:
+  `mark: { file: "mark.svg", colors: ["ink", "accent"] }`. A colorway then gives one token per
+  color (`reversed: { mark: ["paper", "accent"], … }`), or a single token for a one-color
+  version. Every lockup, the viewer's Brand page, `<Logo>` and the brand kit recolor each color
+  accordingly. One-color parts drawn with `currentColor` work as before.
+- `ided check` requires such a part to use exactly its declared colors, each colorway to give the
+  right number of tokens, and every color of a logo to have 3:1 contrast on its surface.
+
 ## 0.7.0 (2026-09-29)
 
 Web screens for every viewport.

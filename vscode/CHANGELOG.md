@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.0
+
+No changes; the version follows ided's.
+
 ## 0.7.0
 
 No changes; the version follows ided's.

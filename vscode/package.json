@@ -2,7 +2,7 @@
   "name": "ide-design",
   "displayName": "ide-design",
   "description": "The ide-design viewer linked to your code, ided check in Problems, and design review comments on the lines they point at.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "trevin-lee",
   "license": "MIT",
   "icon": "icon.png",
