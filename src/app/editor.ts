@@ -30,8 +30,14 @@ function reveal(file: string, line: number) {
     best = at.line;
     hits.push(el);
   }
-  for (const el of hits) el.classList.add("ided-reveal");
-  hits[0]?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  // A flowing page's cards each hold all of its content, shifted: outline only what its page shows.
+  const shown = hits.filter((el) => {
+    const r = el.getBoundingClientRect();
+    const card = el.closest(".frame-surface")?.getBoundingClientRect();
+    return !card || (r.bottom > card.top && r.top < card.bottom && r.right > card.left && r.left < card.right);
+  });
+  for (const el of shown) el.classList.add("ided-reveal");
+  shown[0]?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
 }
 
 interface Inbound {

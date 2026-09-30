@@ -186,3 +186,17 @@ test("the viewer measures layout live and lists overflow in Issues", { skip, tim
   assert.equal((await issue.locator(".issue-source").textContent())?.trim(), "layout");
   await page.close();
 });
+
+test("the viewer shows a flowing page as one card per page", { skip, timeout: 60_000 }, async () => {
+  assert.equal(run(dir, "new", "doc", "essay").status, 0);
+  const para = "Every value comes from the brand and every page is checked like a program. ".repeat(12);
+  writeFileSync(
+    join(dir, "design/essay/pages/01-cover.tsx"),
+    `import { Page, Text } from "ided";\n\nexport default function Cover() {\n  return (\n    <Page surface="paper" gap="l" flow>\n${Array.from({ length: 12 }, () => `      <Text type="body">${para}</Text>`).join("\n")}\n    </Page>\n  );\n}\n`,
+  );
+  const { page } = await open("#/p/essay");
+  await page.waitForFunction(() => document.querySelectorAll(".frame-card").length > 1, null, { timeout: 20_000 });
+  const captions = await page.locator(".frame-page").allInnerTexts();
+  assert.ok(captions.length > 1 && captions.every((c, i) => c.trim() === `${i + 1}/${captions.length}`), captions.join());
+  await page.close();
+});

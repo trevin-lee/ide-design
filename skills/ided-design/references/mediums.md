@@ -24,6 +24,11 @@
 - Every page of a multi-page document shares its furniture (running header or mark, page
   number with `FrameNumber`), and nothing else is repeated needlessly.
 - A one-page document does not need a cover.
+- Running text flows: put a report's or essay's body in one `<Page flow>` with its furniture in
+  `chrome`, and let the pages fall where they fall. Pages with a design of their own (the cover,
+  a chapter opener, a full-bleed figure, the back page) are separate files around it. Keep
+  flowing content to paragraphs, headings and modest blocks; anything taller than a page fails
+  the check.
 - For printed pieces (flyers, posters), design for the distance they are read from; test with a
   screenshot at about 25%.
 

@@ -124,6 +124,22 @@ The outermost element of a frame. Fills the frame, pads it by the brand margin f
 - `surface` **required** surface token
 - `gap?` space | `"none"`, `align?` `"start" | "center" | "end" | "stretch"`, `justify?` `"start" | "center" | "end" | "between"`
 
+**Flowing pages** (`Page` only): `flow` lets one page file run across as many pages as its
+content needs, every page with the same margin. `chrome={…}` is page furniture repeated on every
+page, made of `Place` elements (a running footer, a page number). Paragraphs (`Text`) break
+between lines, keeping at least two lines together; every other block (`Box`, `Stack`, `Row`,
+`Image`, `List`…) moves whole to the next page, and a heading stays with what follows it. `gap`
+is the space between blocks. No `align`/`justify`, no `Place` in the content (it goes in
+`chrome`), no `bleed`. A section that must start on a new page, or a page with its own layout
+(cover, chapter opener, full-bleed spread), is its own page file.
+
+```tsx
+<Page surface="paper" gap="l" flow chrome={<Place anchor="bottom-right" inset="l"><Text type="small"><FrameNumber format="n/total" /></Text></Place>}>
+  <Text type="heading">Findings</Text>
+  <Text type="body">…</Text>
+</Page>
+```
+
 ### `Stack` (vertical) and `Row` (horizontal)
 Layout only: no background, no padding.
 - `gap?`, `align?`, `justify?`, `width?` Extent, `height?` Extent, `grow?` boolean (take remaining space)
@@ -163,7 +179,7 @@ All copy. Children: strings, numbers, `<Em>`, `<Fact>`, `<Equation>`, `<FrameNum
 Emphasis inside `Text`: the style's emphasis weight. `color?` color token (checked for contrast at the Text's size).
 
 ### `FrameNumber`
-Current slide/page number inside `Text`. `format?` `"n"` (3) | `"nn"` (03) | `"n/total"` (3 / 12).
+Current slide/page number inside `Text`, counting every page of a flowing page. `format?` `"n"` (3) | `"nn"` (03) | `"n/total"` (3 / 12).
 
 ### `Fact`
 A fact from the brand's `facts`, inside `Text`: names, links, contact details, locations, social
@@ -249,7 +265,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `box-children` | Box with several children | put a `Stack`/`Row` inside the Box |
 | `contrast` | text or logo not legible on its surface | use the surface's default text color, or a different surface |
 | `concentric` | nested radius does not share the parent's corner center | `radius="concentric"` |
-| `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design |
+| `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame; in a flowing page, past the text column or a block taller than a page (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design; split tall blocks |
 | `ratio` | a `ratio` shape was laid out at another shape because its width and height are both fixed (warning) | drop the height (or width), or change the ratio |
 | `crop` | a crop Box cuts nothing, or cuts reading-size text (warning) | remove `crop`; give reading text room instead of cutting it |
 | `bleed` | a Box bleeds to an edge it cannot touch (nested, not first/last, aligned away) or has a radius | make it the root's first/last child, span the width, or drop that side |

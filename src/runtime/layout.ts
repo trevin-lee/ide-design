@@ -112,10 +112,77 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
   const cut = new Map<HTMLElement, HTMLElement[]>(); // crop Box → what it cuts
   const elements = [...root.querySelectorAll<HTMLElement>("[data-ided]")].filter((el) => !INLINE.has(el.dataset.ided!) && !el.parentElement?.closest("[data-ided='Text']"));
 
+  /** Rects of an element's visible text (the lines of a paragraph, wherever they landed). */
+  const textRects = (el: HTMLElement): DOMRect[] => {
+    const out: DOMRect[] = [];
+    const range = document.createRange();
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+      if (!n.textContent?.trim() || hidden(n.parentElement, el)) continue;
+      range.selectNodeContents(n);
+      for (const t of range.getClientRects()) if (t.width > 0) out.push(t);
+    }
+    return out;
+  };
+
+  /**
+   * A flowing page's content runs through page-sized columns; the page shows one of them. Each
+   * piece must fit the column's width, and a block that cannot break must fit on one page.
+   */
+  const checkFlowChild = (el: HTMLElement, flow: HTMLElement) => {
+    const col = rectOf(flow);
+    const step = Number(flow.dataset.idedFlowStep) * scale;
+    const fragments = [...el.getClientRects()].filter((r) => r.width > 0 || r.height > 0);
+    let right = 0;
+    let left = 0;
+    for (const r of [...fragments, ...(TEXTUAL.has(el.dataset.ided!) ? textRects(el) : [])]) {
+      const k = Math.max(0, Math.floor((r.left - col.left + tolerance) / step));
+      right = Math.max(right, r.right - k * step - col.right);
+      left = Math.max(left, col.left - (r.left - k * step));
+    }
+    const tallest = Math.max(0, ...fragments.map((r) => r.bottom - r.top));
+    const hint = "Shorten it, make it smaller, or split it; a flowing page breaks only between paragraph lines.";
+    if (right > tolerance || left > tolerance) {
+      report(el, "overflow", "error", `runs ${px(Math.max(right, left))}px past the page's text column at the ${right >= left ? "right" : "left"}.`, hint);
+    } else if (!TEXTUAL.has(el.dataset.ided!) && (fragments.length > 1 || tallest > col.bottom - col.top + tolerance)) {
+      report(el, "overflow", "error", "is taller than a page, so it cannot stay on one.", hint);
+    }
+  };
+
+  /** A shape with a declared ratio must be laid out at that ratio. */
+  const checkRatio = (el: HTMLElement) => {
+    const ratio = RATIOS[el.dataset.idedRatio ?? ""];
+    if (ratio) {
+      const r = rectOf(el);
+      const actual = (r.right - r.left) / (r.bottom - r.top);
+      if (Number.isFinite(actual) && Math.abs(actual / ratio - 1) > 0.01) {
+        report(
+          el,
+          "ratio",
+          "warning",
+          `is laid out at ${px(r.right - r.left)}×${px(r.bottom - r.top)}, not its ratio ${el.dataset.idedRatio}.`,
+          "Something fixes both its width and its height (a height, a stretching row). Drop one of them, or change the ratio.",
+        );
+      }
+    }
+  };
+
   for (const el of elements) {
     const parent = primitiveParent(el);
     if (!parent) continue;
     const name = el.dataset.ided!;
+    const flow = el.closest<HTMLElement>("[data-ided-flow]");
+    if (flow && root.contains(flow)) {
+      if (parent === root) {
+        checkFlowChild(el, flow);
+        checkRatio(el);
+        continue;
+      }
+      // Inside a block that is split across pages (already reported), boxes are fragments.
+      let block: HTMLElement = el;
+      while (block.parentElement && block.parentElement !== flow) block = block.parentElement;
+      if (block.getClientRects().length > 1) continue;
+    }
     const bleeds = el.hasAttribute("data-ided-bleed");
     const limit = bleeds ? frame : name === "Place" ? inner(parent, false) : inner(parent, true);
     const extent = extentOf(el);
@@ -146,20 +213,7 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
           : "Give it more room (fewer or smaller elements, a smaller gap), or make it smaller. To cut it off on purpose, put it in a <Box crop>.",
       );
     }
-    const ratio = RATIOS[el.dataset.idedRatio ?? ""];
-    if (ratio) {
-      const r = rectOf(el);
-      const actual = (r.right - r.left) / (r.bottom - r.top);
-      if (Number.isFinite(actual) && Math.abs(actual / ratio - 1) > 0.01) {
-        report(
-          el,
-          "ratio",
-          "warning",
-          `is laid out at ${px(r.right - r.left)}×${px(r.bottom - r.top)}, not its ratio ${el.dataset.idedRatio}.`,
-          "Something fixes both its width and its height (a height, a stretching row). Drop one of them, or change the ratio.",
-        );
-      }
-    }
+    checkRatio(el);
   }
 
   for (const crop of root.querySelectorAll<HTMLElement>("[data-ided-crop]")) {

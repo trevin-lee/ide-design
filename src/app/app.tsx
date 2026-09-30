@@ -14,6 +14,8 @@ import {
   commentMode,
   comments as commentsStore,
   go,
+  pageCounts,
+  pagesOf,
   refreshComments,
   refreshStaticIssues,
   showToast,
@@ -216,6 +218,12 @@ function BrandKitButton() {
   );
 }
 
+/** The presentation index (counted in pages) of a frame's first page. */
+function firstPage(project: WsProject, frameIndex: number): number {
+  const counts = pageCounts.get();
+  return project.frames.slice(0, frameIndex).reduce((n, f) => n + pagesOf(counts, project.id, f.id), 0);
+}
+
 function Toolbar(props: { project: WsProject; frame: string | null }) {
   const { project, frame } = props;
   const mode = useStore(commentMode);
@@ -258,7 +266,7 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
             <button className={`btn${mode ? " btn-on" : ""}`} onClick={() => commentMode.set(!mode)} title="Comment mode (C)">
               {mode ? "Commenting" : "Comment"} <kbd>C</kbd>
             </button>
-            <button className="btn" onClick={() => enterPresentation(project.id, frameIndex)} disabled={!project.frames.length} title="Present (P)">
+            <button className="btn" onClick={() => enterPresentation(project.id, firstPage(project, frameIndex))} disabled={!project.frames.length} title="Present (P)">
               Present <kbd>P</kbd>
             </button>
             <ExportMenu project={project} frame={frame} />
@@ -279,7 +287,7 @@ function Shell(props: { project: WsProject | null; frame: string | null; missing
       if (e.key === "c") commentMode.set(!commentMode.get());
       else if (e.key === "p" && project.frames.length) {
         const i = frame ? Math.max(0, project.frames.findIndex((f) => f.id === frame)) : 0;
-        enterPresentation(project.id, i);
+        enterPresentation(project.id, firstPage(project, i));
       } else if (e.key === "Escape" && commentMode.get()) {
         commentMode.set(false);
         activeComment.set(null);

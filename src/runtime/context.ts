@@ -51,12 +51,20 @@ export interface LayoutEnv {
   box: { radius: number; pad: number } | null;
   /** Present when the direct parent is the frame's root. */
   root: RootSlots | null;
+  /** Set when the direct parent is a flowing page's content, which runs across pages. */
+  flow?: true;
 }
 
 export const BrandContext = createContext<BrandEnv | null>(null);
 export const FrameContext = createContext<FrameEnv | null>(null);
 export const SinkContext = createContext<ViolationSink>({ report() {} });
 export const SurfaceContext = createContext<string | null>(null);
+/**
+ * Which of a flowing page's pages this render shows. Set by the viewer and exporter for each page;
+ * absent in server rendering, which renders the first.
+ */
+export const FlowPageContext = createContext<{ page: number } | null>(null);
+
 export const LayoutContext = createContext<LayoutEnv>({ axis: "column", gap: "0px", inText: false, box: null, root: null });
 export interface TextEnv {
   emphasisWeight: number;

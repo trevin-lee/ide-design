@@ -69,11 +69,15 @@ export async function exportProject(opts: ExportOptions): Promise<ExportedFile[]
     }
     const page = await openRender(browser, renderUrl(opts.baseUrl, p.id, ids), opts.scale ?? 2, p.geometry.width);
     const out: ExportedFile[] = [];
+    const ext = opts.format === "jpeg" ? "jpg" : "png";
     for (const id of ids) {
-      const el = await page.$(`[data-ided-frame="${id}"]`);
-      if (!el) throw new Error(`Frame ${id} did not render.`);
-      const data = await el.screenshot({ type: opts.format, ...(opts.format === "jpeg" ? { quality: 92 } : {}) });
-      out.push({ name: `${id}.${opts.format === "jpeg" ? "jpg" : "png"}`, data: Buffer.from(data) });
+      // A flowing page renders as several pages: 03-report-1.png, 03-report-2.png, …
+      const els = await page.$$(`[data-ided-frame="${id}"]`);
+      if (!els.length) throw new Error(`Frame ${id} did not render.`);
+      for (const [i, el] of els.entries()) {
+        const data = await el.screenshot({ type: opts.format, ...(opts.format === "jpeg" ? { quality: 92 } : {}) });
+        out.push({ name: els.length > 1 ? `${id}-${i + 1}.${ext}` : `${id}.${ext}`, data: Buffer.from(data) });
+      }
     }
     await page.close();
     return out;
@@ -107,20 +111,21 @@ export function parseZoom(zoom: string): { cols: number; rows: number } {
  * One frame cut into a grid of full-resolution tiles, left to right, top to bottom, for
  * inspecting detail a whole-frame or contact-sheet image is too small to show.
  */
-export async function exportTiles(opts: { baseUrl: string; project: Project; frame: string; cols: number; rows: number; scale?: number; browser?: Browser }): Promise<ExportedFile[]> {
+export async function exportTiles(opts: { baseUrl: string; project: Project; frame: string; page?: number; cols: number; rows: number; scale?: number; browser?: Browser }): Promise<ExportedFile[]> {
   const run = async (browser: Browser): Promise<ExportedFile[]> => {
     const p = opts.project;
     if (!p.geometry) throw new Error(`"${p.id}" has no frames.`);
     const page = await openRender(browser, renderUrl(opts.baseUrl, p.id, [opts.frame]), opts.scale ?? 1, p.geometry.width);
-    const box = await (await page.$(`[data-ided-frame="${opts.frame}"]`))?.boundingBox();
-    if (!box) throw new Error(`Frame ${opts.frame} did not render.`);
+    const n = opts.page ?? 1;
+    const box = await (await page.$(`[data-ided-frame="${opts.frame}"][data-ided-page="${n - 1}"]`))?.boundingBox();
+    if (!box) throw new Error(n > 1 ? `Frame ${opts.frame} has no page ${n}.` : `Frame ${opts.frame} did not render.`);
     const w = box.width / opts.cols;
     const h = box.height / opts.rows;
     const out: ExportedFile[] = [];
     for (let r = 0; r < opts.rows; r++) {
       for (let c = 0; c < opts.cols; c++) {
         const data = await page.screenshot({ type: "png", fullPage: true, clip: { x: box.x + c * w, y: box.y + r * h, width: w, height: h } });
-        out.push({ name: `${opts.frame}-r${r + 1}c${c + 1}.png`, data: Buffer.from(data) });
+        out.push({ name: `${opts.frame}${n > 1 ? `-${n}` : ""}-r${r + 1}c${c + 1}.png`, data: Buffer.from(data) });
       }
     }
     await page.close();

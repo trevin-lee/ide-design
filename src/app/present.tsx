@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { WsProject } from "virtual:ided/workspace";
 import { FrameRender, loadFrame, Scaled, useSize } from "./frame.tsx";
-import { go } from "./store.ts";
+import { go, pageCounts, pageList, useStore } from "./store.ts";
 
+/** Present from `index`, counted in pages: a flowing doc page contributes one per page. */
 export function enterPresentation(project: string, index = 0) {
   const el = document.documentElement;
   if (!document.fullscreenElement && el.requestFullscreen) void el.requestFullscreen().catch(() => {});
@@ -11,7 +12,8 @@ export function enterPresentation(project: string, index = 0) {
 
 export function Presentation(props: { project: WsProject; index: number }) {
   const { project } = props;
-  const count = project.frames.length;
+  const pages = pageList(useStore(pageCounts), project.id, project.frames);
+  const count = pages.length;
   const index = Math.min(Math.max(0, props.index), Math.max(0, count - 1));
   const [ref, size] = useSize<HTMLDivElement>();
   const [idle, setIdle] = useState(false);
@@ -20,7 +22,7 @@ export function Presentation(props: { project: WsProject; index: number }) {
   useEffect(() => {
     // Warm the neighbors so advancing is instant.
     for (const i of [index + 1, index - 1]) {
-      const f = project.frames[i];
+      const f = pages[i]?.frame;
       if (f) void loadFrame(project.id, f.id).catch(() => {});
     }
   }, [project, index]);
@@ -28,7 +30,7 @@ export function Presentation(props: { project: WsProject; index: number }) {
   useEffect(() => {
     const exit = () => {
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-      go(`#/p/${project.id}/${project.frames[index]?.id ?? ""}`);
+      go(`#/p/${project.id}/${pages[index]?.frame.id ?? ""}`);
     };
     const to = (i: number) => go(`#/present/${project.id}/${Math.min(Math.max(0, i), count - 1)}`, true);
     const onKey = (e: KeyboardEvent) => {
@@ -48,7 +50,7 @@ export function Presentation(props: { project: WsProject; index: number }) {
   }, [project, index, count]);
 
   const g = project.geometry!;
-  const frame = project.frames[index];
+  const entry = pages[index];
   const scale = size.width && size.height ? Math.min(size.width / g.width, size.height / g.height) : 0;
   return (
     <div
@@ -64,9 +66,9 @@ export function Presentation(props: { project: WsProject; index: number }) {
         go(`#/present/${project.id}/${Math.min(Math.max(0, x < 0.25 ? index - 1 : index + 1), count - 1)}`, true);
       }}
     >
-      {frame && scale > 0 && (
+      {entry && scale > 0 && (
         <Scaled width={g.width} height={g.height} scale={scale}>
-          <FrameRender project={project} frame={frame} index={index} publish={false} />
+          <FrameRender project={project} frame={entry.frame} index={project.frames.indexOf(entry.frame)} page={entry.page} publish={false} />
         </Scaled>
       )}
       <div className="present-hud">

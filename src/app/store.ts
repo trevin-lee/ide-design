@@ -37,6 +37,25 @@ export function publishViolations(key: string, list: Violation[]) {
   if (!same) violations.set((all) => ({ ...all, [key]: list }));
 }
 
+/** How many pages each frame (`project/frame`) lays out to: 1, or more for a flowing page. */
+export const pageCounts = createStore<Record<string, number>>({});
+
+export function setPageCount(key: string, n: number) {
+  if ((pageCounts.get()[key] ?? 1) !== n) pageCounts.set((all) => ({ ...all, [key]: n }));
+}
+
+export function pagesOf(counts: Record<string, number>, project: string, frame: string): number {
+  return counts[`${project}/${frame}`] ?? 1;
+}
+
+/** Every page of a project in order: one per frame, several for a flowing page. */
+export function pageList<F extends { id: string }>(counts: Record<string, number>, project: string, frames: readonly F[]): { frame: F; page: number; pages: number }[] {
+  return frames.flatMap((frame) => {
+    const pages = pagesOf(counts, project, frame.id);
+    return Array.from({ length: pages }, (_, page) => ({ frame, page, pages }));
+  });
+}
+
 /**
  * Bumped after every HMR update so frames re-render with fresh collectors.
  * Deferred past React Refresh's own debounce, so the audit sees the new code.

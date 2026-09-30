@@ -192,7 +192,7 @@ import { Timeline } from "@q3-review/components/timeline";    // this project's 
 | kind      | frames       | root         | size                                                          |
 |-----------|--------------|--------------|---------------------------------------------------------------|
 | `deck`    | `slides/`    | `<Slide>`    | 1920×1080                                                     |
-| `doc`     | `pages/`     | `<Page>`     | Letter or A4, laid out at 2× and printed at true size          |
+| `doc`     | `pages/`     | `<Page>`     | Letter or A4, laid out at 2× and printed at true size; `<Page flow>` runs onto as many pages as its text needs |
 | `graphic` | `artboards/` | `<Artboard>` | square, portrait, story, landscape, og, banner                |
 | `web`     | `screens/`   | `<Screen>`   | desktop 1440, tablet 834, mobile 390; grows vertically        |
 
@@ -214,7 +214,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 | `ided rules` | the primitive reference agents read |
 | `ided export <project> [-f pdf\|png\|jpeg] [--frames …] [-o dir]` | export artifacts (PDF by default; PNG for web) |
 | `ided export brand [--zip]` | export the brand kit |
-| `ided screenshot <project> <frame> [--zoom 2x2]` | one frame to PNG (or full-resolution tiles), for agents to look at their work |
+| `ided screenshot <project> <frame> [--zoom 2x2] [--page n]` | one frame to PNG (or full-resolution tiles; `--page` for a flowing doc page), for agents to look at their work |
 | `ided screenshot <project> --sheet` | every frame on one labeled contact sheet |
 | `ided browser [install\|remove]` | show, download or delete the pinned Chromium used for export |
 | `ided comments [project] [--all]` / `resolve <id> -m …` / `reply <id> …` (`--author`, default `agent`) | review loop |
@@ -426,7 +426,9 @@ your files at run time.
 
 ## Current limits
 
-- Doc pages are explicit, one file per page. Text does not flow across pages automatically.
+- A flowing doc page (`<Page flow>`) has one layout for all its pages: one text column and the
+  same furniture. Paragraphs break between lines; other blocks move whole. Pages with a layout of
+  their own are separate files, and text does not flow from one file into another.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
 - The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic

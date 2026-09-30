@@ -17,6 +17,8 @@ export interface CommentTarget {
   text: string;
   /** Element box in frame design px. */
   rect: { x: number; y: number; width: number; height: number } | null;
+  /** For a flowing doc page: which of its pages (0-based) the element was on. Absent for the first. */
+  page?: number;
 }
 
 export interface Reply {

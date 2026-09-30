@@ -320,10 +320,13 @@ program
   .argument("[frame]", "frame id, e.g. 01-title, or its number")
   .option("--sheet", "every frame of the project on one labeled image")
   .option("--zoom <grid>", "cut the frame into full-resolution tiles, columns x rows (e.g. 2x2), to inspect detail")
+  .option("--page <n>", "which page of a flowing doc page (default 1)")
   .option("-o, --out <path>", "output file (a folder with --zoom)")
   .option("--scale <n>", "pixel density", "1")
   .action(
-    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string }) => {
+    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string; page?: string }) => {
+      const pageNo = opts.page === undefined ? 1 : Number(opts.page);
+      if (!Number.isInteger(pageNo) || pageNo < 1) throw new Error("--page is a page number, 1 or more.");
       const root = requireWorkspaceRoot();
       const p = getProject(scanWorkspace(root), project);
       if (!isFrameKind(p.kind)) throw new Error(`"${p.id}" is ${p.kind === "brand" ? "the brand" : "a library"} and has no frames; screenshot a project that uses it, or open it in the viewer (\`ided run\`).`);
@@ -337,7 +340,7 @@ program
       const server = await startServer({ root, port: 0 });
       try {
         if (grid) {
-          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, ...grid, scale: Number(opts.scale) });
+          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, page: pageNo, ...grid, scale: Number(opts.scale) });
           const dir = resolve(opts.out ?? join(root, "design", ".ided", "screenshots"));
           mkdirSync(dir, { recursive: true });
           for (const t of tiles) {
@@ -347,10 +350,15 @@ program
           }
           return;
         }
-        const file = opts.sheet
-          ? await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) })
-          : (await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) }))[0]!;
-        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", opts.sheet ? `${p.id}-sheet.png` : `${p.id}-${f!.id}.png`));
+        let file;
+        if (opts.sheet) file = await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) });
+        else {
+          const pages = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) });
+          if (pageNo > pages.length) throw new Error(`${f!.id} has ${pages.length} page${pages.length === 1 ? "" : "s"}.`);
+          file = pages[pageNo - 1]!;
+          if (pages.length > 1 && opts.page === undefined) console.error(pc.dim(`${f!.id} flows onto ${pages.length} pages; this is page 1 (--page <n> for another, --sheet for all).`));
+        }
+        const target = resolve(opts.out ?? join(root, "design", ".ided", "screenshots", opts.sheet ? `${p.id}-sheet.png` : `${p.id}-${f!.id}${pageNo > 1 ? `-${pageNo}` : ""}.png`));
         mkdirSync(resolve(target, ".."), { recursive: true });
         writeFileSync(target, file.data);
         console.log(target);

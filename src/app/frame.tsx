@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { brand, loaders, type WsFrame, type WsProject } from "virtual:ided/workspace";
-import type { Violation } from "../runtime/context.ts";
+import { FlowPageContext, type Violation } from "../runtime/context.ts";
 import { Collector, FrameHost, missingRootViolation } from "../runtime/host.tsx";
 import { bodySize, measureLayout } from "../runtime/layout.ts";
 import type { FrameKind } from "../shared/formats.ts";
-import { publishViolations, revision, useStore } from "./store.ts";
+import { pageCounts, pagesOf, publishViolations, revision, setPageCount, useStore } from "./store.ts";
 
 type FrameModule = { default?: unknown };
 const moduleCache = new Map<string, Promise<FrameModule>>();
@@ -42,18 +42,27 @@ export function useFrameComponent(project: string, frame: string): { Component: 
 }
 
 /**
- * Renders one frame at native size. Violations are published after commit; the layout check
- * adds its own once fonts and images have settled (unless `measure` is false).
+ * Renders one page of a frame at native size (`page` > 0 only for a flowing page). The first
+ * page publishes the frame's violations after commit, counts the pages a flowing page lays out
+ * to, and adds the layout check's findings once fonts and images have settled (unless `measure`
+ * is false).
  */
-export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; publish?: boolean; measure?: boolean }) {
+export function FrameRender(props: { project: WsProject; frame: WsFrame; index: number; page?: number; publish?: boolean; measure?: boolean }) {
   const { project, frame, index } = props;
+  const page = props.page ?? 0;
   const rev = useStore(revision);
+  const counts = useStore(pageCounts);
+  // Page numbers count every page of the document, flowing pages included.
+  const before = project.frames.slice(0, index).reduce((n, f) => n + pagesOf(counts, project.id, f.id), 0);
+  const total = project.frames.reduce((n, f) => n + pagesOf(counts, project.id, f.id), 0);
+  const flow = useMemo(() => ({ page }), [page]);
   const { Component, error } = useFrameComponent(project.id, frame.id);
   const geometry = project.geometry!;
   const sink = useMemo(() => new Collector(), [rev, Component]);
   const key = `${project.id}/${frame.id}`;
   const host = useRef<HTMLDivElement>(null);
-  const measure = useLayoutCheck(host, project, key, props.publish !== false && props.measure !== false);
+  const first = page === 0 && props.publish !== false;
+  const settle = useAfterRender(host, project, key, { publish: first, count: page === 0, measure: first && props.measure !== false });
   if (error) {
     return <FrameError geometry={geometry} title={frame.src} message={error.message} />;
   }
@@ -65,44 +74,56 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
       project={project.id}
       file={frame.src}
       geometry={geometry}
-      index={index}
-      total={project.frames.length}
+      index={before + page}
+      total={total}
       sink={sink}
       onRendered={(hasRoot) => {
-        if (props.publish === false) return;
         const list = sink.list();
         if (!hasRoot && !list.some((v) => v.rule === "render-error")) list.push(missingRootViolation(project.kind as FrameKind, frame.src));
-        measure(list);
+        settle(list);
       }}
     >
-      <div ref={host} style={{ display: "contents" }}>
-        <Component />
-      </div>
+      <FlowPageContext.Provider value={flow}>
+        <div ref={host} style={{ display: "contents" }}>
+          <Component />
+        </div>
+      </FlowPageContext.Provider>
     </FrameHost>
   );
 }
 
 /**
  * Returns a function to call after each render. It publishes the render's violations together
- * with the last layout findings (so a re-render does not drop them), then, once fonts and images
- * are in, measures again and publishes only if the layout changed. A newer render cancels a
- * measurement still waiting.
+ * with the last layout findings (so a re-render does not drop them); then, once fonts and images
+ * are in, it counts a flowing page's pages and measures the layout, publishing only what changed.
+ * A newer render cancels work still waiting.
  */
-function useLayoutCheck(host: React.RefObject<HTMLDivElement | null>, project: WsProject, key: string, enabled: boolean): (list: Violation[]) => void {
+function useAfterRender(
+  host: React.RefObject<HTMLDivElement | null>,
+  project: WsProject,
+  key: string,
+  opts: { publish: boolean; count: boolean; measure: boolean },
+): (list: Violation[]) => void {
   const latest = useRef(0);
   const layout = useRef<Violation[]>([]);
   useEffect(() => () => void (latest.current = -1), []);
   return (list) => {
-    publishViolations(key, [...list, ...layout.current]);
-    if (!enabled || !brand) return;
+    if (opts.publish) publishViolations(key, [...list, ...layout.current]);
+    if (!opts.count && !opts.measure) return;
     const ticket = ++latest.current;
     void (async () => {
       await document.fonts.ready;
       const images = [...(host.current?.querySelectorAll("img") ?? [])].filter((i) => !i.complete);
       await Promise.all(images.map((i) => new Promise((r) => (i.addEventListener("load", r, { once: true }), i.addEventListener("error", r, { once: true })))));
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      const root = host.current?.querySelector<HTMLElement>(".ided-root");
-      if (ticket !== latest.current || !root || !brand) return;
+      if (ticket !== latest.current || !host.current) return;
+      if (opts.count) {
+        const flow = host.current.querySelector<HTMLElement>("[data-ided-flow]");
+        const step = Number(flow?.dataset.idedFlowStep);
+        setPageCount(key, flow && step ? Math.max(1, Math.round((flow.scrollWidth + step - flow.clientWidth) / step)) : 1);
+      }
+      const root = host.current.querySelector<HTMLElement>(".ided-root");
+      if (!opts.measure || !root || !brand) return;
       const found = measureLayout(root, { width: project.geometry!.width, bodySize: bodySize(brand.type) });
       if (JSON.stringify(found) === JSON.stringify(layout.current)) return;
       layout.current = found;

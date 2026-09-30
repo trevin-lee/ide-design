@@ -176,10 +176,11 @@ export async function runMcpServer() {
         frames: z.array(z.string()).optional().describe("Frame ids; defaults to all (max 8)."),
         sheet: z.boolean().optional().describe("All frames on one image, for judging rhythm and sameness across the piece."),
         zoom: z.string().optional().describe('Cut one frame (pass exactly one in frames) into full-resolution tiles, columns x rows like "2x2", to inspect detail.'),
+        page: z.number().int().min(1).optional().describe("With zoom: which page of a flowing doc page (default 1)."),
         scale: z.number().min(0.25).max(2).optional(),
       },
     },
-    async ({ root, project, frames, sheet, zoom, scale }) => {
+    async ({ root, project, frames, sheet, zoom, page, scale }) => {
       try {
         const r = rootFor(root);
         writeGenerated(r);
@@ -188,7 +189,7 @@ export async function runMcpServer() {
           if (frames?.length !== 1) throw new Error("zoom cuts one frame into tiles: pass exactly one frame id in frames.");
           const { exportTiles, parseZoom } = await import("../export/artifacts.ts");
           const rs = await renderer(r);
-          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
+          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, page, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
           return {
             content: tiles.flatMap((t) => [
               { type: "text" as const, text: t.name },
@@ -206,7 +207,8 @@ export async function runMcpServer() {
         const { exportProject } = await import("../export/artifacts.ts");
         const rs = await renderer(r);
         const defaultScale = p.geometry && p.geometry.width > 1600 ? 0.5 : 1;
-        const files = await exportProject({ baseUrl: rs.server.url, project: p, format: "png", frames: ids, scale: scale ?? defaultScale, browser: rs.browser });
+        // A flowing page returns all of its pages; keep the reply to a readable number of images.
+        const files = (await exportProject({ baseUrl: rs.server.url, project: p, format: "png", frames: ids, scale: scale ?? defaultScale, browser: rs.browser })).slice(0, 12);
         return {
           content: files.flatMap((f) => [
             { type: "text" as const, text: f.name },

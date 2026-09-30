@@ -4,6 +4,7 @@
 // so the same checks run in the browser, in export, and in `ided check`.
 
 import katex from "katex";
+import { bodySize } from "./layout.ts";
 import { Children, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
 import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
@@ -12,6 +13,7 @@ import { FRAME_ROOT, type FrameKind } from "../shared/formats.ts";
 import { composeLogo } from "../shared/lockup.ts";
 import { brandVariables, cssVar } from "../shared/tokens.ts";
 import {
+  FlowPageContext,
   FrameContext,
   LayoutContext,
   SinkContext,
@@ -175,11 +177,23 @@ export interface RootProps {
   children?: ReactNode;
 }
 
+export interface PageProps extends RootProps {
+  /**
+   * Let the content run across as many pages as it needs, all with this page's margin and
+   * `chrome`. Paragraphs break between lines; everything else moves whole to the next page.
+   * A section that must start on a new page is a new page file.
+   */
+  flow?: boolean;
+  /** Page furniture repeated on every page of a flowing page: <Place> elements (running header, footer, page number). */
+  chrome?: ReactNode;
+}
+
 const variableCache = new WeakMap<object, Record<string, string>>();
 
 function makeRoot(name: string, kind: FrameKind) {
-  function Root(props: RootProps) {
-    const { report, dom } = usePrimitive(name, props, ["surface", "gap", "align", "justify"], ["surface"]);
+  function Root(props: PageProps) {
+    const { report, dom } = usePrimitive(name, props, ["surface", "gap", "align", "justify", ...(kind === "doc" ? ["flow", "chrome"] : [])], ["surface"]);
+    const flowPage = useContext(FlowPageContext)?.page ?? 0;
     const { brand, token } = useTokens();
     const frame = useContext(FrameContext);
     const parentSurface = useContext(SurfaceContext);
@@ -226,6 +240,45 @@ function makeRoot(name: string, kind: FrameKind) {
       background: bg ? bg.value : undefined,
       color: bg ? colorValue(brand, bg.on) : undefined,
     };
+    if (props.chrome !== undefined && props.flow !== true) report("invalid-value", "`chrome` repeats furniture on every page of a flowing page; add `flow`, or place it directly on this page.");
+    if (props.flow === true) {
+      if (props.justify !== undefined || props.align !== undefined) {
+        report("invalid-value", "`justify` and `align` do not apply to a flowing page: its content runs from the top of each page to the bottom.", "Drop them; lay out a block inside a <Stack> or <Box> if it needs alignment.");
+      }
+      // The content is set in one column of page-sized columns; each page is a window onto one of them.
+      const m = brand.space[marginToken] ?? 0;
+      const columnWidth = width - 2 * m;
+      const step = columnWidth + m;
+      const chromeSlots: RootSlots = { align: "stretch", items: [] };
+      return (
+        <div {...dom} className="ided-root" style={{ ...style, display: "block" }}>
+          <SurfaceContext.Provider value={bg ? surface! : null}>
+            <div style={{ width: columnWidth, height: height - 2 * m, overflow: "hidden" }}>
+              <div
+                data-ided-flow=""
+                data-ided-flow-step={step}
+                style={{
+                  height: height - 2 * m,
+                  columnWidth: `${columnWidth}px`,
+                  columnGap: `${m}px`,
+                  columnFill: "auto",
+                  transform: flowPage ? `translateX(${-flowPage * step}px)` : undefined,
+                  ...({ "--ided-flow-gap": gap } as CSSProperties),
+                }}
+              >
+                <LayoutContext.Provider value={{ axis: "column", gap, inText: false, box: null, root: null, flow: true }}>{props.children}</LayoutContext.Provider>
+              </div>
+            </div>
+            <div style={{ position: "absolute", inset: 0 }}>
+              <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null, root: chromeSlots }}>
+                {props.chrome}
+                <ChromeAudit slots={chromeSlots} />
+              </LayoutContext.Provider>
+            </div>
+          </SurfaceContext.Provider>
+        </div>
+      );
+    }
     return (
       <div {...dom} className="ided-root" style={style}>
         <SurfaceContext.Provider value={bg ? surface! : null}>
@@ -262,10 +315,25 @@ function BleedAudit(props: { slots: RootSlots }) {
   return null;
 }
 
+/** Rendered after a flowing page's chrome: chrome is furniture pinned with <Place>, not content. */
+function ChromeAudit(props: { slots: RootSlots }) {
+  const sink = useContext(SinkContext);
+  for (const item of props.slots.items) {
+    sink.report({
+      rule: "misplaced",
+      severity: "error",
+      message: "Page `chrome` holds page furniture pinned with <Place>, not content in the flow.",
+      src: item.src,
+      hint: 'Wrap it in <Place anchor="bottom" inset="margin">…</Place>, or move it into the page\'s content.',
+    });
+  }
+  return null;
+}
+
 /** Root of every deck slide (1920×1080). */
 export const Slide = makeRoot("Slide", "deck");
-/** Root of every document page (Letter or A4). */
-export const Page = makeRoot("Page", "doc");
+/** Root of every document page (Letter or A4). With `flow`, one file can run across many pages. */
+export const Page = makeRoot("Page", "doc") as (props: PageProps) => ReactElement;
 /** Root of every graphic (fixed social / print sizes). */
 export const Artboard = makeRoot("Artboard", "graphic");
 /** Root of every web screen (fixed width, grows vertically). */
@@ -438,6 +506,10 @@ export function Box(props: BoxProps) {
   const parentSurface = useContext(SurfaceContext);
   if (layout.inText) report("misplaced", "cannot be inside <Text>.");
   const bleed = bleedSides(props.bleed, report);
+  if (bleed.size && layout.flow) {
+    report("bleed", "cannot bleed inside a flowing page: its content runs through the page's text column.", "Give a full-bleed band its own page file, without `flow`.");
+    bleed.clear();
+  }
   if (bleed.size && !layout.root) {
     report("bleed", "can only bleed as a direct child of the frame's root (<Slide>, <Page>, <Artboard>, <Screen>).", "Move the Box to the top level of the frame, and put the layout inside it.");
     bleed.clear();
@@ -602,6 +674,9 @@ export interface PlaceProps {
 export function Place(props: PlaceProps) {
   const { report, dom } = usePrimitive("Place", props, ["anchor", "inset"], ["anchor", "inset"]);
   const { token } = useTokens();
+  if (useContext(LayoutContext).flow) {
+    report("misplaced", "cannot be pinned inside a flowing page's content, which runs across pages.", "Put page furniture in the page's `chrome`, where it repeats on every page.");
+  }
   checkNoLooseText(props.children, report);
   if (Children.toArray(props.children).length > 1) report("place-children", "holds exactly one child.");
   const anchor = oneOf(props.anchor, ANCHORS, "anchor", report) ?? "top-left";
@@ -683,8 +758,11 @@ export function Text(props: TextProps) {
     }
   }
   const align = oneOf(props.align, ["start", "center", "end"] as const, "align", report);
+  // In a flowing page, a heading stays with what follows it (see FRAME_CSS).
+  const heading = m !== undefined && m.size > bodySize(brand.type) * 1.2;
   const style: CSSProperties = {
-    margin: 0,
+    // In a flowing page the gap between blocks is a margin, set by FRAME_CSS.
+    margin: layout.flow ? undefined : 0,
     minWidth: 0,
     fontFamily: m?.family,
     fontSize: m ? `${m.size}px` : undefined,
@@ -699,7 +777,7 @@ export function Text(props: TextProps) {
     fontFeatureSettings: '"kern"',
   };
   return (
-    <p {...dom} style={style}>
+    <p {...dom} data-ided-heading={heading ? "" : undefined} style={style}>
       <TextContext.Provider value={{ emphasisWeight: m?.emphasisWeight ?? 700, size: m?.size ?? 16, weight: m?.weight ?? 400 }}>
         <LayoutContext.Provider value={{ ...layout, inText: true, box: null, root: null }}>{props.children}</LayoutContext.Provider>
       </TextContext.Provider>

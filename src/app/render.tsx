@@ -3,7 +3,7 @@ import { brand, type WsProject } from "virtual:ided/workspace";
 import type { Violation } from "../runtime/context.ts";
 import { bodySize, measureLayout } from "../runtime/layout.ts";
 import { FrameRender, loadFrame } from "./frame.tsx";
-import { violations } from "./store.ts";
+import { pageCounts, pageList, useStore, violations } from "./store.ts";
 
 declare global {
   interface Window {
@@ -24,6 +24,8 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
   const frames = props.frames ? project.frames.filter((f) => props.frames!.includes(f.id)) : project.frames;
   const [loaded, setLoaded] = useState(false);
   const g = project.geometry!;
+  const counts = useStore(pageCounts);
+  const pages = pageList(counts, project.id, frames);
 
   useEffect(() => {
     document.documentElement.classList.add("render-mode");
@@ -51,10 +53,20 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
         ),
       );
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      // Flowing pages report how many pages they need after their own fonts settle, and each new
+      // page then renders: wait until the page count stops changing.
+      for (let last = "", i = 0; i < 50; i++) {
+        await new Promise((r) => setTimeout(r, 60));
+        await document.fonts.ready;
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+        const now = JSON.stringify(pageCounts.get());
+        if (now === last) break;
+        last = now;
+      }
       if (cancelled) return;
       window.__IDED_VIOLATIONS__ = violations.get();
       window.__IDED_LAYOUT__ = () =>
-        [...document.querySelectorAll<HTMLElement>("[data-ided-frame]")].map((el) => {
+        [...document.querySelectorAll<HTMLElement>("[data-ided-frame][data-ided-page='0']")].map((el) => {
           const root = el.querySelector<HTMLElement>(".ided-root");
           return { frame: el.dataset.idedFrame!, violations: root && brand ? measureLayout(root, { width: g.width, bodySize: bodySize(brand.type) }) : [] };
         });
@@ -74,13 +86,14 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
     return (
       <div className="render-sheet" data-ided-sheet>
         {loaded &&
-          frames.map((f) => (
-            <figure key={f.id} className="render-sheet-item">
+          pages.map(({ frame: f, page, pages: n }) => (
+            <figure key={`${f.id}/${page}`} className="render-sheet-item">
               <div className="render-frame" style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom: scale }}>
-                <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} />
+                <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} />
               </div>
               <figcaption>
                 {String(f.number).padStart(2, "0")} {f.title}
+                {n > 1 && ` · ${page + 1}/${n}`}
               </figcaption>
             </figure>
           ))}
@@ -92,14 +105,15 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
     <div className="render-root">
       {print && <style>{`@page { size: ${pageW} ${pageH}; margin: 0; } html, body { margin: 0; padding: 0; background: none; }`}</style>}
       {loaded &&
-        frames.map((f) => (
+        pages.map(({ frame: f, page }) => (
           <div
-            key={f.id}
+            key={`${f.id}/${page}`}
             data-ided-frame={f.id}
+            data-ided-page={page}
             className="render-frame"
             style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}), zoom, breakAfter: print ? "page" : undefined }}
           >
-            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} measure={false} />
+            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} page={page} measure={false} />
           </div>
         ))}
     </div>

@@ -8,6 +8,9 @@ import {
   comments as commentsStore,
   createComment,
   go,
+  pageCounts,
+  pageList,
+  pagesOf,
   showToast,
   useStore,
   violations as violationStore,
@@ -17,6 +20,7 @@ import {
 
 export function ProjectCanvas(props: { project: WsProject; focus: string | null }) {
   const { project, focus } = props;
+  const counts = useStore(pageCounts);
   const [ref, size] = useSize<HTMLDivElement>();
   const focusIndex = focus ? project.frames.findIndex((f) => f.id === focus) : -1;
 
@@ -61,9 +65,13 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
     const availW = Math.max(200, size.width);
     const availH = Math.max(200, size.height - 36);
     const scale = g.fixedHeight ? Math.min(availW / g.width, availH / g.height) : availW / g.width;
+    const pages = pagesOf(counts, project.id, frame.id);
     return (
-      <div className="canvas canvas-focus" ref={ref}>
-        {size.width > 0 && <FrameCard project={project} frame={frame} index={focusIndex} scale={scale} focused />}
+      <div className={`canvas canvas-focus${pages > 1 ? " canvas-pages" : ""}`} ref={ref}>
+        {size.width > 0 &&
+          Array.from({ length: pages }, (_, page) => (
+            <FrameCard key={page} project={project} frame={frame} index={focusIndex} page={page} pages={pages} scale={scale} focused />
+          ))}
       </div>
     );
   }
@@ -78,8 +86,8 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
     <div className="canvas" ref={ref}>
       {size.width > 0 && (
         <div className="frame-grid" style={{ gridTemplateColumns: `repeat(${cols}, ${cardW}px)`, gap }}>
-          {project.frames.map((f, i) => (
-            <FrameCard key={f.id} project={project} frame={f} index={i} scale={scale} />
+          {pageList(counts, project.id, project.frames).map(({ frame: f, page, pages }) => (
+            <FrameCard key={`${f.id}/${page}`} project={project} frame={f} index={project.frames.indexOf(f)} page={page} pages={pages} scale={scale} />
           ))}
         </div>
       )}
@@ -87,8 +95,11 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
   );
 }
 
-function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; scale: number; focused?: boolean }) {
+/** One page of a frame: a frame is one card, a flowing page one card per page. */
+function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; page?: number; pages?: number; scale: number; focused?: boolean }) {
   const { project, frame, index, scale } = props;
+  const page = props.page ?? 0;
+  const pages = props.pages ?? 1;
   const g = project.geometry!;
   const hostRef = useRef<HTMLDivElement>(null);
   const height = useFrameHeight(hostRef, g.height);
@@ -97,7 +108,7 @@ function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; s
   const errors = issues.filter((v) => v.severity === "error").length;
   const warnings = issues.length - errors;
   const mode = useStore(commentMode);
-  const openCount = useStore(commentsStore).filter((c) => c.project === project.id && c.frame === frame.id && c.status === "open").length;
+  const openCount = useStore(commentsStore).filter((c) => c.project === project.id && c.frame === frame.id && (c.target?.page ?? 0) === page && c.status === "open").length;
   return (
     <figure className={`frame-card${props.focused ? " focused" : ""}`}>
       <div
@@ -111,18 +122,22 @@ function FrameCard(props: { project: WsProject; frame: WsFrame; index: number; s
           width={g.width}
           height={height}
           scale={scale}
-          overlay={<CommentLayer project={project} frame={frame} scale={scale} hostRef={hostRef} />}
+          overlay={<CommentLayer project={project} frame={frame} page={page} scale={scale} hostRef={hostRef} />}
         >
-          <FrameRender project={project} frame={frame} index={index} />
+          <FrameRender project={project} frame={frame} index={index} page={page} />
         </Scaled>
       </div>
       <figcaption>
         <span className="frame-num">{String(frame.number).padStart(2, "0")}</span>
-        <span className="frame-title">{frame.title}</span>
+        <span className="frame-title">
+          {frame.title}
+          {pages > 1 && <span className="frame-page">{` ${page + 1}/${pages}`}</span>}
+        </span>
         <span className="frame-meta">
           {openCount > 0 && <span className="pill pill-comment">{openCount}</span>}
-          {errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
-          {warnings > 0 && <span className="pill pill-warn">{warnings}</span>}
+          {/* A frame's issues belong to the frame, shown once on its first page. */}
+          {page === 0 && errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
+          {page === 0 && warnings > 0 && <span className="pill pill-warn">{warnings}</span>}
           {props.focused && (
             <span className="frame-file" onClick={() => openSource(frame.src)}>
               {frame.src}
@@ -168,8 +183,8 @@ function describe(el: HTMLElement, root: HTMLElement, scale: number): CommentTar
   };
 }
 
-function CommentLayer(props: { project: WsProject; frame: WsFrame; scale: number; hostRef: React.RefObject<HTMLDivElement | null> }) {
-  const { project, frame, scale, hostRef } = props;
+function CommentLayer(props: { project: WsProject; frame: WsFrame; page: number; scale: number; hostRef: React.RefObject<HTMLDivElement | null> }) {
+  const { project, frame, page, scale, hostRef } = props;
   const mode = useStore(commentMode);
   const all = useStore(commentsStore);
   const active = useStore(activeComment);
@@ -178,7 +193,7 @@ function CommentLayer(props: { project: WsProject; frame: WsFrame; scale: number
   const [draft, setDraft] = useState<{ target: CommentTarget | null; x: number; y: number } | null>(null);
 
   const projectComments = all.filter((c) => c.project === project.id && c.status === "open");
-  const pins = projectComments.map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.frame === frame.id);
+  const pins = projectComments.map((c, i) => ({ c, n: i + 1 })).filter(({ c }) => c.frame === frame.id && (c.target?.page ?? 0) === page);
 
   const pick = (e: React.MouseEvent): Hover | null => {
     const host = hostRef.current;
@@ -203,7 +218,8 @@ function CommentLayer(props: { project: WsProject; frame: WsFrame; scale: number
         e.stopPropagation();
         const h = pick(e);
         const lr = layerRef.current!.getBoundingClientRect();
-        setDraft({ target: h ? describe(h.el, hostRef.current!, scale) : null, x: e.clientX - lr.left, y: e.clientY - lr.top });
+        const target = h ? describe(h.el, hostRef.current!, scale) : null;
+        setDraft({ target: target && page > 0 ? { ...target, page } : target, x: e.clientX - lr.left, y: e.clientY - lr.top });
       }}
     >
       {mode && hover && !draft && (

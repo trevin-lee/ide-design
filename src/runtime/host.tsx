@@ -19,6 +19,10 @@ export const FRAME_CSS = `
 .ided-root .katex { letter-spacing: normal; text-transform: none; }
 .ided-root .katex-display { margin: 0; }
 .ided-root .katex-display > .katex { text-align: inherit; }
+.ided-root [data-ided-flow] > * + * { margin-top: var(--ided-flow-gap); }
+[data-ided-flow] > * { break-inside: avoid; }
+[data-ided-flow] > p { break-inside: auto; orphans: 2; widows: 2; }
+[data-ided-flow] > [data-ided-heading] { break-after: avoid; }
 `;
 
 export function BrandProvider(props: BrandEnv & { children: ReactNode }) {

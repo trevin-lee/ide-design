@@ -94,7 +94,10 @@ design decision the user should see.
   PNG, since screens have no page size); `-f png` or `-f jpeg` gives per-frame images at 2×
   (`--frames 01-title,03-x` to limit).
 - `ided screenshot <project> <frame> --zoom 2x2` cuts a frame into full-resolution tiles for
-  inspecting detail; `--sheet` puts every frame on one image.
+  inspecting detail; `--sheet` puts every frame on one image; `--page <n>` picks a page of a
+  flowing doc page.
+- A doc page with `flow` runs onto as many pages as it needs (see the primitive reference):
+  export and screenshots produce every page, and `FrameNumber` counts them.
 
 ## Layout
 
