@@ -32,6 +32,8 @@ export interface FrameEnv {
   total: number;
   /** Set by the root primitive so the host can detect a missing root. */
   root: { rendered: boolean };
+  /** How many <Thread> boxes of each story this frame has rendered so far, in order. */
+  threads: Map<string, number>;
 }
 
 /** The frame root's direct flow children, in render order: how bleed knows who touches which edge. */
@@ -59,6 +61,30 @@ export const BrandContext = createContext<BrandEnv | null>(null);
 export const FrameContext = createContext<FrameEnv | null>(null);
 export const SinkContext = createContext<ViolationSink>({ report() {} });
 export const SurfaceContext = createContext<string | null>(null);
+/** Where a <Thread> box starts in its story: a block, and within a paragraph a child and a character. */
+export interface StoryPosition {
+  block: number;
+  seg: number;
+  char: number;
+}
+/** A position, or "end" once the story has run out. */
+export type StoryPoint = StoryPosition | "end";
+
+/**
+ * How <Thread> boxes find their place in a story. The viewer and exporter measure where each
+ * box's text ends and provide it; without it (server rendering), each frame's first box of a
+ * story starts at the beginning and the rest are empty.
+ */
+export interface ThreadEnv {
+  /** The project-wide order of this frame's `local`-th box of `story`. */
+  index(story: string, local: number): number;
+  /** Where box `index` starts, or null while the boxes before it are still being measured. */
+  start(story: string, index: number): StoryPoint | null;
+  /** Whether box `index` is the story's last, so whatever does not fit is lost. */
+  isLast(story: string, index: number): boolean;
+}
+export const ThreadContext = createContext<ThreadEnv | null>(null);
+
 /**
  * Which of a flowing page's pages this render shows. Set by the viewer and exporter for each page;
  * absent in server rendering, which renders the first.

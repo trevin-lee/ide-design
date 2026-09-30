@@ -41,7 +41,7 @@ ided makes those mistakes unrepresentable:
 
 - **Every value is a token.** Colors, spacing, radii, type styles, logo sizes and margins come from
   one file, `design/brand/brand.ts`. Artifacts contain only token names, typed as closed unions.
-- **One way to do each thing.** 18 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
+- **One way to do each thing.** 19 primitives. Space is `gap`. Padding is `Box pad`. Text is a type
   style. Math is TeX in an `<Equation>`. Chrome is `Place` with an anchor and an inset. There are
   no alternatives to choose between.
 - **Parametric by construction.** Fractional widths subtract the parent's gap, so columns meet
@@ -192,7 +192,7 @@ import { Timeline } from "@q3-review/components/timeline";    // this project's 
 | kind      | frames       | root         | size                                                          |
 |-----------|--------------|--------------|---------------------------------------------------------------|
 | `deck`    | `slides/`    | `<Slide>`    | 1920×1080                                                     |
-| `doc`     | `pages/`     | `<Page>`     | Letter or A4, laid out at 2× and printed at true size; `<Page flow>` runs onto as many pages as its text needs |
+| `doc`     | `pages/`     | `<Page>`     | Letter or A4, laid out at 2× and printed at true size; `<Page flow>` runs onto as many pages as its text needs, and `<Thread>` runs one story through boxes on designed pages |
 | `graphic` | `artboards/` | `<Artboard>` | square, portrait, story, landscape, og, banner                |
 | `web`     | `screens/`   | `<Screen>`   | desktop 1440, tablet 834, mobile 390; grows vertically        |
 
@@ -428,7 +428,8 @@ your files at run time.
 
 - A flowing doc page (`<Page flow>`) has one layout for all its pages: one text column and the
   same furniture. Paragraphs break between lines; other blocks move whole. Pages with a layout of
-  their own are separate files, and text does not flow from one file into another.
+  their own are separate files. To run text through designed pages, write it once as a story
+  and thread it through `<Thread>` boxes.
 - Web screens have one fixed viewport per project and no responsive variants yet.
 - Logos are single-color SVGs (recolored per colorway). Multi-color marks need one file per color.
 - The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic

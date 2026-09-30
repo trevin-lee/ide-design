@@ -29,6 +29,9 @@
   a chapter opener, a full-bleed figure, the back page) are separate files around it. Keep
   flowing content to paragraphs, headings and modest blocks; anything taller than a page fails
   the check.
+- When pages are designed around the text (a magazine spread, a headline that takes half the
+  page, a narrow and a wide column), write the text once as a story component and thread it
+  through `<Thread>` boxes on those pages. Size the boxes so the story ends in the last one.
 - For printed pieces (flyers, posters), design for the distance they are read from; test with a
   screenshot at about 25%.
 

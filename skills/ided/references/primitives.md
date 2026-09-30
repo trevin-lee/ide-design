@@ -149,6 +149,37 @@ Layout only: no background, no padding.
 Equal columns. For unequal columns use `Row` with fractional widths.
 - `columns` **required** `1 | 2 | 3 | 4 | 5 | 6 | 12`, `gap?`, `width?`, `height?`, `grow?`
 
+### `Thread`
+A box that shows the next part of a story: threaded text across designed pages, like linked text
+frames. Every `Thread` for the same story continues where the previous one (in page order, then
+in the page's own order) stopped, at whatever width and height it has.
+- `story` **required**: a component that returns the story's blocks (write it in `components/`)
+- `height?` or `grow` **required** (a box needs a size to know where it is full), `width?`, `gap?`
+- Paragraphs (`Text` directly in the story) break between lines, keeping two on each side;
+  other blocks move whole; a heading stays with what follows it. The last box must hold the rest
+  of the story, or `ided check` fails. No `Place`, `bleed` or nested `Thread` inside a story.
+
+```tsx
+// components/essay.tsx
+export function Essay() {
+  return (
+    <>
+      <Text type="heading">The long read</Text>
+      <Text type="body">…</Text>
+    </>
+  );
+}
+
+// pages/02-spread.tsx
+<Row gap="xl" grow>
+  <Thread story={Essay} gap="m" width="2/3" height="full" />
+  <Thread story={Essay} gap="m" width="1/3" height="full" />
+</Row>
+```
+
+Use a flowing page (`Page flow`) when every page has the same single column; use threads when
+pages are designed around the text (a headline, a pull quote, columns of different widths).
+
 ### `Box`
 Decoration: surface, padding, corners, border, shadow. **At most one child**; put a `Stack`/`Row` inside for several.
 - `surface?` surface token (children inherit its text and logo colors)
@@ -265,9 +296,10 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `box-children` | Box with several children | put a `Stack`/`Row` inside the Box |
 | `contrast` | text or logo not legible on its surface | use the surface's default text color, or a different surface |
 | `concentric` | nested radius does not share the parent's corner center | `radius="concentric"` |
-| `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame; in a flowing page, past the text column or a block taller than a page (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design; split tall blocks |
+| `overflow` | measured in the browser: content runs past its box, into the frame margin, or off the frame; in a flowing page, past the text column or a block taller than a page; a story that does not end in its last `Thread` (error) | shorter copy, a smaller type style, more room; or `<Box crop>` if the cut is the design; split tall blocks |
 | `ratio` | a `ratio` shape was laid out at another shape because its width and height are both fixed (warning) | drop the height (or width), or change the ratio |
 | `crop` | a crop Box cuts nothing, or cuts reading-size text (warning) | remove `crop`; give reading text room instead of cutting it |
+| `thread` | a `Thread` with no `height` or `grow` | give it a height, or `grow` to fill the space left |
 | `bleed` | a Box bleeds to an edge it cannot touch (nested, not first/last, aligned away) or has a radius | make it the root's first/last child, span the width, or drop that side |
 | `imports` | relative import, undeclared package, or a non-importable path | `@<package>/components/<name>` or `@<package>/assets/<file>`; `ided use <project> <library>` to declare a library |
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |

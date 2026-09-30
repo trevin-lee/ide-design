@@ -5,7 +5,8 @@
 
 import katex from "katex";
 import { bodySize } from "./layout.ts";
-import { Children, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { encodePoint, STORY_START } from "./story.ts";
+import { Children, cloneElement, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
 import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
 import { contrast, requiredContrast } from "../shared/color.ts";
@@ -16,6 +17,7 @@ import {
   FlowPageContext,
   FrameContext,
   LayoutContext,
+  ThreadContext,
   SinkContext,
   SurfaceContext,
   TextContext,
@@ -23,6 +25,7 @@ import {
   type BleedSide,
   type LayoutEnv,
   type RootSlots,
+  type StoryPosition,
 } from "./context.ts";
 import {
   ALIGNS,
@@ -54,7 +57,9 @@ import {
 type Reporter = (rule: string, message: string, hint?: string, severity?: "error" | "warning") => void;
 
 const SRC = "data-ided-src";
-const ALWAYS_ALLOWED = new Set(["children", SRC, "key"]);
+/** Set by <Thread> on the paragraphs of its story that may split between boxes. */
+const SPLITTABLE = "data-ided-splittable";
+const ALWAYS_ALLOWED = new Set(["children", SRC, "key", SPLITTABLE]);
 
 function usePrimitive(name: string, props: object, allowed: readonly string[], required: readonly string[] = []) {
   const sink = useContext(SinkContext);
@@ -70,7 +75,7 @@ function usePrimitive(name: string, props: object, allowed: readonly string[], r
   for (const k of required) {
     if (p[k] === undefined) report("missing-prop", `requires \`${k}\`.`);
   }
-  return { src, report, dom: { [SRC]: src, "data-ided": name } };
+  return { src, report, dom: { [SRC]: src, "data-ided": name, [SPLITTABLE]: p[SPLITTABLE] === "" ? "" : undefined } };
 }
 
 function oneOf<T>(value: T | undefined, options: readonly T[], prop: string, report: Reporter): T | undefined {
@@ -399,6 +404,92 @@ export const Stack = makeFlex("Stack", "column") as (props: StackProps) => React
 /** Horizontal layout. The only way to space things horizontally is `gap`. */
 export const Row = makeFlex("Row", "row") as (props: RowProps) => ReactElement;
 
+export interface ThreadProps {
+  /**
+   * The story: a component that returns its blocks, e.g. `export function Essay() { return <>…</>; }`.
+   * Every <Thread> with the same story continues where the previous one (in page order) stopped.
+   */
+  story: () => ReactNode;
+  gap?: SpaceToken | "none";
+  width?: Extent;
+  height?: Extent;
+  grow?: boolean;
+}
+
+/** The story's blocks, with fragments flattened. */
+function storyBlocks(node: ReactNode, report: Reporter): ReactElement[] {
+  const out: ReactElement[] = [];
+  Children.forEach(node, (c) => {
+    if (isValidElement(c) && c.type === Fragment) out.push(...storyBlocks((c.props as { children?: ReactNode }).children, report));
+    else if (isValidElement(c)) out.push(c);
+    else if ((typeof c === "string" && c.trim()) || typeof c === "number") report("loose-text", "has a story with raw text.", 'A story is a list of blocks: wrap copy in <Text type="…">.');
+  });
+  return out;
+}
+
+/** The story from `p` on: whole blocks, and the first paragraph cut at a child and character. */
+function storyFrom(blocks: ReactElement[], p: StoryPosition): ReactNode[] {
+  return blocks.slice(p.block).map((b, i) => {
+    const key = `b${p.block + i}`;
+    if (b.type !== Text) return cloneElement(b, { key });
+    const marked = { key, [SPLITTABLE]: "" };
+    if (i > 0 || (p.seg === 0 && p.char === 0)) return cloneElement(b, marked);
+    const rest = Children.toArray((b.props as { children?: ReactNode }).children).slice(p.seg);
+    if ((typeof rest[0] === "string" || typeof rest[0] === "number") && p.char > 0) rest[0] = String(rest[0]).slice(p.char);
+    return cloneElement(b, marked, ...rest);
+  });
+}
+
+/**
+ * A box on a designed page that shows the next part of a story. The story runs through every
+ * <Thread> for it in page order, splitting paragraphs between lines where a box is full.
+ */
+export function Thread(props: ThreadProps) {
+  const { report, dom, src } = usePrimitive("Thread", props, ["story", "gap", "width", "height", "grow"], ["story"]);
+  const { token } = useTokens();
+  const layout = useContext(LayoutContext);
+  useRootSlot(layout, src);
+  const frame = useContext(FrameContext);
+  const threads = useContext(ThreadContext);
+  if (layout.flow) report("misplaced", "cannot be inside flowing content: a flowing page or a story already runs across pages.");
+  if (layout.inText) report("misplaced", "cannot be inside <Text>.");
+  if (typeof props.story !== "function") {
+    report("invalid-value", "`story` is a component that returns the story's blocks: story={Essay}.");
+    return null;
+  }
+  if (props.height === undefined && props.grow !== true) {
+    report("thread", "needs a height (`height` or `grow`): the story continues in the next <Thread> where this one is full.");
+  }
+  const story = props.story.name || "story";
+  const local = frame?.threads.get(story) ?? 0;
+  frame?.threads.set(story, local + 1);
+  const index = threads ? threads.index(story, local) : local;
+  const start = threads ? threads.start(story, index) : index === 0 ? STORY_START : null;
+  const last = threads?.isLast(story, index) ?? false;
+  const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
+  // Stories are pure components, so calling one yields its blocks.
+  const blocks = storyBlocks((props.story as () => ReactNode)(), report);
+  const style: CSSProperties = {
+    display: "block",
+    position: "relative",
+    overflow: "hidden",
+    minWidth: 0,
+    minHeight: 0,
+    ...(props.grow ? { flex: "1 1 0" } : {}),
+    ...extentCss(props.width, "width", layout, "width", report, token),
+    ...extentCss(props.height, "height", layout, "height", report, token),
+  };
+  return (
+    <div {...dom} data-ided-thread={story} data-ided-thread-index={index} data-ided-thread-start={start ? encodePoint(start) : ""} data-ided-thread-last={last ? "" : undefined} style={style}>
+      <div data-ided-thread-content="" style={{ ...({ "--ided-flow-gap": gap } as CSSProperties) }}>
+        <LayoutContext.Provider value={{ axis: "column", gap, inText: false, box: null, root: null, flow: true }}>
+          {start && start !== "end" ? storyFrom(blocks, start) : null}
+        </LayoutContext.Provider>
+      </div>
+    </div>
+  );
+}
+
 export interface GridProps {
   /** Number of equal columns. */
   columns: Columns;
@@ -507,7 +598,7 @@ export function Box(props: BoxProps) {
   if (layout.inText) report("misplaced", "cannot be inside <Text>.");
   const bleed = bleedSides(props.bleed, report);
   if (bleed.size && layout.flow) {
-    report("bleed", "cannot bleed inside a flowing page: its content runs through the page's text column.", "Give a full-bleed band its own page file, without `flow`.");
+    report("bleed", "cannot bleed inside flowing content (a flowing page or a <Thread>'s story).", "Give a full-bleed band its own page file, without `flow`.");
     bleed.clear();
   }
   if (bleed.size && !layout.root) {
@@ -675,7 +766,7 @@ export function Place(props: PlaceProps) {
   const { report, dom } = usePrimitive("Place", props, ["anchor", "inset"], ["anchor", "inset"]);
   const { token } = useTokens();
   if (useContext(LayoutContext).flow) {
-    report("misplaced", "cannot be pinned inside a flowing page's content, which runs across pages.", "Put page furniture in the page's `chrome`, where it repeats on every page.");
+    report("misplaced", "cannot be pinned inside flowing content (a flowing page or a <Thread>'s story), which runs across pages.", "Put page furniture in a flowing page's `chrome`, or on the page itself.");
   }
   checkNoLooseText(props.children, report);
   if (Children.toArray(props.children).length > 1) report("place-children", "holds exactly one child.");

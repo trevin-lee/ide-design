@@ -5,7 +5,7 @@ description: Create and edit design artifacts (slide decks, documents, social gr
 
 # ided: design as code
 
-In an ided workspace every artifact is a pure React function built from 18 primitives, and
+In an ided workspace every artifact is a pure React function built from 19 primitives, and
 every value (color, space, radius, type, logo) is a named token from `design/brand/brand.ts`.
 There is one way to do each thing, and `ided check` rejects anything else. That is the point:
 the output is consistent because nothing can drift from the brand.
@@ -97,7 +97,8 @@ design decision the user should see.
   inspecting detail; `--sheet` puts every frame on one image; `--page <n>` picks a page of a
   flowing doc page.
 - A doc page with `flow` runs onto as many pages as it needs (see the primitive reference):
-  export and screenshots produce every page, and `FrameNumber` counts them.
+  export and screenshots produce every page, and `FrameNumber` counts them. For text that runs
+  through boxes on designed pages, use `<Thread story={…}>`.
 
 ## Layout
 

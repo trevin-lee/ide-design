@@ -48,6 +48,30 @@ export function pagesOf(counts: Record<string, number>, project: string, frame: 
   return counts[`${project}/${frame}`] ?? 1;
 }
 
+/** Measurements (page counts, thread ends, layout) still waiting for fonts, images or layout. */
+export let pendingMeasures = 0;
+export function measuring(delta: 1 | -1) {
+  pendingMeasures += delta;
+}
+
+/** How many <Thread> boxes of each story every frame (`project/frame`) holds. */
+export const threadCounts = createStore<Record<string, Record<string, number>>>({});
+
+export function setThreadCounts(key: string, counts: Record<string, number>) {
+  if (JSON.stringify(threadCounts.get()[key] ?? {}) !== JSON.stringify(counts)) threadCounts.set((all) => ({ ...all, [key]: counts }));
+}
+
+/** Where each box of a story (`project/story`) starts, as measured: index k is the k-th box. */
+export const threadStarts = createStore<Record<string, string[]>>({});
+
+export function setThreadStart(key: string, index: number, point: string) {
+  const list = threadStarts.get()[key] ?? [];
+  if (list[index] === point) return;
+  const next = [...list];
+  next[index] = point;
+  threadStarts.set((all) => ({ ...all, [key]: next }));
+}
+
 /** Every page of a project in order: one per frame, several for a flowing page. */
 export function pageList<F extends { id: string }>(counts: Record<string, number>, project: string, frames: readonly F[]): { frame: F; page: number; pages: number }[] {
   return frames.flatMap((frame) => {

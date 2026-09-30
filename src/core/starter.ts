@@ -163,7 +163,7 @@ working (concentric corners), which is the part people remember.
 
 - A feature tour (one slide per primitive): rejected, it describes the tool instead of making the
   reader trust it, and it is what every product deck does.
-- Big-number cards ("0 raw values, 18 primitives, 1 brand file"): rejected, the card row is the
+- Big-number cards ("0 raw values, 19 primitives, 1 brand file"): rejected, the card row is the
   most common template in generated slides, and the numbers are claims without proof.
 - A dark, terminal-themed deck throughout: rejected; it would read as a costume. One dark slide
   and one dark block keep the code real without turning it into a theme.

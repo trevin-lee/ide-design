@@ -4,7 +4,6 @@
 
 ## Later
 
-- Threaded text: one story running through differently shaped boxes on designed pages.
 - Responsive variants for web screens.
 - Multi-color logos.
 - Windows.

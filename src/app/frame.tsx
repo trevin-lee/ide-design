@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { brand, loaders, type WsFrame, type WsProject } from "virtual:ided/workspace";
-import { FlowPageContext, type Violation } from "../runtime/context.ts";
+import { FlowPageContext, ThreadContext, type ThreadEnv, type Violation } from "../runtime/context.ts";
+import { decodePoint, encodePoint, markThread, measureThread, STORY_START } from "../runtime/story.ts";
 import { Collector, FrameHost, missingRootViolation } from "../runtime/host.tsx";
 import { bodySize, measureLayout } from "../runtime/layout.ts";
 import type { FrameKind } from "../shared/formats.ts";
-import { pageCounts, pagesOf, publishViolations, revision, setPageCount, useStore } from "./store.ts";
+import { measuring, pageCounts, pagesOf, publishViolations, revision, setPageCount, setThreadCounts, setThreadStart, threadCounts, threadStarts, useStore } from "./store.ts";
 
 type FrameModule = { default?: unknown };
 const moduleCache = new Map<string, Promise<FrameModule>>();
@@ -56,6 +57,7 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
   const before = project.frames.slice(0, index).reduce((n, f) => n + pagesOf(counts, project.id, f.id), 0);
   const total = project.frames.reduce((n, f) => n + pagesOf(counts, project.id, f.id), 0);
   const flow = useMemo(() => ({ page }), [page]);
+  const threads = useThreadEnv(project, index);
   const { Component, error } = useFrameComponent(project.id, frame.id);
   const geometry = project.geometry!;
   const sink = useMemo(() => new Collector(), [rev, Component]);
@@ -84,12 +86,28 @@ export function FrameRender(props: { project: WsProject; frame: WsFrame; index: 
       }}
     >
       <FlowPageContext.Provider value={flow}>
-        <div ref={host} style={{ display: "contents" }}>
-          <Component />
-        </div>
+        <ThreadContext.Provider value={threads}>
+          <div ref={host} style={{ display: "contents" }}>
+            <Component />
+          </div>
+        </ThreadContext.Provider>
       </FlowPageContext.Provider>
     </FrameHost>
   );
+}
+
+/** Where this frame's thread boxes sit in their stories, from what the other frames measured. */
+function useThreadEnv(project: WsProject, index: number): ThreadEnv {
+  const counts = useStore(threadCounts);
+  const starts = useStore(threadStarts);
+  return useMemo(() => {
+    const boxes = (frames: readonly WsFrame[], story: string) => frames.reduce((n, f) => n + (counts[`${project.id}/${f.id}`]?.[story] ?? 0), 0);
+    return {
+      index: (story, local) => boxes(project.frames.slice(0, index), story) + local,
+      start: (story, k) => (k === 0 ? STORY_START : (decodePoint(starts[`${project.id}/${story}`]?.[k]) ?? null)),
+      isLast: (story, k) => k === boxes(project.frames, story) - 1,
+    };
+  }, [counts, starts, project, index]);
 }
 
 /**
@@ -111,6 +129,7 @@ function useAfterRender(
     if (opts.publish) publishViolations(key, [...list, ...layout.current]);
     if (!opts.count && !opts.measure) return;
     const ticket = ++latest.current;
+    measuring(1);
     void (async () => {
       await document.fonts.ready;
       const images = [...(host.current?.querySelectorAll("img") ?? [])].filter((i) => !i.complete);
@@ -121,6 +140,19 @@ function useAfterRender(
         const flow = host.current.querySelector<HTMLElement>("[data-ided-flow]");
         const step = Number(flow?.dataset.idedFlowStep);
         setPageCount(key, flow && step ? Math.max(1, Math.round((flow.scrollWidth + step - flow.clientWidth) / step)) : 1);
+        // Threads: how many boxes of each story this frame holds, and where each box's text ends.
+        const perStory: Record<string, number> = {};
+        const root = host.current.querySelector<HTMLElement>(".ided-root");
+        const scale = root ? root.getBoundingClientRect().width / project.geometry!.width || 1 : 1;
+        for (const box of host.current.querySelectorAll<HTMLElement>("[data-ided-thread]")) {
+          const story = box.dataset.idedThread!;
+          perStory[story] = (perStory[story] ?? 0) + 1;
+          if (!box.dataset.idedThreadStart) continue; // the boxes before it are still being measured
+          const { end, tooLarge, visible } = measureThread(box, scale);
+          markThread(box, end, tooLarge, visible, scale);
+          setThreadStart(`${project.id}/${story}`, Number(box.dataset.idedThreadIndex) + 1, encodePoint(end));
+        }
+        setThreadCounts(key, perStory);
       }
       const root = host.current.querySelector<HTMLElement>(".ided-root");
       if (!opts.measure || !root || !brand) return;
@@ -128,8 +160,32 @@ function useAfterRender(
       if (JSON.stringify(found) === JSON.stringify(layout.current)) return;
       layout.current = found;
       publishViolations(key, [...list, ...found]);
-    })();
+    })().finally(() => measuring(-1));
   };
+}
+
+/**
+ * Renders a project's other frames offscreen, so thread boxes on the frame in view know where
+ * their story starts. Mounted only while the project has threads, or has not been measured yet.
+ */
+export function ThreadMeasurer(props: { project: WsProject; except?: string }) {
+  const { project } = props;
+  const counts = useStore(threadCounts);
+  const known = project.frames.every((f) => counts[`${project.id}/${f.id}`] !== undefined);
+  const threaded = project.frames.some((f) => Object.keys(counts[`${project.id}/${f.id}`] ?? {}).length > 0);
+  if (!project.geometry || (known && !threaded)) return null;
+  const g = project.geometry;
+  return (
+    <div aria-hidden style={{ position: "fixed", left: -100000, top: 0, visibility: "hidden", pointerEvents: "none" }}>
+      {project.frames
+        .filter((f) => f.id !== props.except)
+        .map((f) => (
+          <div key={f.id} style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}) }}>
+            <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} publish={false} />
+          </div>
+        ))}
+    </div>
+  );
 }
 
 function FrameError(props: { geometry: { width: number; height: number }; title: string; message: string }) {

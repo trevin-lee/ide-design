@@ -3,7 +3,7 @@ import { brand, type WsProject } from "virtual:ided/workspace";
 import type { Violation } from "../runtime/context.ts";
 import { bodySize, measureLayout } from "../runtime/layout.ts";
 import { FrameRender, loadFrame } from "./frame.tsx";
-import { pageCounts, pageList, useStore, violations } from "./store.ts";
+import { pageCounts, pageList, pendingMeasures, threadCounts, threadStarts, useStore, violations } from "./store.ts";
 
 declare global {
   interface Window {
@@ -53,14 +53,14 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
         ),
       );
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-      // Flowing pages report how many pages they need after their own fonts settle, and each new
-      // page then renders: wait until the page count stops changing.
-      for (let last = "", i = 0; i < 50; i++) {
+      // Flowing pages report how many pages they need, and thread boxes where their text ends,
+      // after their own fonts settle; each answer re-renders what follows: wait until they stop changing.
+      for (let last = "", i = 0; i < 200; i++) {
         await new Promise((r) => setTimeout(r, 60));
         await document.fonts.ready;
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-        const now = JSON.stringify(pageCounts.get());
-        if (now === last) break;
+        const now = JSON.stringify([pageCounts.get(), threadCounts.get(), threadStarts.get()]);
+        if (now === last && pendingMeasures === 0) break;
         last = now;
       }
       if (cancelled) return;

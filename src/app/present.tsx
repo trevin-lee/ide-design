@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { WsProject } from "virtual:ided/workspace";
-import { FrameRender, loadFrame, Scaled, useSize } from "./frame.tsx";
+import { FrameRender, loadFrame, Scaled, ThreadMeasurer, useSize } from "./frame.tsx";
 import { go, pageCounts, pageList, useStore } from "./store.ts";
 
 /** Present from `index`, counted in pages: a flowing doc page contributes one per page. */
@@ -71,6 +71,7 @@ export function Presentation(props: { project: WsProject; index: number }) {
           <FrameRender project={project} frame={entry.frame} index={project.frames.indexOf(entry.frame)} page={entry.page} publish={false} />
         </Scaled>
       )}
+      <ThreadMeasurer project={project} except={entry?.frame.id} />
       <div className="present-hud">
         {index + 1} / {count} · ← → to move · Esc to exit
       </div>

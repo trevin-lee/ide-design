@@ -187,6 +187,8 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
     const limit = bleeds ? frame : name === "Place" ? inner(parent, false) : inner(parent, true);
     const extent = extentOf(el);
     const over = beyond(extent, limit);
+    // A thread box cuts its story at the bottom on purpose; the next box continues it.
+    if (parent.dataset.ided === "Thread") over.top = over.bottom = 0;
     const crop = cropAround(el);
     const cropBox = crop ? inner(crop, false) : null;
     const reachesCrop = cropBox ? beyond(extent, cropBox) : null;
@@ -214,6 +216,21 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
       );
     }
     checkRatio(el);
+  }
+
+  for (const box of root.querySelectorAll<HTMLElement>("[data-ided-thread]")) {
+    if (box.hasAttribute("data-ided-thread-more")) {
+      report(
+        box,
+        "overflow",
+        "error",
+        `is the last box of the story "${box.dataset.idedThread}", and the rest of the story does not fit.`,
+        "Add another <Thread> for this story on a later page, give the boxes more room, or shorten the story.",
+      );
+    }
+    if (box.dataset.idedThreadTooLarge !== undefined) {
+      report(box, "overflow", "error", "holds a block too big for it, which is skipped.", "Make the block smaller, or give this box more room.");
+    }
   }
 
   for (const crop of root.querySelectorAll<HTMLElement>("[data-ided-crop]")) {

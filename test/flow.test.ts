@@ -59,8 +59,8 @@ test("in a flowing page, what cannot break must fit a page and the column", { sk
 test("flowing pages keep furniture in chrome and nothing bleeds", { timeout: 120_000 }, () => {
   const misplaced = report(`      <Place anchor="top-right" inset="l">\n        <Text type="small">pinned</Text>\n      </Place>\n      <Box surface="ink" bleed="x" pad="l">\n        <Text type="body">band</Text>\n      </Box>`, ' flow chrome={<Text type="small">footer</Text>}');
   const found = issues(misplaced, "--no-layout").map((i) => i.message);
-  assert.ok(found.some((m) => /<Place> cannot be pinned inside a flowing page/.test(m)), found.join("\n"));
-  assert.ok(found.some((m) => /<Box> cannot bleed inside a flowing page/.test(m)), found.join("\n"));
+  assert.ok(found.some((m) => /<Place> cannot be pinned inside flowing content/.test(m)), found.join("\n"));
+  assert.ok(found.some((m) => /<Box> cannot bleed inside flowing content/.test(m)), found.join("\n"));
   assert.ok(found.some((m) => /chrome` holds page furniture pinned with <Place>/.test(m)), found.join("\n"));
 
   const chromeOnly = report(`      <Text type="body">x</Text>`, ' chrome={<Place anchor="bottom" inset="l"><Text type="small">x</Text></Place>}');

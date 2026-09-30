@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { WsFrame, WsProject } from "virtual:ided/workspace";
 import { openSource } from "./editor.ts";
-import { FrameRender, Scaled, useFrameHeight, useSize } from "./frame.tsx";
+import { FrameRender, Scaled, ThreadMeasurer, useFrameHeight, useSize } from "./frame.tsx";
 import {
   activeComment,
   commentMode,
@@ -72,6 +72,7 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
           Array.from({ length: pages }, (_, page) => (
             <FrameCard key={page} project={project} frame={frame} index={focusIndex} page={page} pages={pages} scale={scale} focused />
           ))}
+        <ThreadMeasurer project={project} except={frame.id} />
       </div>
     );
   }
