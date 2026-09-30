@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 (2026-09-29)
+
+Web screens for every viewport.
+
+- **Responsive web screens.** A web project can list several viewports
+  (`"viewport": ["desktop", "tablet", "mobile"]`, or `ided new web site --viewport desktop,mobile`),
+  and every screen renders at each. Layout and type props take one value per viewport, such as
+  `gap={{ desktop: "xl", mobile: "m" }}` or `type={{ desktop: "display", mobile: "heading" }}`; a
+  viewport without its own value takes the nearest wider one's. `<Show on="mobile">` keeps a part
+  on some viewports only. The responsive starter puts links on desktop and tablet and a menu on
+  mobile.
+- The viewer shows a screen's viewports side by side at one scale, and comments remember their
+  viewport. Export writes one image per viewport (`01-home-mobile.png`), the contact sheet shows
+  them all, and `ided screenshot --viewport` (MCP `viewport`) picks one. `ided check` renders and
+  measures every viewport, and a finding on only some of them says which, e.g. `(tablet, mobile)`.
+- Values per viewport and `Show` outside web screens are errors.
+- Windows support is not planned (ROADMAP.md).
+
 ## 0.6.0 (2026-09-29)
 
 Text that runs through designed pages.
