@@ -254,10 +254,13 @@ export interface InitOptions {
   sample: boolean;
 }
 
-export function initWorkspace(root: string, opts: InitOptions): string[] {
+/** `kept`: starter files that already existed and were left as they were. */
+export function initWorkspace(root: string, opts: InitOptions): string[] & { kept?: string[] } {
   const created: string[] = [];
+  const kept: string[] = [];
   const put = (rel: string, content: string) => {
     if (write(join(root, rel), content)) created.push(rel);
+    else kept.push(rel);
   };
   const existing = existsSync(join(root, DESIGN_DIR, "brand", "brand.ts"));
   put(WORKSPACE_MARKER, JSON.stringify({ version: 1 }, null, 2) + "\n");
@@ -308,7 +311,7 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
       writeFileSync(join(project, DESIGN_DOC), sampleDesignDoc());
     }
   }
-  return [...new Set(created)];
+  return Object.assign([...new Set(created)], { kept: kept.filter((k) => k !== WORKSPACE_MARKER) });
 }
 
 /** project.json keys renamed since: a doc's paper size was "page" before 0.9. Key order is kept. */

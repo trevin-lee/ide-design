@@ -20,7 +20,7 @@ import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
 import { wordmarkText } from "../core/wordmark.ts";
 import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
-import { defaultScreenshotScale, findWorkspaceRoot, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
+import { allIssues, defaultScreenshotScale, findWorkspaceRoot, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
 import { describeGeometry, DOC_PAPERS, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 
@@ -62,6 +62,7 @@ program
       const root = existing ?? (opts.here ? cwd : gitRoot(cwd) ?? cwd);
       const name = opts.name ?? titleFromDir(basename(root));
       const created = initWorkspace(root, { name, sample: !opts.bare });
+      const kept = existing ? [] : (created.kept ?? []);
       if (opts.agentsMd) {
         // In an existing workspace only a section that is there is refreshed: someone may have removed it.
         const change = writeAgentsMd(root, { add: !existing });
@@ -73,6 +74,17 @@ program
           : `${pc.green("✔")} Created ided workspace at ${root}`,
       );
       for (const f of created) console.log(pc.dim(`  + ${f}`));
+      if (kept.length) {
+        console.log(pc.yellow(`! design/ already had ${kept.length === 1 ? "a file" : "files"} where the starter goes; ${kept.length === 1 ? "it was" : "they were"} left as ${kept.length === 1 ? "it was" : "they were"}:`));
+        for (const f of kept) console.log(pc.dim(`  = ${f}`));
+      }
+      // Files that were in design/ before ided: say now what has to move, not at the first check.
+      const misplaced = allIssues(scanWorkspace(root)).filter((i) => i.severity === "error");
+      if (!existing && misplaced.length) {
+        console.log(pc.yellow(`! design/ holds ${misplaced.length} thing${misplaced.length === 1 ? "" : "s"} that ${misplaced.length === 1 ? "does" : "do"} not fit the workspace shape; \`ided check\` reports ${misplaced.length === 1 ? "it" : "them"} until ${misplaced.length === 1 ? "it moves" : "they move"} (\`ided rules\` shows the shape):`));
+        for (const i of misplaced.slice(0, 15)) console.log(pc.dim(`  ${i.file}: ${i.message}`));
+        if (misplaced.length > 15) console.log(pc.dim(`  …and ${misplaced.length - 15} more`));
+      }
       const { dropped } = wordmarkText(name);
       if (!existing && dropped.length) console.log(pc.yellow(`! The starter wordmark leaves out ${dropped.join(" ")}: its typeface has no glyph for them. Replace design/brand/assets/wordmark.svg with your own.`));
       console.log(`\nNext:\n  ${pc.cyan("ided run")}          open the design viewer\n  ${pc.cyan("ided check")}        verify every artifact\n  ${pc.cyan("ided setup")}        give your coding agents the ided skills`);
