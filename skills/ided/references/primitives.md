@@ -16,7 +16,7 @@ exactly one way to express each design decision. `ided check` enforces all of it
 7. **Facts come from the brand too.** Names, links, contact details and places are `<Fact>`s from
    the brand's `facts`, never typed, so they are written once and cannot be invented.
 8. **Artifacts are pure and deterministic.** No hooks, no state, no dates, no randomness, no browser APIs.
-9. **The shape of the workspace is fixed.** Create things with `ided new` / `ided add`; never invent folders.
+9. **The shape of the workspace is fixed.** Create things with `ided new` / `ided add` (`--component` for a project's `components/`); never invent folders.
    Every project has a `DESIGN.md` explaining its design (see the ided-design skill).
 10. **Every import names its package.** `"ided"`, or `@<package>/components/<name>` / `@<package>/assets/<file>`. No relative imports.
 
@@ -179,7 +179,7 @@ Equal columns. For unequal columns use `Row` with fractional widths.
 A box that shows the next part of a story: threaded text across designed pages, like linked text
 frames. Every `Thread` for the same story continues where the previous one (in page order, then
 in the page's own order) stopped, at whatever width and height it has.
-- `story` **required**: a component that returns the story's blocks (write it in `components/`)
+- `story` **required**: a component that returns the story's blocks (`ided add <project> <name> --component` creates its file in `components/`)
 - `height?` or `grow` **required** (a box needs a size to know where it is full), `width?`, `gap?`
 - Paragraphs (`Text` directly in the story) break between lines, keeping two on each side;
   other blocks move whole; a heading stays with what follows it. The last box must hold the rest

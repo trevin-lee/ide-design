@@ -160,3 +160,30 @@ test("browser remove deletes only the builds ided downloaded", { timeout: 30_000
   assert.deepEqual(readdirSync(cache), ["someone-elses"]);
   rmSync(cache, { recursive: true, force: true });
 });
+
+test("scaffolding: names, options that do not apply, components in any project, and init re-runs", { timeout: 60_000 }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-e2e-"));
+  const init = run(dir, "init", "--here", "--bare", "--no-agents-md", "--name", "Café & Co");
+  assert.doesNotMatch(init.stdout, /leaves out/);
+  assert.ok(!existsSync(join(dir, "AGENTS.md")));
+  const { wordmarkSvg } = await import("../src/core/wordmark.ts");
+  assert.equal(readFileSync(join(dir, "design/brand/assets/wordmark.svg"), "utf8"), wordmarkSvg("CAFE & CO"), "the accent folded, the ampersand drawn");
+  assert.match(run(mkdtempSync(join(tmpdir(), "ided-e2e-")), "init", "--here", "--bare", "--name", "Ωmega").stdout, /leaves out Ω/);
+  assert.equal(run(dir, "init").status, 0);
+  assert.ok(!existsSync(join(dir, "AGENTS.md")), "re-running init adds nothing it was told not to");
+
+  const named = run(dir, "new", "deck", "Q3 Report");
+  assert.equal(named.status, 0, named.stderr);
+  assert.match(named.stdout, /Created deck q3-report/);
+  assert.equal(JSON.parse(readFileSync(join(dir, "design/q3-report/project.json"), "utf8")).title, "Q3 Report");
+  assert.match(run(dir, "new", "graphic", "z", "--viewport", "mobile").stderr, /--viewport applies to web projects, not a graphic/);
+  assert.match(run(dir, "new", "deck", "z", "--page", "a4").stderr, /--page applies to doc projects, not a deck/);
+  assert.match(run(dir, "new", "web", "z", "--viewport", "mobile,mobile").stderr, /lists mobile twice/);
+  assert.match(run(dir, "new", "deck", "z", "--title", " ").stderr, /--title is empty/);
+  assert.ok(!existsSync(join(dir, "design/z")));
+
+  assert.match(run(dir, "add", "q3-report", "Key Numbers").stdout, /slides\/02-key-numbers\.tsx/);
+  assert.match(readFileSync(join(dir, "design/q3-report/slides/02-key-numbers.tsx"), "utf8"), />Key Numbers</);
+  assert.match(run(dir, "add", "q3-report", "stat", "--component").stdout, /design\/q3-report\/components\/stat\.tsx/);
+  assert.equal(run(dir, "check", "--no-render").status, 0, run(dir, "check", "--no-render").stdout);
+});

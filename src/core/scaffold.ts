@@ -37,8 +37,12 @@ export function titleCase(slug: string): string {
   return slug.replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** A file or folder name: kebab-case, accents folded ("Café" → "cafe"), "&" spelled out. */
 export function slugify(input: string): string {
   return input
+    .normalize("NFKD")
+    .replace(/\p{M}/gu, "")
+    .replace(/&/g, " and ")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
@@ -335,7 +339,13 @@ export interface NewProjectOptions {
   viewport?: string | readonly string[];
 }
 
+/** Options that only apply to some kinds, so one given to another kind is a mistake, not a no-op. */
+const OPTION_KINDS = { page: "doc", size: "graphic", viewport: "web" } as const;
+
 export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOptions): ProjectManifest {
+  for (const [option, only] of Object.entries(OPTION_KINDS)) {
+    if (opts[option as keyof typeof OPTION_KINDS] !== undefined && kind !== only) throw new Error(`--${option} applies to ${only} projects, not a ${kind}.`);
+  }
   switch (kind) {
     case "deck":
       return { kind, title };
@@ -348,6 +358,8 @@ export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOpti
       const known = Object.keys(WEB_VIEWPORTS);
       const bad = list.filter((v) => !known.includes(v));
       if (bad.length || !list.length) throw new Error(`--viewport is one of ${known.join(", ")}, or several separated by commas (got "${bad.join(", ")}").`);
+      const twice = list.find((v, i) => list.indexOf(v) !== i);
+      if (twice) throw new Error(`--viewport lists ${twice} twice.`);
       return { kind, title, viewport: (list.length === 1 ? list[0] : list) as never };
     }
   }
@@ -383,13 +395,22 @@ export function ${fn}(props: { title: string; body: string; surface?: SurfaceTok
 `;
 }
 
-export function newProject(ws: Workspace, kind: FrameKind | "library", id: string, opts: NewProjectOptions = {}): string[] {
-  if (!PROJECT_DIR_RE.test(id)) throw new Error(`Project names are lowercase kebab-case ("${id}" is not). Try "${slugify(id)}".`);
+/**
+ * A new project. Like `ided add`, the name becomes a kebab-case folder ("Q3 Report" → q3-report)
+ * and, unless a title is given, the name as typed is the title.
+ */
+export function newProject(ws: Workspace, kind: FrameKind | "library", name: string, opts: NewProjectOptions = {}): string[] {
+  const id = slugify(name);
+  if (!id || !PROJECT_DIR_RE.test(id)) throw new Error(`"${name}" gives no usable folder name: use letters, digits and dashes, starting with a letter.`);
   if (id === "brand") throw new Error('"brand" is reserved for the brand project.');
   const dir = join(ws.designDir, id);
   if (existsSync(dir)) throw new Error(`design/${id} already exists.`);
-  const title = opts.title ?? titleCase(id);
-  if (kind === "library") return newLibrary(ws, id, title);
+  if (opts.title !== undefined && !opts.title.trim()) throw new Error("--title is empty.");
+  const title = opts.title?.trim() ?? (id === name ? titleCase(id) : name.trim());
+  if (kind === "library") {
+    for (const option of Object.keys(OPTION_KINDS)) if (opts[option as keyof typeof OPTION_KINDS] !== undefined) throw new Error(`--${option} applies to ${OPTION_KINDS[option as keyof typeof OPTION_KINDS]} projects, not a library.`);
+    return newLibrary(ws, id, title);
+  }
   const manifest = manifestFor(kind, title, opts);
   const rel = (p: string) => relative(ws.root, p);
   write(join(dir, "project.json"), JSON.stringify(manifest, null, 2) + "\n");
@@ -511,12 +532,12 @@ export interface AddFrameResult {
  * Add the next numbered frame to a frame project, or a component to a library
  * or the brand. Never renumbers existing frames.
  */
-export function addFrame(ws: Workspace, projectId: string, name: string): AddFrameResult {
+export function addFrame(ws: Workspace, projectId: string, name: string, opts: { component?: boolean } = {}): AddFrameResult {
   const p = getProject(ws, projectId);
   if (!p.manifest) throw new Error(`"${projectId}" has an invalid project.json; run \`ided check\`.`);
   const slug = slugify(name);
   if (!slug) throw new Error("Name must contain letters or digits.");
-  if (!isFrameKind(p.kind)) {
+  if (!isFrameKind(p.kind) || opts.component) {
     const abs = join(p.dir, "components", `${slug}.tsx`);
     if (existsSync(abs)) throw new Error(`${relative(ws.root, abs)} already exists.`);
     write(abs, componentTemplate(slug));
@@ -527,7 +548,7 @@ export function addFrame(ws: Workspace, projectId: string, name: string): AddFra
   const width = Math.max(2, String(next).length);
   const fileName = `${String(next).padStart(width, "0")}-${slug}.tsx`;
   const abs = join(p.dir, FRAME_DIR[kind], fileName);
-  write(abs, frameTemplate(kind, slug, undefined, p.manifest.kind === "web" ? webViewports(p.manifest) : undefined));
+  write(abs, frameTemplate(kind, slug, slug === name ? undefined : name.trim(), p.manifest.kind === "web" ? webViewports(p.manifest) : undefined));
   return { file: relative(ws.root, abs) };
 }
 

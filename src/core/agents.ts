@@ -343,17 +343,22 @@ ${AGENTS_MD_END}
 }
 
 /** Adds or refreshes ided's block in AGENTS.md, the cross-agent instructions file. Returns the change made. */
-export function writeAgentsMd(root: string): "created" | "updated" | "unchanged" {
+/** `add: false` only refreshes a section that is already there (re-running `ided init` adds nothing). */
+export function writeAgentsMd(root: string, opts: { add?: boolean } = {}): "created" | "updated" | "unchanged" {
   const file = join(root, "AGENTS.md");
   const block = agentsMdBlock();
+  const add = opts.add ?? true;
   if (!existsSync(file)) {
+    if (!add) return "unchanged";
     writeFileSync(file, `# Agent instructions\n\n${block}`);
     return "created";
   }
   const text = readFileSync(file, "utf8");
   const start = text.indexOf(AGENTS_MD_START);
   const end = text.indexOf(AGENTS_MD_END);
-  const next = start !== -1 && end > start ? text.slice(0, start) + block.trimEnd() + text.slice(end + AGENTS_MD_END.length) : `${text.replace(/\s*$/, "")}\n\n${block}`;
+  const present = start !== -1 && end > start;
+  if (!present && !add) return "unchanged";
+  const next = present ? text.slice(0, start) + block.trimEnd() + text.slice(end + AGENTS_MD_END.length) : `${text.replace(/\s*$/, "")}\n\n${block}`;
   if (next === text) return "unchanged";
   writeFileSync(file, next);
   return "updated";

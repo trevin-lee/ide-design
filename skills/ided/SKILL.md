@@ -33,16 +33,18 @@ the user wants these skills available to every agent and teammate who opens the 
    before designing frames: they decide the frames. `ided check` warns until every section is
    written, and the viewer shows the document beside the frames.
 1. **Scaffold, never hand-create structure.**
-   - New project: `ided new deck q3-review --title "Q3 Review"` (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`, or `desktop,mobile` for a responsive screen checked at each).
+   - New project: `ided new deck "Q3 Review"` makes `design/q3-review/` titled "Q3 Review" (kinds: deck, doc, graphic, web; doc takes `--page letter|a4`, graphic `--size square|portrait|story|landscape|og|banner`, web `--viewport desktop|tablet|mobile`, or `desktop,mobile` for a responsive screen checked at each).
    - New frame: `ided add q3-review agenda` creates the next `NN-agenda.tsx` from a template.
      Frames are ordered by their number: to insert or reorder, rename the files (`git mv`,
      numbers unique); to drop a frame or a whole project, delete its file or folder. `ided check`
      then flags anything still importing it and comments left on it.
-   - Shared components and assets live in a library: `ided new library kit`, `ided add kit stat`
-     (adds a component), and `ided use q3-review kit` to let a project import from it.
+   - New component: `ided add q3-review stat --component` creates `components/stat.tsx` in the
+     project (a threaded story lives there too). Shared components and assets live in a library:
+     `ided new library kit`, `ided add kit stat` (in a library, `add` always makes a component),
+     and `ided use q3-review kit` to let a project import from it.
 2. **Write the frame** with primitives and tokens only. Pull repeated structure into the
-   project's `components/`; if another project needs it too, move it to a library (or to
-   `design/brand/components/` if it belongs to every medium). Images go in `assets/` and are
+   project's `components/` (`ided add <project> <name> --component`); if another project needs it
+   too, move it to a library (or to `design/brand/components/` if it belongs to every medium). Images go in `assets/` and are
    imported: `import hero from "@kit/assets/hero.jpg"`.
 3. **`ided check <project>`**, and fix every error. Treat warnings as errors unless there is a
    stated reason. The work is not done until the check is clean.

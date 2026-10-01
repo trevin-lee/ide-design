@@ -39,6 +39,10 @@ const GLYPHS: Record<string, { w: number; d: string }> = {
   "7": { w: 5, d: "M0 0H5L1.5 8" },
   "8": { w: 5, d: "M2.5 3.7A1.85 1.85 0 1 1 2.5 0A1.85 1.85 0 1 1 2.5 3.7ZM2.5 8A2.15 2.15 0 1 1 2.5 3.7A2.15 2.15 0 1 1 2.5 8Z" },
   "9": { w: 5, d: "M1.2 8L4.6 3.5M5 2.5A2.5 2.5 0 1 0 0 2.5A2.5 2.5 0 1 0 5 2.5" },
+  "&": { w: 5.5, d: "M5.5 8L1.45 3.35A1.85 1.85 0 1 1 3.65 3.6L1.35 5.15A1.7 1.7 0 0 0 2.4 8H3L5.5 5" },
+  "'": { w: 0, d: "M0 0V2.2" },
+  "/": { w: 3.5, d: "M0 8L3.5 0" },
+  "+": { w: 4.5, d: "M0 4.5H4.5M2.25 2.25V6.75" },
   "-": { w: 3, d: "M0 4.5H3" },
   ".": { w: 0, d: "M0 7.3V8" },
   " ": { w: 2.5, d: "" },
@@ -69,8 +73,19 @@ function shift(d: string, dx: number): string {
   });
 }
 
+/**
+ * The name as the starter typeface can draw it: capitals, accents folded ("Café" → "CAFE"), and
+ * the characters it has no glyph for, which the caller can mention.
+ */
+export function wordmarkText(name: string): { text: string; dropped: string[] } {
+  const folded = name.normalize("NFKD").replace(/\p{M}/gu, "").toUpperCase();
+  const dropped = [...new Set([...folded].filter((ch) => !GLYPHS[ch]))];
+  const text = [...folded].filter((ch) => GLYPHS[ch]).join("").replace(/\s+/g, " ").trim();
+  return { text: text || "BRAND", dropped };
+}
+
 export function wordmarkSvg(name: string): string {
-  const text = name.toUpperCase().replace(/[^A-Z0-9 .-]/g, "").trim() || "BRAND";
+  const { text } = wordmarkText(name);
   let x = 0;
   const parts: string[] = [];
   [...text].forEach((ch, i) => {

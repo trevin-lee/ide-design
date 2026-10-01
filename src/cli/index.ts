@@ -18,6 +18,7 @@ import {
 import { formatComment, listComments, updateComment } from "../core/comments.ts";
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
+import { wordmarkText } from "../core/wordmark.ts";
 import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { defaultScreenshotScale, findWorkspaceRoot, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
 import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
@@ -62,7 +63,8 @@ program
       const name = opts.name ?? titleFromDir(basename(root));
       const created = initWorkspace(root, { name, sample: !opts.bare });
       if (opts.agentsMd) {
-        const change = writeAgentsMd(root);
+        // In an existing workspace only a section that is there is refreshed: someone may have removed it.
+        const change = writeAgentsMd(root, { add: !existing });
         if (change !== "unchanged") created.push(`AGENTS.md (ided section ${change})`);
       }
       console.log(
@@ -71,6 +73,8 @@ program
           : `${pc.green("✔")} Created ided workspace at ${root}`,
       );
       for (const f of created) console.log(pc.dim(`  + ${f}`));
+      const { dropped } = wordmarkText(name);
+      if (!existing && dropped.length) console.log(pc.yellow(`! The starter wordmark leaves out ${dropped.join(" ")}: its typeface has no glyph for them. Replace design/brand/assets/wordmark.svg with your own.`));
       console.log(`\nNext:\n  ${pc.cyan("ided run")}          open the design viewer\n  ${pc.cyan("ided check")}        verify every artifact\n  ${pc.cyan("ided setup")}        give your coding agents the ided skills`);
     }),
   );
@@ -118,7 +122,7 @@ program
   .command("new")
   .description(`Create a project. Kinds: ${describeKinds()}.`)
   .argument("<kind>", [...FRAME_KINDS, "library"].join(" | "))
-  .argument("<name>", "kebab-case project name (folder under design/)")
+  .argument("<name>", 'project name; its folder under design/ is the name in kebab-case ("Q3 Report" → q3-report)')
   .option("-t, --title <title>", "display title")
   .addOption(new Option("--page <page>", "doc page size").choices(Object.keys(DOC_PAGES)))
   .addOption(new Option("--size <size>", "graphic size").choices(Object.keys(GRAPHIC_SIZES)))
@@ -129,20 +133,21 @@ program
       if (!kinds.includes(kind)) throw new Error(`Unknown kind "${kind}". Kinds: ${kinds.join(", ")}. (The brand project is created by \`ided init\`.)`);
       const root = requireWorkspaceRoot();
       const created = newProject(scanWorkspace(root), kind as FrameKind | "library", name, opts);
-      console.log(`${pc.green("✔")} Created ${kind} ${pc.bold(name)}`);
+      console.log(`${pc.green("✔")} Created ${kind} ${pc.bold(created[0]!.split("/")[1]!)}`);
       for (const f of created) console.log(pc.dim(`  + ${f}`));
     }),
   );
 
 program
   .command("add")
-  .description("Add the next numbered frame to a project, or a component to a library or the brand.")
+  .description("Add the next numbered frame to a project, or a component (to a library or the brand, or with --component to any project).")
   .argument("<project>")
   .argument("<name>", "frame or component name, e.g. agenda")
+  .option("-c, --component", "add a component to the project's components/ folder instead of a frame")
   .action(
-    action((project: string, name: string) => {
+    action((project: string, name: string, opts: { component?: boolean }) => {
       const root = requireWorkspaceRoot();
-      const { file } = addFrame(scanWorkspace(root), project, name);
+      const { file } = addFrame(scanWorkspace(root), project, name, { component: opts.component });
       console.log(`${pc.green("✔")} ${file}`);
     }),
   );

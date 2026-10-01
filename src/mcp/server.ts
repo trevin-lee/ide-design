@@ -137,7 +137,7 @@ export async function runMcpServer() {
       inputSchema: {
         ...rootArg,
         kind: z.enum(["library", ...FRAME_KINDS] as ["library", ...FrameKind[]]),
-        name: z.string().describe("kebab-case folder name"),
+        name: z.string().describe('project name; its folder is the name in kebab-case ("Q3 Report" → q3-report), and the name is the title unless one is given'),
         title: z.string().optional(),
         page: z.enum(Object.keys(DOC_PAGES) as ["letter", "a4"]).optional(),
         size: z.enum(Object.keys(GRAPHIC_SIZES) as [string, ...string[]]).optional(),
@@ -159,10 +159,15 @@ export async function runMcpServer() {
 
   server.registerTool(
     "ided_add_frame",
-    { title: "Add frame or component", description: "Add the next numbered slide/page/artboard/screen to a project, or a component to a library or the brand. Returns the new file path.", inputSchema: { ...rootArg, project: z.string(), name: z.string() } },
-    async ({ root, project, name }) => {
+    {
+      title: "Add frame or component",
+      description:
+        "Add the next numbered slide/page/artboard/screen to a project, or a component to a library or the brand (or, with component: true, to any project's components/ folder). Returns the new file path.",
+      inputSchema: { ...rootArg, project: z.string(), name: z.string(), component: z.boolean().optional().describe("add a component instead of a frame") },
+    },
+    async ({ root, project, name, component }) => {
       try {
-        return text(addFrame(scanWorkspace(rootFor(root)), project, name).file);
+        return text(addFrame(scanWorkspace(rootFor(root)), project, name, { component }).file);
       } catch (e) {
         return failure(e);
       }

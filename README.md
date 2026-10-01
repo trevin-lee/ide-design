@@ -215,9 +215,9 @@ Anything else in these folders is an error. Create things with the CLI so they s
 |---|---|
 | `ided init [--name X] [--bare]` | create a workspace at the repository root |
 | `ided run [--port] [--no-open]` | start the viewer |
-| `ided new <kind> <name> [--title] [--page\|--size\|--viewport]` | create a project |
+| `ided new <kind> <name> [--title] [--page\|--size\|--viewport]` | create a project (`"Q3 Report"` makes `design/q3-report/`, titled as typed) |
 | `ided new library <name>` | create a library of shared components and assets |
-| `ided add <project> <name>` | add the next numbered frame (or a component, in a library or the brand) |
+| `ided add <project> <name> [--component]` | add the next numbered frame, or a component (always, in a library or the brand) |
 | `ided use <project> <library> [--remove]` | declare (or drop) a dependency on a library |
 | `ided list [--json]` | projects and frames |
 | `ided check [project] [--json] [--no-layout] [--no-render]` | verify everything; exit 1 on errors |
