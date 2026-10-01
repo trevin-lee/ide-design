@@ -116,7 +116,8 @@ between styles, generous `gap` around the focal point. The axis is the root's `a
 which `surface` each root and `Box` uses. Chrome (mark, page number) goes through `Place` and
 brand components, and only where it helps. A repeated anatomy is a component in `components/`
 fed with data. When the brand lacks something the concept truly needs (a size, a color),
-propose a token in `brand.ts` and tell the user; brand values are the client's call.
+propose a token to the user and add it to `brand.ts` once they agree; brand values are the
+client's call.
 
 The scaffold `ided new` writes is a placeholder with a recognizable look. Replace it; do not
 decorate it.

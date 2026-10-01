@@ -45,5 +45,5 @@ retirement-community town hall and a festival poster should not share a strategy
 Sometimes the brand's accent is wrong for a piece (a signal orange on a condolence notice). Do
 not invent a color: a raw value will not compile anyway. Use the restrained strategy with the
 neutral surfaces, keep the accent out, and say so in DESIGN.md. If the brand genuinely lacks a
-color it needs, propose a new token in `brand.ts` and explain the addition to the user; brand
+color it needs, propose the new token to the user and add it to `brand.ts` once they agree; brand
 colors are the client's decision, not the piece's.

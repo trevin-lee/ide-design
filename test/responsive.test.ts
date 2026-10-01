@@ -59,3 +59,15 @@ test("values per viewport and Show belong to web screens", { timeout: 120_000 },
   assert.ok(messages.some((m) => /<Slide> `gap` has a value per viewport, but only web screens have viewports/.test(m)), messages.join("\n"));
   assert.ok(messages.some((m) => /<Show> only works in web screens/.test(m)), messages.join("\n"));
 });
+
+test("grow on a web screen keeps its content and takes the rest of the viewport", { skip, timeout: 180_000 }, () => {
+  const dir = workspace("--bare");
+  run(dir, "new", "web", "site", "--viewport", "mobile");
+  const para = "A screen grows with its content, so a growing block starts from its own height. ".repeat(6);
+  writeFileSync(
+    join(dir, "design/site/screens/01-home.tsx"),
+    `import { Screen, Stack, Text } from "ided";\n\nexport default function Home() {\n  return (\n    <Screen surface="paper" gap="l">\n      <Stack gap="m" grow>\n        <Text type="body">${para}</Text>\n        <Text type="body">${para}</Text>\n      </Stack>\n      <Text type="small">Footer</Text>\n    </Screen>\n  );\n}\n`,
+  );
+  const issues = (JSON.parse(run(dir, "check", "site", "--json").stdout) as { issues: { rule: string; severity: string; message: string }[] }).issues;
+  assert.deepEqual(issues.filter((i) => i.severity === "error").map((i) => `${i.rule}: ${i.message}`), []);
+});

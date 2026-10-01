@@ -6,7 +6,7 @@
 import katex from "katex";
 import { bodySize } from "./layout.ts";
 import { encodePoint, STORY_START } from "./story.ts";
-import { Children, cloneElement, Fragment, isValidElement, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
+import { Children, cloneElement, Fragment, isValidElement, use, useContext, type CSSProperties, type ReactElement, type ReactNode } from "react";
 import { colorValue, isSurface, typeMetrics } from "../shared/brand-schema.ts";
 import { FACT_FORMATS, factNames, formatFact, splitFact, type FactFormat } from "../shared/brand-facts.ts";
 import { contrast, requiredContrast } from "../shared/color.ts";
@@ -387,6 +387,17 @@ export const Artboard = makeRoot("Artboard", "graphic") as (props: RootProps) =>
 /** Root of every web screen (fixed width, grows vertically). */
 export const Screen = makeRoot("Screen", "web") as (props: RootProps) => ReactElement;
 
+/**
+ * `grow`: take the space left along the parent's axis. Where that axis has a fixed length, growing
+ * items share it from zero, so equal growers come out equal. A web screen's height follows its
+ * content, so down its columns a grower starts from its own content (it would collapse to nothing
+ * from zero) and takes whatever space the screen's minimum height leaves.
+ */
+function growCss(grow: boolean | undefined, frame: { fixedHeight: boolean } | null, layout: { axis: "row" | "column" }): CSSProperties {
+  if (!grow) return {};
+  return { flex: frame && !frame.fixedHeight && layout.axis !== "row" ? "1 1 auto" : "1 1 0" };
+}
+
 // ---------------------------------------------------------------------------
 // Layout
 // ---------------------------------------------------------------------------
@@ -430,7 +441,7 @@ function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
       justifyContent: JUSTIFY_CSS[justify],
       minWidth: 0,
       minHeight: 0,
-      ...(props.grow ? { flex: "1 1 0" } : {}),
+      ...growCss(props.grow, use(FrameContext), layout),
       ...extentCss(props.width, "width", layout, "width", report, token),
       ...extentCss(props.height, "height", layout, "height", report, token),
     };
@@ -545,7 +556,7 @@ export function Thread(raw: ThreadProps) {
     overflow: "hidden",
     minWidth: 0,
     minHeight: 0,
-    ...(props.grow ? { flex: "1 1 0" } : {}),
+    ...growCss(props.grow, use(FrameContext), layout),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
   };
@@ -585,7 +596,7 @@ export function Grid(raw: GridProps) {
     gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
     gap,
     minWidth: 0,
-    ...(props.grow ? { flex: "1 1 0" } : {}),
+    ...growCss(props.grow, use(FrameContext), layout),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
   };
@@ -782,7 +793,7 @@ export function Box(raw: BoxProps) {
     aspectRatio: ratio ? ratio.replace(":", " / ") : undefined,
     // A column must not squeeze a fixed shape below its ratio; if there is no room, it overflows visibly.
     flexShrink: ratio && layout.axis === "column" ? 0 : undefined,
-    ...(props.grow ? { flex: "1 1 0" } : {}),
+    ...growCss(props.grow, use(FrameContext), layout),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
   };
@@ -1275,7 +1286,7 @@ export function Image(raw: ImageProps) {
     aspectRatio: ratio ? ratio.replace(":", " / ") : undefined,
     // A column must not squeeze a fixed shape below its ratio; if there is no room, it overflows visibly.
     flexShrink: ratio && layout.axis === "column" ? 0 : undefined,
-    ...(props.grow ? { flex: "1 1 0" } : {}),
+    ...growCss(props.grow, use(FrameContext), layout),
     ...extentCss(props.width, "width", layout, "width", report, token),
     ...extentCss(props.height, "height", layout, "height", report, token),
   };

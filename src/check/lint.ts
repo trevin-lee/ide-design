@@ -207,7 +207,7 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
     if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && role !== "brand" && isPropValue(node)) {
       const v = node.text.trim();
       if (RAW_UNIT_RE.test(v) || RAW_COLOR_RE.test(v) || RAW_FN_RE.test(v)) {
-        report(node, "no-raw-values", `"${v}" is a raw CSS value.`, "Every length, color and font comes from brand tokens. Add a token to design/brand/brand.ts if one is missing.");
+        report(node, "no-raw-values", `"${v}" is a raw CSS value.`, "Every length, color and font comes from brand tokens; `ided brand` lists them. If none fits, propose a new token to the user and add it to design/brand/brand.ts once they agree.");
       }
     }
     // Contact details typed by hand. They come from the brand's facts through <Fact>, so they

@@ -7,7 +7,8 @@ exactly one way to express each design decision. `ided check` enforces all of it
 ## The laws
 
 1. **Every value is a token.** No px, rem, %, hex, rgb, font names or numbers in artifacts.
-   If a value is missing, add a token to `brand.ts`. Never approximate with a nearby one.
+   If no token fits, the brand lacks a value: propose one to the user and add it to `brand.ts`
+   once they agree (brand values are their call). Never approximate with a nearby one.
 2. **Only primitives.** No HTML (`<div>`), no `style`, no `className`, no CSS, no npm imports.
 3. **Text is a type style.** `<Text type="body">`. Size, weight, leading and tracking come as one unit.
 4. **Space is `gap`, padding is `Box pad`.** No margins, no spacers, no empty boxes for spacing.
@@ -170,6 +171,9 @@ Keeps a part on some viewports only: `on` a viewport or a list. Adds no box.
 Layout only: no background, no padding.
 - `gap?`, `align?`, `justify?`, `width?` Extent, `height?` Extent, `grow?` boolean (take remaining space)
 - `Row` also: `wrap?` boolean
+- `grow` (on any primitive that takes it): along a fixed length, growing siblings share the space
+  left equally. Down a web screen, whose height follows its content, a grower keeps its content's
+  height and takes whatever the viewport's height leaves, so a short page still fills the window.
 
 ### `Grid`
 Equal columns. For unequal columns use `Row` with fractional widths.
@@ -226,7 +230,9 @@ Decoration: surface, padding, corners, border, shadow. **At most one child**; pu
 ### `Place`
 Pins one child to an anchor of the enclosing `Box` or frame, outside the flow. Use it for chrome (logos, page marks), not for layout.
 - `anchor` **required** `"top-left" | "top" | "top-right" | "left" | "center" | "right" | "bottom-left" | "bottom" | "bottom-right"`
-- `inset` **required** space | `"margin"` (the frame's content edge) | `"none"`
+- `inset` **required** space | `"margin"` | `"none"`: the distance from the edge it is pinned to.
+  `"margin"` is the frame's margin, measured from that same edge: in the frame that is the content
+  edge; inside a Box it is the frame margin in from the Box's edge, not the frame's.
 
 ### `Text`
 All copy. Children: strings, numbers, `<Em>`, `<Fact>`, `<Equation>`, `<FrameNumber>`.
@@ -332,7 +338,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `ts2307` on an asset | the asset file does not exist | check the name (`ided list` shows every asset) |
 | `asset-name`, `asset-type` | asset file or folder breaks the naming/format rules | rename to kebab-case; images only (fonts only in the brand) |
 | `equation` | TeX that does not parse, or a command that sets size, spacing, boxes or links | fix the TeX; size comes from the Text's type style |
-| `svg-colors` | an SVG asset uses a color that is not in the brand (error) or one ided cannot read, like `hsl()` (warning) | recolor it with the brand hex values the message suggests; add a color to brand.ts only if the brand truly needs it |
+| `svg-colors` | an SVG asset uses a color that is not in the brand (error) or one ided cannot read, like `hsl()` (warning) | recolor it with the brand hex values the message suggests; a color the brand lacks is the user's call, so propose it before adding it to brand.ts |
 | `dependencies` | unknown, non-library, self or cyclic dependency | depend only on libraries; move shared pieces down into a library |
 | `no-raw-facts` | a URL, email, phone number or domain typed into an artifact | `<Fact name="…" />`; if the brand lacks it, add it to `facts` in brand.ts or ask, never invent one |
 | `comments` | an open review comment points at a file or frame that no longer exists (warning) | address it and `ided comments resolve <id> -m …`, or have the reviewer leave it again |

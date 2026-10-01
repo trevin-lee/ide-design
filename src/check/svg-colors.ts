@@ -51,7 +51,7 @@ export function svgColorIssues(root: string, projects: Project[], brand: BrandIn
           rule: "svg-colors",
           severity: "error",
           message: `uses ${off.size} color${off.size === 1 ? "" : "s"} that ${off.size === 1 ? "is" : "are"} not in the brand: ${detail}.`,
-          hint: "Drawings use the brand's colors like everything else. Recolor the SVG with brand values, or add the color to brand.ts if the brand truly needs it.",
+          hint: "Drawings use the brand's colors like everything else. Recolor the SVG with brand values; a color the brand lacks is the user's call, so propose it before adding it to brand.ts.",
         });
       }
       if (unknown.size) {
