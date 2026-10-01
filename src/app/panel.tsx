@@ -5,6 +5,7 @@ import { isFrameKind } from "../shared/formats.ts";
 import { DesignDocView } from "./design-doc.tsx";
 import { openSource } from "./editor.ts";
 import { commentPlace } from "../shared/comment-place.ts";
+import { ruleHint } from "../shared/rule-hints.ts";
 import { violationKey } from "./frame.tsx";
 import { LAYOUT_RULES } from "../runtime/layout.ts";
 import {
@@ -38,13 +39,13 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
     const out: PanelIssue[] = [];
     // Design-doc and comment issues change as those files are edited, so they come from the live check below instead.
     for (const i of [...workspace.issues, ...project.issues].filter((x) => x.rule !== "design-doc" && x.rule !== "comments")) {
-      out.push({ severity: i.severity, message: i.message, where: i.file, hint: i.hint, source: "structure" });
+      out.push({ severity: i.severity, message: i.message, where: i.file, hint: ruleHint(i.rule, i.hint), source: "structure" });
     }
     for (const i of checked.filter((c) => c.project === project.id)) {
       out.push({ severity: i.severity, message: i.message, where: i.where, hint: i.hint, source: i.source, frame: project.frames.find((f) => i.where?.startsWith(f.src))?.id });
     }
     if (project.kind === "brand" && brand) {
-      for (const i of validateBrand(brand, svgs)) out.push({ severity: i.severity, message: i.message, where: `brand.ts › ${i.path}`, source: "brand" });
+      for (const i of validateBrand(brand, svgs)) out.push({ severity: i.severity, message: i.message, where: `brand.ts › ${i.path}`, hint: ruleHint("brand"), source: "brand" });
     }
     // A responsive screen's narrower viewports keep their own findings; a finding they share with
     // the widest viewport is listed once, and the rest say which viewport they are on.
@@ -57,7 +58,7 @@ export function useProjectIssues(project: WsProject): PanelIssue[] {
           if (seen.has(id)) continue;
           seen.add(id);
           const message = viewport ? `${v.message} (${viewport})` : v.message;
-          out.push({ severity: v.severity, message, where: v.src ?? f.src, hint: v.hint, frame: f.id, source: (LAYOUT_RULES as readonly string[]).includes(v.rule) ? "layout" : "runtime" });
+          out.push({ severity: v.severity, message, where: v.src ?? f.src, hint: ruleHint(v.rule, v.hint), frame: f.id, source: (LAYOUT_RULES as readonly string[]).includes(v.rule) ? "layout" : "runtime" });
         }
       }
     }

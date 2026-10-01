@@ -1,4 +1,4 @@
-# Marketing Kit
+# Shared
 
 Shared pieces for Acme's campaign work: components and images that more than one project uses,
 kept out of the brand because they belong to campaigns, not to the identity.

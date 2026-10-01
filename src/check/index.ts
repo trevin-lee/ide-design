@@ -1,4 +1,5 @@
 import { workflowIssues } from "../core/ci.ts";
+import { ruleHint } from "../shared/rule-hints.ts";
 import { readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import pc from "picocolors";
@@ -198,7 +199,9 @@ export async function runCheck(rootPath: string, opts: CheckOptions = {}): Promi
   } finally {
     if (!opts.vite) await vite.close();
   }
-  return { issues: dedupe(issues), projects: projects.map((p) => ({ id: p.id, kind: p.kind, frames: p.frames.length })), skipped };
+  // Every finding says how to fix it: rules whose findings carry no hint get their rule's.
+  const hinted = dedupe(issues).map((i) => ({ ...i, hint: ruleHint(i.rule, i.hint) }));
+  return { issues: hinted, projects: projects.map((p) => ({ id: p.id, kind: p.kind, frames: p.frames.length })), skipped };
 }
 
 export function formatIssues(result: CheckResult): string {

@@ -46,8 +46,10 @@ the user wants these skills available to every agent and teammate who opens the 
    project's `components/` (`ided add <project> <name> --component`); if another project needs it
    too, move it to a library (or to `design/brand/components/` if it belongs to every medium). Images go in `assets/` and are
    imported: `import hero from "@shared/assets/hero.jpg"`.
-3. **`ided check <project>`**, and fix every error. Treat warnings as errors unless there is a
-   stated reason. The work is not done until the check is clean.
+3. **`ided check <project>`**, and fix every error. It also re-checks what depends on that
+   project (a library's users; for the brand, everything), and says which layers it skipped.
+   Treat warnings as errors unless there is a stated reason. The work is not done until the
+   check is clean.
 4. **Look at it.** `ided screenshot <project> <frame>` writes a PNG; `ided screenshot <project> --sheet`
    puts every frame on one contact sheet (the `ided_screenshot` MCP tool returns the images).
    Critique against the brief (ided-design's `references/critique.md`), revise, and update
@@ -84,9 +86,9 @@ address and resolve them rather than letting them go stale.
 - Frame files: `export default function Name()` with no props. Component files: named PascalCase function exports.
 
 When a rule blocks what you are trying to express, the fix is almost always a missing brand
-token. Add it to `brand.ts` (it must sit on the unit grid), explain the addition to the user,
-and use it. Never approximate with the nearest existing token silently: a new token is a
-design decision the user should see.
+token. A new token is a design decision that belongs to the user: propose it (on the unit grid),
+and add it to `brand.ts` once they agree. Never approximate with the nearest existing token
+silently.
 
 ## Exports
 
@@ -97,7 +99,9 @@ design decision the user should see.
   (`--frames 01-title,03-x` to limit).
 - `ided screenshot <project> <frame> --zoom 2x2` cuts a frame into full-resolution tiles for
   inspecting detail; `--sheet` puts every frame on one image; `--page <n>` picks a page of a
-  flowing doc page.
+  flowing doc page, and `--viewport mobile` one viewport of a responsive screen.
+- `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG
+  and PNG, plus tokens as CSS, Tailwind v4, DTCG JSON and TypeScript.
 - A doc page with `flow` runs onto as many pages as it needs (see the primitive reference):
   export and screenshots produce every page, and `FrameNumber` counts them. For text that runs
   through boxes on designed pages, use `<Thread story={…}>`.
@@ -110,7 +114,5 @@ overflows; fix it by cutting copy, a smaller type style, or more room. A shape l
 `ratio` is a warning. The one sanctioned overflow is `<Box crop>`: content may run past a crop
 Box's edge and is cut there (with `bleed`, at the frame's edge). A crop that cuts nothing, or
 that cuts reading-size text, is a warning. `--no-layout` skips the measurement.
-- `ided export brand --zip` produces the brand kit: every logo variant in every colorway as SVG
-  and PNG, plus tokens as CSS, Tailwind v4, DTCG JSON and TypeScript.
 
 See **ided-design** for the design process and craft, and **ided-brand** for the identity and design system.

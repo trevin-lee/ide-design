@@ -50,8 +50,8 @@ ided makes those mistakes unrepresentable:
   correct wherever a component lands.
 - **Same values in every medium.** A logo placed by `<CornerMark />` sits the same distance from the
   corner on a slide, a Letter page and an Instagram post, because it is the same component and token.
-- **A compiler, not a style guide.** `ided check` runs five layers, all of which report
-  `file:line:col` and a fix:
+- **A compiler, not a style guide.** `ided check` runs five layers. Every finding names its file
+  (with `line:col` where it comes from a line of code) and says how to fix it:
   1. **Structure**: the workspace and every project have a fixed shape.
   2. **Lint**: no HTML, `style`, raw CSS values, hooks, randomness, dates, browser globals, `any`,
      `@ts-ignore`, relative imports, or imports from packages you have not declared.
@@ -157,11 +157,13 @@ your-repo/
     tsconfig.json            # editor support; extends .ided/ (generated, gitignored)
     brand/                   # the design system: exactly one, always this name
       project.json           # { "kind": "brand", "title": "Acme Brand" }
+      DESIGN.md              # what the identity means and why it looks the way it does
       brand.ts               # export default defineBrand({ … })
       assets/                # mark.svg, wordmark.svg, fonts/, shared images
       components/            # chrome shared by every medium
     shared/                  # a library: shared components and assets
-      project.json           # { "kind": "library", "title": "Marketing Kit" }
+      project.json           # { "kind": "library", "title": "Shared" }
+      DESIGN.md              # purpose, contents, rules
     q3-review/
       project.json           # { "kind": "deck", "title": "Q3 Review", "dependencies": ["shared"] }
       slides/01-title.tsx    # NN-name.tsx, ordered by number

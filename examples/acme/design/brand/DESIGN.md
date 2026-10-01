@@ -1,8 +1,9 @@
 # Acme identity
 
 This is ided's starter identity, written for Acme by `ided init`. It is a working placeholder: a
-coherent system you can design with today, and the first thing to replace. The ided-brand skill
-walks through making it yours; rewrite each section below as you do.
+coherent system to design with until Acme decides to make the identity its own, at which point
+the ided-brand skill walks through replacing it and rewriting each section below. Until then,
+design within it, and note that the logo and palette are placeholders on anything published.
 
 ## Positioning
 

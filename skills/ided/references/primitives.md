@@ -220,9 +220,10 @@ Decoration: surface, padding, corners, border, shadow. **At most one child**; pu
 - `width?`, `height?`, `grow?`
 - `bleed?` `"top" | "bottom" | "left" | "right" | "x" | "y" | "all"` or a list of them: the Box runs
   past the frame margin to that edge, while its content stays aligned to the margin. Only on a
-  direct child of the root; `"top"` only on the first child and `"bottom"` only on the last; a
-  narrower Box bleeds only toward the side the root aligns it to. Bled corners are square (no
-  `radius`). Use it for color bands, split frames and full-bleed images.
+  direct child of the root; `"top"` only on the first child and `"bottom"` only on the last, and
+  not when the root's `justify` moves its content away from that edge; a narrower Box bleeds
+  only toward the side the root aligns it to. Bled corners are square (no `radius`). Use it for
+  color bands, split frames and full-bleed images.
 - `crop?` boolean: content may overflow this Box and is cut at its edge, the one sanctioned
   overflow (type bigger than its frame, a crop window). With `bleed`, the cut is at the frame's
   edge. A crop Box never shrinks in a column, so its edge is always the one you set.
@@ -263,8 +264,11 @@ full-size fractions and limits above and below (make it the Text's only child).
 - `tex` **required** TeX math. In a JSX string attribute a backslash is written once:
   `tex="\frac{a}{b}"`
 - `display?` boolean
-- Color parts with brand tokens: `\textcolor{accent}{x}` or `\color{accent}`. Size, spacing,
-  boxes and links (`\Huge`, `\hspace`, `\kern`, `\rule`, `\colorbox`, `\href`…) are rejected.
+- Color parts with brand tokens: `\textcolor{accent}{x}` or `\color{accent}`. Rejected: macro
+  definitions (`\def`, `\newcommand`, `\let`…), sizes and styles (`\Huge`, `\displaystyle`),
+  spacing set by hand (`\quad`, `\qquad`, `\hspace`, `\kern`; the thin spaces `\,` `\:` `\;`
+  are fine), moving and boxing (`\raisebox`, `\phantom`, `\rule`, `\boxed`, `\colorbox`), and
+  links and images (`\href`, `\includegraphics`).
 
 ```tsx
 <Text type="body">The area is <Equation tex="\pi r^2" />.</Text>
@@ -320,7 +324,8 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 
 | rule | meaning | fix |
 |---|---|---|
-| `ts2322`, `invalid-token` | value is not a token of that kind | pick from the listed tokens (`ided brand`), or add one to `brand.ts` |
+| `ts2322`, `invalid-token` | value is not a token of that kind | pick from the listed tokens (`ided brand`); if none fits, propose one to the user before adding it to `brand.ts` |
+| `invalid-value`, `missing-prop`, `unknown-prop` | a prop that is not one of its listed values, a required prop left out, or a prop the primitive does not take | use what the message lists; each primitive's props are below |
 | `no-raw-values` | a CSS-looking literal (`16px`, `#fff`, `calc(`) | use a token |
 | `no-html`, `ts2339` | an HTML element | use a primitive |
 | `no-escape-hatch` | `style`, `className`, `any`, `@ts-ignore`, … | remove it; express the intent with primitives and tokens |
@@ -347,6 +352,18 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `frame-export`, `component-export` | wrong file shape | see "File shapes" |
 | `structure`, `frame-name`, `manifest` | workspace shape is off | use `ided new` / `ided add`; frames are `NN-name.tsx` |
 | `missing-root`, `wrong-root` | frame does not return its kind's root | return `<Slide>` / `<Page>` / `<Artboard>` / `<Screen>` |
+| `nested-root` | a root primitive inside another element | use the root once, as the frame's outermost element |
+| `misplaced` | a layout primitive inside `Text`, or a `Thread` inside flowing content | move it out; flowing content runs across pages by itself |
+| `text-children` | `Text` holding something other than text, `Em`, `Fact`, `Equation` or `FrameNumber` | put layout outside the Text |
+| `place-children` | a `Place` with more than one child | put them in one `Stack` or `Row` |
+| `image-src` | an `Image` whose `src` is a string, not an imported asset | import the file and pass it |
+| `logo` | a `Logo` that cannot be composed from the brand's files | fix the logo in `design/brand/` (`ided check brand`) |
+| `brand`, `brand-load`, `brand-export` | `brand.ts` does not load, is not declarative, or breaks a brand rule (contrast, grid, logo files) | fix `brand.ts` at the path given; everything depends on it |
+| `load-error`, `render-error` | a file that does not compile or import, or a component that throws while rendering | fix the error shown |
+| `empty` | a project with no frames, or a library with nothing in it (warning) | `ided add` |
+| `ci` | the brand-kit workflow runs an older ided than yours (warning) | set its `IDED_VERSION`, or `ided ci --force` |
+| `layout` | the layout check could not run, usually because the browser could not be downloaded (warning) | `ided browser install`, or `--no-layout` on purpose |
+| `ts…` (any other) | a TypeScript error, as your editor shows it | fix it as in any TypeScript file |
 
 Suppressing a rule is not possible and not wanted. If a rule blocks a legitimate design, the
 brand is missing a token: add it to `brand.ts`, where it becomes available everywhere at once.
