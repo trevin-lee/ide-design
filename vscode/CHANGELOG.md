@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.0
+
+- The viewer fits a half-width editor column: the toolbar adapts, **[** hides the sidebar, and
+  the first project opens on first load.
+- Zoom and pan a frame, and open logos, icons and assets large.
+
 ## 0.9.0
 
 - A reply that starts with "-" is sent as text, not read as an option.

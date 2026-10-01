@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.10.0 (2026-10-01)
+
+From the first real project built with ided: icons that can't drift from the logo, a viewer that
+works in a narrow editor column, and a way to look closely.
+
+Brand kit
+- **Icons drawn from the mark.** `ided export brand` adds `icons/`: favicons (16, 32, 48 and
+  SVG), the Apple touch icon (180), web app icons (192, 512 and a maskable 512 that keeps the
+  mark inside Android's safe circle), a 1024 App Store icon, and a manifest fragment. They are
+  composed from `mark.svg` like every lockup, so they change when the mark does. Optional
+  `logo.icon: { ground, colorway, scale, faviconScale }` in brand.ts sets the surface and the
+  mark's size; every mark color must reach 3:1 on the ground. The Brand page shows them at
+  their real pixel sizes.
+- `ided check` warns (`logo-copy`) about an asset named or drawn like the logo, such as a favicon
+  copied from an old kit: a second drawing that nothing keeps in step with the mark. The
+  ided-brand skill now says to port an identity's sources, never its old exports, and to verify
+  against the original design.
+- A square-cornered brand can declare `radius: {}`.
+
+Viewer
+- The first project opens on first load (it showed "Pick a project" and ignored the click).
+- In a narrow viewer (a VS Code column) the toolbar no longer overlaps itself: titles shrink,
+  key hints and details hide, then buttons become icons. **[** hides the sidebar, remembered per
+  browser. Kind badges show only in the Projects group.
+- Click a frame to look closely: ⌘-scroll or pinch zooms around the cursor up to 800%, drag or
+  scroll pans, **+ − 0 1** zoom in, out, to fit and to 1:1. Logos, icons and assets on the
+  Brand and library pages open in a lightbox with the same controls (← → step, Esc closes),
+  and rasters show square pixels when zoomed in.
+- Brand page: long facts (URLs, email addresses) wrap inside their card, wordmark tiles scale
+  to fit, and two-up sections stack when narrow.
+
+CLI
+- `ided init` over an existing `design/` folder lists the starter files it left as they were and
+  what does not fit the workspace shape, instead of leaving that to the first `ided check`.
+- `--scale` takes fractions (`--scale 0.25`), now documented.
+
 ## 0.9.0 (2026-10-01)
 
 Everything that was already there now works end to end, says what it does, and does what it
