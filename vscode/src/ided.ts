@@ -108,11 +108,16 @@ export function olderThan(version: string, min: string): boolean {
   return false;
 }
 
-let warned = false;
-/** Tell the user once how to get ided, or that theirs is too old. Never waits for the answer. */
+const shown = new Set<string>();
+/** Messages may be shown again, e.g. after the ided path setting changed. */
+export function forgetExplained(): void {
+  shown.clear();
+}
+/** Tell the user how to get ided, or what went wrong; each distinct problem once. Never waits for the answer. */
 export function explain(error: unknown): void {
-  if (warned) return;
-  warned = true;
+  const key = error instanceof MissingCli ? "missing" : String((error as Error)?.message);
+  if (shown.has(key)) return;
+  shown.add(key);
   const missing = error instanceof MissingCli;
   const message = missing
     ? "ide-design: the ided command was not found. Install it with `brew install trevin-lee/tap/ide-design` (or npm), or set ideDesign.path."

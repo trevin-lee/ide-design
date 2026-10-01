@@ -4,7 +4,7 @@
 import * as vscode from "vscode";
 import { Comments } from "./comments.ts";
 import { Checker } from "./diagnostics.ts";
-import { allRoots, checkVersion, explain, frameOf, relPath, rootOf } from "./ided.ts";
+import { allRoots, checkVersion, explain, forgetExplained, frameOf, relPath, rootOf } from "./ided.ts";
 import { Viewer } from "./viewer.ts";
 
 /** Returned from activate for the integration tests; not a public API. */
@@ -101,12 +101,45 @@ export async function activate(context: vscode.ExtensionContext): Promise<Intern
   );
   setContext(vscode.window.activeTextEditor);
 
-  const roots = await allRoots();
-  if (roots[0]) await checkVersion(roots[0]).catch(explain);
-  for (const root of roots) {
-    void comments.refresh(root);
-    if (config().get<boolean>("checkOnSave", true)) checker.schedule(root, 0);
-  }
+  // Edits from outside VS Code (an agent in a terminal, git) refresh Problems too. ided's own
+  // generated files, exports and comments are not edits.
+  const designWatcher = vscode.workspace.createFileSystemWatcher("**/design/**");
+  const onDesignChange = (uri: vscode.Uri) => {
+    if (/[\\/]design[\\/]\.ided[\\/]|comments\.json$/.test(uri.fsPath)) return;
+    const root = rootOf(uri.fsPath);
+    if (root && config().get<boolean>("checkOnSave", true)) checker.schedule(root, 1500);
+  };
+  designWatcher.onDidChange(onDesignChange);
+  designWatcher.onDidCreate(onDesignChange);
+  designWatcher.onDidDelete(onDesignChange);
+  context.subscriptions.push(designWatcher);
+
+  // Start (or restart) on every workspace: at activation, when `ided init` creates one in an
+  // open folder, and when the ided path setting changes.
+  const started = new Set<string>();
+  const start = async () => {
+    const roots = await allRoots();
+    if (roots[0]) await checkVersion(roots[0]).catch(explain);
+    for (const root of roots) {
+      started.add(root);
+      void comments.refresh(root);
+      if (config().get<boolean>("checkOnSave", true)) checker.schedule(root, 0);
+    }
+  };
+  const markers = vscode.workspace.createFileSystemWatcher("**/ided.json", false, true, true);
+  markers.onDidCreate((uri) => {
+    const root = rootOf(uri.fsPath);
+    if (root && !started.has(root)) void start();
+  });
+  context.subscriptions.push(
+    markers,
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (!e.affectsConfiguration("ideDesign.path")) return;
+      forgetExplained();
+      void start();
+    }),
+  );
+  await start();
   return { checker, comments, viewer };
 }
 

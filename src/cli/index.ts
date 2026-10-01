@@ -19,7 +19,7 @@ import { formatComment, listComments, updateComment } from "../core/comments.ts"
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
 import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
-import { findWorkspaceRoot, getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
+import { defaultScreenshotScale, findWorkspaceRoot, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
 import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 
@@ -252,22 +252,24 @@ const exportCmd = program
   .description('Export a project to PDF/PNG/JPEG, or "brand" to a brand kit.')
   .argument("<project>", 'project id, or "brand" for the brand kit')
   .addOption(new Option("-f, --format <format>", "artifact format (default: pdf; png for web projects)").choices(["pdf", "png", "jpeg"]))
-  .option("--frames <ids>", "comma-separated frame ids (e.g. 01-title,03-numbers)")
-  .option("-o, --out <dir>", "output directory", "out")
+  .option("--frames <frames>", "comma-separated frames by id, number or name (e.g. 01-title,3)")
+  .option("-o, --out <dir>", "output directory (default: out/ in the workspace)")
   .option("--scale <n>", "pixel density for raster output", "2")
   .option("--zip", "brand kit: also write a .zip");
 exportCmd.action(
-  action(async (project: string, opts: { format?: "pdf" | "png" | "jpeg"; frames?: string; out: string; scale: string; zip?: boolean }) => {
+  action(async (project: string, opts: { format?: "pdf" | "png" | "jpeg"; frames?: string; out?: string; scale: string; zip?: boolean }) => {
     const root = requireWorkspaceRoot();
     const { exportArtifacts, exportBrandKit } = await import("../export/operations.ts");
-    const out = resolve(opts.out);
+    // Default: <workspace>/out wherever you run it from; an explicit path is relative to here.
+    const out = opts.out ? resolve(opts.out) : join(root, "out");
     if (project === "brand") {
       const kit = await exportBrandKit(root, { out, zip: opts.zip, version: process.env.GITHUB_SHA?.slice(0, 7) });
       console.log(`${pc.green("✔")} ${kit.count} files → ${relative(process.cwd(), kit.dir)}`);
       if (kit.zip) console.log(`${pc.green("✔")} ${relative(process.cwd(), kit.zip)}`);
       return;
     }
-    const paths = await exportArtifacts(root, project, { out, format: opts.format, frames: opts.frames?.split(","), scale: Number(opts.scale) });
+    const frames = opts.frames ? resolveFrames(getProject(scanWorkspace(root), project), opts.frames.split(",")) : undefined;
+    const paths = await exportArtifacts(root, project, { out, format: opts.format, frames, scale: Number(opts.scale) });
     for (const f of paths) console.log(`${pc.green("✔")} ${relative(process.cwd(), f)}`);
   }),
 );
@@ -323,9 +325,9 @@ program
   .option("--page <n>", "which page of a flowing doc page (default 1)")
   .option("--viewport <name>", "which viewport of a responsive web screen (default: the widest)")
   .option("-o, --out <path>", "output file (a folder with --zoom)")
-  .option("--scale <n>", "pixel density", "1")
+  .option("--scale <n>", "pixel density (default 1, or 0.5 for frames wider than 1600)")
   .action(
-    action(async (project: string, frame: string | undefined, opts: { out?: string; scale: string; sheet?: boolean; zoom?: string; page?: string; viewport?: string }) => {
+    action(async (project: string, frame: string | undefined, opts: { out?: string; scale?: string; sheet?: boolean; zoom?: string; page?: string; viewport?: string }) => {
       const pageNo = opts.page === undefined ? 1 : Number(opts.page);
       if (!Number.isInteger(pageNo) || pageNo < 1) throw new Error("--page is a page number, 1 or more.");
       const root = requireWorkspaceRoot();
@@ -338,15 +340,15 @@ program
         throw new Error(viewports.length > 1 ? `${p.id} renders at ${viewports.join(", ")}.` : `--viewport is for responsive web screens; ${p.id} has ${viewports.length ? "one viewport" : "no viewports"}.`);
       }
       const viewport = viewports.length > 1 ? (opts.viewport ?? viewports[0]) : undefined;
-      const f = frame ? p.frames.find((x) => x.id === frame || String(x.number) === frame.replace(/^0+/, "") || x.id.endsWith(`-${frame}`)) : undefined;
-      if (frame && !f) throw new Error(`No frame "${frame}" in ${project}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
+      const shotScale = opts.scale ? Number(opts.scale) : defaultScreenshotScale(p.geometry?.width ?? 0);
+      const f = frame ? p.frames.find((x) => x.id === resolveFrames(p, [frame])[0]) : undefined;
       const { startServer } = await import("../server/index.ts");
       const { exportProject, exportSheet, exportTiles, parseZoom } = await import("../export/artifacts.ts");
       const grid = opts.zoom ? parseZoom(opts.zoom) : null;
       const server = await startServer({ root, port: 0 });
       try {
         if (grid) {
-          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, page: pageNo, viewport, ...grid, scale: Number(opts.scale) });
+          const tiles = await exportTiles({ baseUrl: server.url, project: p, frame: f!.id, page: pageNo, viewport, ...grid, scale: shotScale });
           const dir = resolve(opts.out ?? join(root, "design", ".ided", "screenshots"));
           mkdirSync(dir, { recursive: true });
           for (const t of tiles) {
@@ -357,9 +359,9 @@ program
           return;
         }
         let file;
-        if (opts.sheet) file = await exportSheet({ baseUrl: server.url, project: p, scale: Number(opts.scale) });
+        if (opts.sheet) file = await exportSheet({ baseUrl: server.url, project: p, scale: shotScale });
         else {
-          const all = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: Number(opts.scale) });
+          const all = await exportProject({ baseUrl: server.url, project: p, format: "png", frames: [f!.id], scale: shotScale });
           const pages = viewport ? all.filter((x) => x.name === `${f!.id}-${viewport}.png`) : all;
           if (pageNo > pages.length) throw new Error(`${f!.id} has ${pages.length} page${pages.length === 1 ? "" : "s"}.`);
           file = pages[pageNo - 1]!;

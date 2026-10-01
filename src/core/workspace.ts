@@ -431,6 +431,26 @@ export function allIssues(ws: Workspace): Issue[] {
   return [...ws.issues, ...ws.projects.flatMap((p) => p.issues)];
 }
 
+/** A frame by id ("03-numbers"), number ("3", "03") or name ("numbers"): the same everywhere a frame is named. */
+export function resolveFrame(p: Project, ref: string): FrameFile | undefined {
+  const r = String(ref).trim();
+  return p.frames.find((x) => x.id === r || String(x.number) === r.replace(/^0+/, "") || x.id.endsWith(`-${r}`));
+}
+
+/** Frame ids for a list of references, failing with the project's frames when one is unknown. */
+export function resolveFrames(p: Project, refs: readonly string[]): string[] {
+  return refs.map((ref) => {
+    const f = resolveFrame(p, ref);
+    if (!f) throw new Error(`No frame "${ref}" in ${p.id}. Frames: ${p.frames.map((x) => x.id).join(", ")}`);
+    return f.id;
+  });
+}
+
+/** Screenshots are full size, except very wide frames, which come at half size. */
+export function defaultScreenshotScale(width: number): number {
+  return width > 1600 ? 0.5 : 1;
+}
+
 export function getProject(ws: Workspace, id: string): Project {
   const p = ws.projects.find((x) => x.id === id);
   if (!p) {

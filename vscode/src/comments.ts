@@ -16,7 +16,7 @@ interface ReviewComment {
   id: string;
   project: string;
   frame: string | null;
-  target: { src: string | null; primitive: string | null; text: string } | null;
+  target: { src: string | null; primitive: string | null; text: string; page?: number; viewport?: string } | null;
   body: string;
   author: string;
   createdAt: string;
@@ -54,7 +54,9 @@ export class Comments implements vscode.Disposable {
     for (const c of list) {
       const at = await this.locate(root, c);
       const thread = this.controller.createCommentThread(at.uri, new vscode.Range(at.position, at.position), this.render(c));
-      thread.label = [c.frame ?? c.project, c.target?.primitive].filter(Boolean).join(" · ");
+      // Where in the design: the frame, and a later page of a flowing page or a narrower viewport.
+      const place = [c.target?.page ? `page ${c.target.page + 1}` : "", c.target?.viewport ? `on ${c.target.viewport}` : ""].filter(Boolean).join(", ");
+      thread.label = [c.frame ?? c.project, place, c.target?.primitive].filter(Boolean).join(" · ");
       thread.canReply = true;
       thread.state = vscode.CommentThreadState.Unresolved;
       thread.collapsibleState = vscode.CommentThreadCollapsibleState.Collapsed;
@@ -91,7 +93,8 @@ export class Comments implements vscode.Disposable {
   async reply(input: vscode.CommentReply): Promise<void> {
     const owner = this.owners.get(input.thread);
     if (!owner || !input.text.trim()) return;
-    await this.act(owner.root, ["comments", "reply", owner.id, "--author", AUTHOR, input.text]);
+    // "--" ends the options, so a reply that starts with "-" is text, not a flag.
+    await this.act(owner.root, ["comments", "reply", owner.id, "--author", AUTHOR, "--", input.text]);
   }
 
   async resolve(input: vscode.CommentReply | vscode.CommentThread): Promise<void> {
@@ -99,7 +102,7 @@ export class Comments implements vscode.Disposable {
     const owner = this.owners.get(thread);
     if (!owner) return;
     const note = "text" in input ? input.text.trim() : "";
-    await this.act(owner.root, ["comments", "resolve", owner.id, "--author", AUTHOR, ...(note ? ["-m", note] : [])]);
+    await this.act(owner.root, ["comments", "resolve", owner.id, "--author", AUTHOR, ...(note ? [`--message=${note}`] : [])]);
   }
 
   private async act(root: string, args: string[]): Promise<void> {

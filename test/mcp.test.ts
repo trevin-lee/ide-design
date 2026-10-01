@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { CLI, findBrowser, testEnv, workspace } from "./helpers.ts";
+import { CLI, findBrowser, run, testEnv, workspace } from "./helpers.ts";
 
 test("MCP server exposes the workflow over stdio", { timeout: 90_000 }, async () => {
   const dir = workspace("--name", "Mcp");
@@ -57,6 +57,36 @@ test("MCP and the CLI export through the same code: same folder, same zip, same 
     const removed = await call("ided_use_library", { project: "d", library: "kit", remove: true });
     assert.match(removed.content[0]!.text!, /d no longer uses kit/);
     assert.equal(JSON.parse(readFileSync(join(dir, "design/d/project.json"), "utf8")).dependencies, undefined);
+  } finally {
+    await client.close();
+  }
+});
+
+test("MCP reports what the CLI reports: import paths, errors as errors, frames by number, reply authors", { timeout: 120_000 }, async () => {
+  const dir = workspace("--bare");
+  run(dir, "new", "deck", "d");
+  const client = new Client({ name: "test", version: "1" });
+  await client.connect(new StdioClientTransport({ command: process.execPath, args: [CLI, "mcp"], cwd: "/", stderr: "ignore", env: testEnv }));
+  try {
+    const call = async (name: string, args: Record<string, unknown> = {}) =>
+      (await client.callTool({ name, arguments: args })) as { content: { text?: string }[]; isError?: boolean };
+    const lost = await call("ided_list_projects");
+    assert.ok(lost.isError && /Pass `root`/.test(lost.content[0]!.text!), "started outside a workspace, it says to pass root");
+    const listed = (await call("ided_list_projects", { root: dir })).content[0]!.text!;
+    assert.match(listed, /@brand\/components\/corner-mark/);
+
+    writeFileSync(join(dir, "design/d/slides/01-title.tsx"), readFileSync(join(dir, "design/d/slides/01-title.tsx"), "utf8").replace('type="title"', 'type="nope"'));
+    assert.equal((await call("ided_check", { root: dir, project: "d", layout: false })).isError, true);
+
+    const { addComment } = await import("../src/core/comments.ts");
+    const { scanWorkspace } = await import("../src/core/workspace.ts");
+    const c = addComment(scanWorkspace(dir), { project: "d", frame: "01-title", target: null, body: "x" });
+    await call("ided_reply_comment", { root: dir, id: c.id, message: "ok", author: "trevin" });
+    assert.match((await call("ided_list_comments", { root: dir })).content[0]!.text!, /trevin: ok/);
+    if (await findBrowser()) {
+      const shot = await call("ided_screenshot", { root: dir, project: "d", frames: ["1"], scale: 0.25 });
+      assert.equal(shot.content[0]!.text, "01-title.png", "frames by number, as in the CLI");
+    }
   } finally {
     await client.close();
   }

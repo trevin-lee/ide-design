@@ -12,7 +12,7 @@ import { formatComment, listComments, updateComment } from "../core/comments.ts"
 import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR } from "../core/paths.ts";
 import { addFrame, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
-import { getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
+import { defaultScreenshotScale, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
 import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 import type { RunningServer } from "../server/index.ts";
@@ -24,21 +24,33 @@ const failure = (e: unknown) => ({ content: [{ type: "text" as const, text: `Err
 export async function runMcpServer() {
   process.env.NO_COLOR = "1";
   const server = new McpServer({ name: "ided", version: PKG_VERSION });
-  const rootFor = (root?: string) => requireWorkspaceRoot(root ? resolve(root) : process.cwd());
-  const rootArg = { root: z.string().optional().describe("Workspace path. Defaults to the MCP server's working directory.") };
-
-  // Long-lived render server + browser, started on first use.
-  let render: { root: string; server: RunningServer; browser: Browser } | null = null;
-  const renderer = async (root: string) => {
-    if (render && render.root === root) return render;
-    if (render) {
-      await render.browser.close();
-      await render.server.close();
+  // A user-wide registration starts the server wherever the agent starts, so every tool takes `root`.
+  const rootFor = (root?: string) => {
+    if (root) return requireWorkspaceRoot(resolve(root));
+    try {
+      return requireWorkspaceRoot(process.cwd());
+    } catch {
+      throw new Error(`No ided workspace at or above ${process.cwd()}, where the MCP server started. Pass \`root\`: the path of the folder that holds ided.json.`);
     }
-    const { startServer } = await import("../server/index.ts");
-    const { launchBrowser } = await import("../export/browser.ts");
-    render = { root, server: await startServer({ root, port: 0 }), browser: await launchBrowser() };
-    return render;
+  };
+  const rootArg = {
+    root: z.string().optional().describe("Path of the ided workspace (the folder with ided.json, or any folder inside it). Defaults to where the MCP server started; pass it when the agent runs elsewhere."),
+  };
+
+  // One render server and browser per workspace, started on first use and shared by parallel calls.
+  const renderers = new Map<string, Promise<{ server: RunningServer; browser: Browser }>>();
+  const renderer = (root: string) => {
+    let r = renderers.get(root);
+    if (!r) {
+      r = (async () => {
+        const { startServer } = await import("../server/index.ts");
+        const { launchBrowser } = await import("../export/browser.ts");
+        return { server: await startServer({ root, port: 0 }), browser: await launchBrowser() };
+      })();
+      renderers.set(root, r);
+      r.catch(() => renderers.delete(root));
+    }
+    return r;
   };
 
   server.registerTool(
@@ -49,14 +61,22 @@ export async function runMcpServer() {
 
   server.registerTool(
     "ided_list_projects",
-    { title: "List projects", description: "Projects in the workspace with their kind, frame size and frame files.", inputSchema: rootArg },
+    { title: "List projects", description: "Projects in the workspace: kind, frame size, frame files, dependencies, and the import path of every component and asset.", inputSchema: rootArg },
     async ({ root }) => {
       try {
         const r = rootFor(root);
         const ws = scanWorkspace(r);
+        // The same facts as `ided list`: frames, and the import path of every component and asset.
         const lines = ws.projects.map((p) => {
           const size = p.geometry && isFrameKind(p.kind) ? ` ${describeGeometry(p.geometry)}` : "";
-          return [`${p.id} (${p.kind}${size}) "${p.title}"`, ...p.frames.map((f) => `  ${relative(r, f.abs)}`), ...p.issues.map((i) => `  ! ${i.file}: ${i.message}`)].join("\n");
+          const deps = p.dependencies.length ? ` uses ${p.dependencies.join(", ")}` : "";
+          return [
+            `${p.id} (${p.kind}${size}) "${p.title}"${deps}`,
+            ...p.frames.map((f) => `  ${relative(r, f.abs)}`),
+            ...p.components.map((c) => `  @${p.id}/${c.replace(/\.tsx$/, "")}`),
+            ...p.assets.filter((a) => !a.startsWith("fonts/")).map((a) => `  @${p.id}/assets/${a}`),
+            ...p.issues.map((i) => `  ! ${i.file}: ${i.message}`),
+          ].join("\n");
         });
         return text(`workspace ${r}\n\n${lines.join("\n\n")}`);
       } catch (e) {
@@ -102,7 +122,7 @@ export async function runMcpServer() {
         const r = rootFor(root);
         const { runCheck, formatIssues } = await import("../check/index.ts");
         const result = await runCheck(r, { project, render: doRender ?? true, layout: layout ?? true });
-        return text(formatIssues(result));
+        return { ...text(formatIssues(result)), isError: result.issues.some((i) => i.severity === "error") };
       } catch (e) {
         return failure(e);
       }
@@ -176,12 +196,12 @@ export async function runMcpServer() {
       inputSchema: {
         ...rootArg,
         project: z.string(),
-        frames: z.array(z.string()).optional().describe("Frame ids; defaults to all (max 8)."),
+        frames: z.array(z.string()).optional().describe('Frames by id, number or name ("03-numbers", "3"); defaults to all. At most 12 images come back.'),
         sheet: z.boolean().optional().describe("All frames on one image, for judging rhythm and sameness across the piece."),
         zoom: z.string().optional().describe('Cut one frame (pass exactly one in frames) into full-resolution tiles, columns x rows like "2x2", to inspect detail.'),
-        page: z.number().int().min(1).optional().describe("With zoom: which page of a flowing doc page (default 1)."),
-        viewport: z.enum(["desktop", "tablet", "mobile"]).optional().describe("With zoom: which viewport of a responsive web screen (default: the widest)."),
-        scale: z.number().min(0.25).max(2).optional(),
+        page: z.number().int().min(1).optional().describe("Only this page of a flowing doc page (default: every page; with zoom, the first)."),
+        viewport: z.enum(["desktop", "tablet", "mobile"]).optional().describe("Only this viewport of a responsive web screen (default: every viewport; with zoom, the widest)."),
+        scale: z.number().min(0.25).max(2).optional().describe("Pixel density: default 1, or 0.5 for frames wider than 1600, as in the CLI."),
       },
     },
     async ({ root, project, frames, sheet, zoom, page, viewport, scale }) => {
@@ -190,10 +210,10 @@ export async function runMcpServer() {
         writeGenerated(r);
         const p = getProject(scanWorkspace(r), project);
         if (zoom) {
-          if (frames?.length !== 1) throw new Error("zoom cuts one frame into tiles: pass exactly one frame id in frames.");
+          if (frames?.length !== 1) throw new Error("zoom cuts one frame into tiles: pass exactly one frame in frames.");
           const { exportTiles, parseZoom } = await import("../export/artifacts.ts");
           const rs = await renderer(r);
-          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: frames[0]!, page, viewport, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
+          const tiles = await exportTiles({ baseUrl: rs.server.url, project: p, frame: resolveFrames(p, frames)[0]!, page, viewport, ...parseZoom(zoom), scale: scale ?? 1, browser: rs.browser });
           return {
             content: tiles.flatMap((t) => [
               { type: "text" as const, text: t.name },
@@ -207,17 +227,23 @@ export async function runMcpServer() {
           const f = await exportSheet({ baseUrl: rs.server.url, project: p, scale: scale ?? 1, browser: rs.browser });
           return { content: [{ type: "text" as const, text: f.name }, { type: "image" as const, data: f.data.toString("base64"), mimeType: "image/png" }] };
         }
-        const ids = (frames?.length ? frames : p.frames.map((f) => f.id)).slice(0, 8);
+        const ids = frames?.length ? resolveFrames(p, frames) : p.frames.map((f) => f.id);
         const { exportProject } = await import("../export/artifacts.ts");
         const rs = await renderer(r);
-        const defaultScale = p.geometry && p.geometry.width > 1600 ? 0.5 : 1;
-        // A flowing page returns all of its pages; keep the reply to a readable number of images.
-        const files = (await exportProject({ baseUrl: rs.server.url, project: p, format: "png", frames: ids, scale: scale ?? defaultScale, browser: rs.browser })).slice(0, 12);
+        let files = await exportProject({ baseUrl: rs.server.url, project: p, format: "png", frames: ids, scale: scale ?? defaultScreenshotScale(p.geometry?.width ?? 0), browser: rs.browser });
+        // Image names carry the page (01-report-2.png) or viewport (01-home-mobile.png) to pick by.
+        if (page) files = files.filter((f) => new RegExp(`-${page}\\.png$`).test(f.name) || (page === 1 && ids.some((id) => f.name === `${id}.png`)));
+        if (viewport) files = files.filter((f) => f.name.endsWith(`-${viewport}.png`) || !p.geometry?.viewports || p.geometry.viewports.length < 2);
+        const shown = files.slice(0, 12);
+        const note = files.length > shown.length ? [{ type: "text" as const, text: `Showing ${shown.length} of ${files.length} images; pass frames, page or viewport to see the others.` }] : [];
         return {
-          content: files.flatMap((f) => [
-            { type: "text" as const, text: f.name },
-            { type: "image" as const, data: f.data.toString("base64"), mimeType: "image/png" },
-          ]),
+          content: [
+            ...shown.flatMap((f) => [
+              { type: "text" as const, text: f.name },
+              { type: "image" as const, data: f.data.toString("base64"), mimeType: "image/png" },
+            ]),
+            ...note,
+          ],
         };
       } catch (e) {
         return failure(e);
@@ -230,7 +256,13 @@ export async function runMcpServer() {
     {
       title: "Export",
       description: 'Export a project to PDF, PNG or JPEG files (default PDF; PNG for web projects), or project "brand" to the brand kit (a folder and a .zip).',
-      inputSchema: { ...rootArg, project: z.string(), format: z.enum(["pdf", "png", "jpeg"]).optional(), frames: z.array(z.string()).optional(), out: z.string().optional().describe("Output directory, default <root>/out") },
+      inputSchema: {
+        ...rootArg,
+        project: z.string(),
+        format: z.enum(["pdf", "png", "jpeg"]).optional(),
+        frames: z.array(z.string()).optional().describe('Frames by id, number or name ("03-numbers", "3"); defaults to all.'),
+        out: z.string().optional().describe("Output directory, relative to the workspace (default out/), as `ided export` writes by default."),
+      },
     },
     async ({ root, project, format, frames, out }) => {
       try {
@@ -242,7 +274,8 @@ export async function runMcpServer() {
           return text(`${kit.count} files → ${kit.dir}\n${kit.zip}`);
         }
         const rs = await renderer(r);
-        return text((await exportArtifacts(r, project, { out: outDir, format, frames, baseUrl: rs.server.url, browser: rs.browser })).join("\n"));
+        const ids = frames?.length ? resolveFrames(getProject(scanWorkspace(r), project), frames) : undefined;
+        return text((await exportArtifacts(r, project, { out: outDir, format, frames: ids, baseUrl: rs.server.url, browser: rs.browser })).join("\n"));
       } catch (e) {
         return failure(e);
       }
@@ -268,10 +301,14 @@ export async function runMcpServer() {
 
   server.registerTool(
     "ided_resolve_comment",
-    { title: "Resolve comment", description: "Mark a comment resolved after addressing it, with a short note on what changed.", inputSchema: { ...rootArg, id: z.string(), message: z.string().optional() } },
-    async ({ root, id, message }) => {
+    {
+      title: "Resolve comment",
+      description: "Mark a comment resolved after addressing it, with a short note on what changed.",
+      inputSchema: { ...rootArg, id: z.string(), message: z.string().optional(), author: z.string().optional().describe('Who is replying (default "agent").') },
+    },
+    async ({ root, id, message, author }) => {
       try {
-        updateComment(scanWorkspace(rootFor(root)), id, { status: "resolved", reply: message ? { author: "agent", body: message } : undefined });
+        updateComment(scanWorkspace(rootFor(root)), id, { status: "resolved", reply: message ? { author: author ?? "agent", body: message } : undefined });
         return text(`Resolved ${id}`);
       } catch (e) {
         return failure(e);
@@ -281,10 +318,14 @@ export async function runMcpServer() {
 
   server.registerTool(
     "ided_reply_comment",
-    { title: "Reply to comment", description: "Reply without resolving, e.g. to ask a clarifying question.", inputSchema: { ...rootArg, id: z.string(), message: z.string() } },
-    async ({ root, id, message }) => {
+    {
+      title: "Reply to comment",
+      description: "Reply without resolving, e.g. to ask a clarifying question.",
+      inputSchema: { ...rootArg, id: z.string(), message: z.string(), author: z.string().optional().describe('Who is replying (default "agent").') },
+    },
+    async ({ root, id, message, author }) => {
       try {
-        updateComment(scanWorkspace(rootFor(root)), id, { reply: { author: "agent", body: message } });
+        updateComment(scanWorkspace(rootFor(root)), id, { reply: { author: author ?? "agent", body: message } });
         return text(`Replied to ${id}`);
       } catch (e) {
         return failure(e);
@@ -295,9 +336,10 @@ export async function runMcpServer() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   const shutdown = async () => {
-    if (render) {
-      await render.browser.close().catch(() => {});
-      await render.server.close().catch(() => {});
+    for (const r of renderers.values()) {
+      const { server: s, browser: b } = await r.catch(() => ({ server: null, browser: null }));
+      await b?.close().catch(() => {});
+      await s?.close().catch(() => {});
     }
     process.exit(0);
   };

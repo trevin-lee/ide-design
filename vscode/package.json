@@ -29,7 +29,8 @@
     "react"
   ],
   "activationEvents": [
-    "workspaceContains:**/ided.json"
+    "workspaceContains:**/ided.json",
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
