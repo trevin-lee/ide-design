@@ -10,12 +10,15 @@ brew install trevin-lee/tap/ide-design
 ```
 
 Cursor, VSCodium, Windsurf and other editors that use Open VSX find it by searching for
-**ide-design** in Extensions. In VS Code, install the `.vsix` from the latest release:
+**ide-design** in Extensions, and it updates like any other extension there. It is not on the VS
+Code Marketplace yet, so in VS Code install the `.vsix` from the latest release:
 
 ```sh
 curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
 code --install-extension ide-design.vsix
 ```
+
+A `.vsix` install never updates itself: run the same two commands again after upgrading ided.
 
 The extension turns on in any folder that contains an ided workspace (an `ided.json` file).
 
@@ -28,8 +31,9 @@ The extension turns on in any folder that contains an ided workspace (an `ided.j
   draws it. Source locations in the viewer's Issues and Comments panels open the same way.
 - **From code to design.** The viewer shows the frame of the file you are editing and outlines
   the primitives at your cursor.
-- **Problems.** `ided check` runs when the workspace opens and whenever a file in `design/` is
-  saved: structure, lint, render and SVG color issues appear in Problems with their fix. Type
+- **Problems.** `ided check` runs when the workspace opens and whenever a file in `design/`
+  changes, whether saved here or written by an agent in a terminal: structure, lint, render and
+  SVG color issues appear in Problems with their fix. Type
   errors in open files come from VS Code's own TypeScript, which reads `design/tsconfig.json`.
 - **Review comments.** Open comments left in the viewer appear as comment threads on the lines
   they point at. Reply or resolve them here; the viewer, the CLI and agents see the same thread.
@@ -40,5 +44,5 @@ The extension turns on in any folder that contains an ided workspace (an `ided.j
 | Setting | Default | |
 | --- | --- | --- |
 | `ideDesign.path` | empty | Path to `ided`. Empty looks on `PATH` and in the usual Homebrew and npm locations. |
-| `ideDesign.checkOnSave` | `true` | Run `ided check` on open and on save. |
+| `ideDesign.checkOnSave` | `true` | Run `ided check` on open and whenever a file in `design/` changes. |
 | `ideDesign.followCursor` | `true` | Follow the active file and cursor in the viewer. |

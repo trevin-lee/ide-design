@@ -295,17 +295,21 @@ reviewer's call, made in the viewer.
 
 The extension puts the viewer in a VS Code tab, linked to the code: ⌥-click (Alt-click) any element
 in a frame to open the line that draws it, and the viewer follows your cursor, outlining the
-primitives written on that line. `ided check` runs on save with its results in Problems, and the
+primitives written on that line. `ided check` runs whenever a design file changes (saved in the
+editor or written by an agent in a terminal) with its results in Problems, and the
 viewer's open review comments appear as comment threads on the lines they point at, where you
 can reply or resolve them.
 
 In Cursor, VSCodium, Windsurf and other editors that use [Open VSX](https://open-vsx.org/extension/trevin-lee/ide-design),
-search for **ide-design** in Extensions. In VS Code, install the release's `.vsix`:
+search for **ide-design** in Extensions; it updates like any other extension there. It is not on
+the VS Code Marketplace yet, so in VS Code install the release's `.vsix`:
 
 ```sh
 curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
 code --install-extension ide-design.vsix
 ```
+
+A `.vsix` install never updates itself: run the same two commands again after upgrading ided.
 
 It uses the `ided` command you already have (0.3.0 or newer) and turns on in any folder with an
 `ided.json`. Settings and details: [vscode/README.md](vscode/README.md).

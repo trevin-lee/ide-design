@@ -98,7 +98,7 @@
         "ideDesign.checkOnSave": {
           "type": "boolean",
           "default": true,
-          "markdownDescription": "Run `ided check` when the workspace opens and whenever a file in `design/` is saved, and show the results in Problems."
+          "markdownDescription": "Run `ided check` when the workspace opens and whenever a file in `design/` changes (saved here or written by another tool), and show the results in Problems."
         },
         "ideDesign.followCursor": {
           "type": "boolean",
