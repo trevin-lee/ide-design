@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { projects, type WsProject } from "virtual:ided/workspace";
 import { showToast } from "./store.ts";
+import { imageItem, useLightbox } from "./zoom.tsx";
 
 function pascal(slug: string): string {
   return slug.replace(/(^|-)([a-z0-9])/g, (_, __, c: string) => c.toUpperCase());
@@ -38,6 +39,8 @@ function CopyLine(props: { code: string }) {
 
 export function AssetGrid(props: { project: WsProject; exclude?: string[] }) {
   const assets = props.project.assets.filter((a) => !props.exclude?.includes(a.path));
+  const lightbox = useLightbox();
+  const open = async (i: number) => lightbox.open(await Promise.all(assets.map((a) => imageItem(a.url, a.path))), i);
   if (assets.length === 0) {
     return (
       <p className="lib-empty">
@@ -47,17 +50,18 @@ export function AssetGrid(props: { project: WsProject; exclude?: string[] }) {
   }
   return (
     <div className="lib-assets">
-      {assets.map((a) => (
+      {assets.map((a, i) => (
         <figure key={a.path} className="lib-asset">
-          <div className="lib-thumb">
+          <button className="lib-thumb" onClick={() => void open(i)} title="Open large (zoom and pan)">
             <img src={a.url} alt={a.path} loading="lazy" />
-          </div>
+          </button>
           <figcaption>
             <strong>{a.path}</strong>
             <CopyLine code={`import ${camel(a.path)} from "@${props.project.id}/assets/${a.path}";`} />
           </figcaption>
         </figure>
       ))}
+      {lightbox.element}
     </div>
   );
 }

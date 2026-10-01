@@ -69,19 +69,27 @@ button {
 
 .shell {
   display: grid;
-  grid-template-columns: 248px 1fr;
+  grid-template-columns: 248px minmax(0, 1fr);
   height: 100%;
+}
+.shell.sidebar-closed {
+  grid-template-columns: 0 minmax(0, 1fr);
+}
+.shell.sidebar-closed .sidebar {
+  display: none;
 }
 .main {
   display: flex;
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  /* The toolbar adapts to the viewer's own width, which a VS Code column or the sidebar sets. */
+  container: main / inline-size;
 }
 .stage {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   min-height: 0;
 }
 /* Narrow windows (a VS Code tab, a split screen): the side panel is a drawer, opened from the
@@ -91,7 +99,7 @@ button {
 }
 @media (max-width: 1100px) {
   .stage {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .panel {
     position: fixed;
@@ -224,21 +232,27 @@ button {
 .toolbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   height: 52px;
-  padding: 0 16px 0 24px;
+  padding: 0 16px 0 12px;
   border-bottom: 1px solid var(--ui-line);
   background: var(--ui-panel);
 }
 .toolbar-title {
   display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
   font-weight: 600;
   font-size: 14px;
   white-space: nowrap;
+}
+.toolbar-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .crumb {
   color: var(--ui-text-2);
@@ -254,15 +268,46 @@ button {
 }
 .toolbar-meta {
   display: inline-flex;
+  flex: 0 100 auto;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   margin-left: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font: 400 11.5px var(--ui-mono);
   color: var(--ui-text-3);
 }
+.toolbar-title .pill {
+  flex: none;
+  align-self: center;
+}
 .toolbar-actions {
   display: flex;
+  flex: none;
   gap: 8px;
+}
+.btn.btn-icon {
+  padding: 0 8px;
+}
+.icon {
+  flex: none;
+}
+/* Narrower: drop the key hints and the line of details first, then the labels (icons and their
+   tooltips remain), so the title always has room. */
+@container main (max-width: 860px) {
+  .toolbar kbd,
+  .toolbar-meta {
+    display: none;
+  }
+}
+@container main (max-width: 640px) {
+  .toolbar .btn-label {
+    display: none;
+  }
+  .toolbar .btn {
+    padding: 0 8px;
+  }
 }
 
 /* Buttons */
@@ -390,7 +435,69 @@ button {
 .canvas-focus {
   display: flex;
   align-items: flex-start;
-  justify-content: center;
+  /* "safe": a frame zoomed wider than the stage scrolls from its left edge instead of being cut. */
+  justify-content: safe center;
+}
+
+/* Zoom and pan (zoom.tsx) */
+.zoom-host {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+.canvas.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+/* Rasters show their real pixels when zoomed in, so a 16 px favicon can be inspected. */
+.pixel-zoom img,
+.lightbox-pixels img {
+  image-rendering: pixelated;
+}
+.zoom-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  transform: translateX(-50%);
+  border: 1px solid var(--ui-line-strong);
+  border-radius: 9px;
+  background: var(--ui-panel);
+  box-shadow: var(--ui-shadow);
+  font-size: 12px;
+}
+.zoom-bar button {
+  height: 26px;
+  min-width: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+.zoom-bar button:hover,
+.zoom-bar button.on {
+  background: rgba(0, 0, 0, 0.06);
+}
+.zoom-level {
+  min-width: 48px;
+  text-align: center;
+  font: 500 11.5px var(--ui-mono);
+  color: var(--ui-text-2);
+}
+.zoom-title {
+  max-width: 260px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 500 11.5px var(--ui-mono);
+  color: var(--ui-text-2);
 }
 .frame-grid {
   display: grid;
@@ -927,7 +1034,10 @@ html.render-mode #root {
 }
 .bb-logo-tile {
   display: grid;
+  /* A bounded column, so a wide lockup scales down to the tile instead of setting its width. */
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
+  min-width: 0;
   height: 120px;
   border-radius: 10px;
   box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
@@ -969,7 +1079,7 @@ html.render-mode #root {
 }
 .bb-fg {
   display: grid;
-  grid-template-columns: 22px 100px 90px 1fr;
+  grid-template-columns: 22px 100px 90px minmax(0, 1fr);
   align-items: center;
   gap: 10px;
   padding: 8px 0;
@@ -1013,7 +1123,7 @@ html.render-mode #root {
 }
 .bb-type-row {
   display: grid;
-  grid-template-columns: 150px 1fr;
+  grid-template-columns: 150px minmax(0, 1fr);
   gap: 24px;
   align-items: baseline;
   padding: 16px 0;
@@ -1038,7 +1148,7 @@ html.render-mode #root {
 }
 .bb-two {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
 .bb-space {
@@ -1048,7 +1158,7 @@ html.render-mode #root {
 }
 .bb-space-row {
   display: grid;
-  grid-template-columns: 36px 1fr 36px;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
   align-items: center;
   gap: 10px;
   font: 11px var(--ui-mono);
@@ -1108,7 +1218,7 @@ html.render-mode #root {
 
 .lib-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 16px;
 }
 .lib-meta > div {
@@ -1149,7 +1259,7 @@ html.render-mode #root {
 }
 .lib-component {
   display: grid;
-  grid-template-columns: 180px 1fr;
+  grid-template-columns: 180px minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   padding: 8px 0;
@@ -1299,10 +1409,15 @@ html.render-mode #root {
 }
 .bb-fact {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: minmax(120px, 240px) minmax(0, 1fr);
+  align-items: baseline;
   gap: 16px;
   padding: 8px 0;
   border-top: 1px solid var(--ui-line);
+}
+/* URLs and email addresses have no spaces to break at. */
+.bb-fact span {
+  overflow-wrap: anywhere;
 }
 .bb-fact code {
   justify-self: start;
@@ -1343,4 +1458,91 @@ html.render-mode #root {
 .present.present-scroll {
   place-items: start center;
   overflow-y: auto;
+}
+
+/* Narrow Brand pages: two-up sections and fact rows stack. */
+@container main (max-width: 720px) {
+  .bb-two {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .bb-fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+}
+
+/* Lightbox: one asset or logo, large over the page (zoom.tsx). */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(24, 24, 27, 0.86);
+}
+.lightbox-scroll {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: safe center;
+  justify-content: safe center;
+  padding: 48px;
+  overflow: auto;
+}
+.lightbox-scroll.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.lightbox-item {
+  flex: none;
+  background: repeating-conic-gradient(#e8e8e4 0% 25%, #f6f6f3 0% 50%) 0 0 / 16px 16px;
+}
+.lightbox-logo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  line-height: 0;
+}
+.lightbox-logo svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.lightbox .zoom-bar {
+  position: fixed;
+}
+button.lib-thumb,
+button.bb-logo-tile {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: zoom-in;
+}
+
+/* Brand page: icons at their real sizes */
+.bb-icons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 20px;
+}
+.bb-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.bb-icon-art {
+  display: block;
+  box-shadow: 0 0 0 1px var(--ui-line);
+}
+.bb-icon-art img {
+  display: block;
+}
+.bb-icon-label {
+  font: 400 11px var(--ui-mono);
+  color: var(--ui-text-3);
 }

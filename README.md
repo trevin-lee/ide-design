@@ -132,8 +132,13 @@ ided run                   # opens the viewer at http://127.0.0.1:4800
 
 In the viewer:
 
-- The sidebar lists every project in the repository. The Brand page shows logos in every colorway,
-  surfaces with contrast ratios, the type scale at size, and space and radius scales.
+- The sidebar lists every project in the repository (**[** hides it, for a narrow editor column).
+  The Brand page shows logos in every colorway, surfaces with contrast ratios, the type scale at
+  size, space and radius scales, and the kit's icons at their real pixel sizes.
+- Click a frame to look closely: **⌘-scroll** or pinch zooms (to 800%), drag or scroll pans,
+  **+ − 0 1** zoom in, out, to fit and to actual size, and the arrows step through frames. Logos,
+  icons and assets on the Brand and library pages open the same way, with pixels shown square
+  when zoomed in.
 - **C** toggles comment mode: hover highlights the primitive under the cursor; click to leave a
   comment. The comment records the element's source line, so an agent can go straight to it.
 - **P** presents full screen (arrows or space to move, Esc to exit).
@@ -362,6 +367,7 @@ acme-brand-kit/
   tokens/tailwind.css    # Tailwind v4 @theme that replaces the default palette and scales
   tokens/tokens.json     # Design Tokens Community Group format (2025.10)
   tokens/brand.ts        # typed constant
+  icons/                 # favicons (16/32/48, SVG), apple-touch-icon, 192/512/maskable, 1024, manifest.json
   facts.json             # names, links, contact, locations, social, abbreviations
   fonts/                 # font files + licenses
   manifest.json, README.md

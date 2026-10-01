@@ -1,10 +1,11 @@
-import type { CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
 import { AssetGrid, ComponentList } from "./library.tsx";
+import { useLightbox, type LightboxItem } from "./zoom.tsx";
 import { factNames, formatFact } from "../shared/brand-facts.ts";
-import { colorValue, isSurface, logoFiles, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
+import { colorValue, iconSettings, isSurface, logoFiles, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
-import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
+import { colorwayHex, composeLogo, iconFiles, logoVariants } from "../shared/lockup.ts";
 
 function LogoArt(props: { b: BrandInput; variant: string; colorway: string; height: number }) {
   let html = "";
@@ -22,6 +23,71 @@ function LogoArt(props: { b: BrandInput; variant: string; colorway: string; heig
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
+}
+
+/** An SVG drawn into a canvas at its pixel size: a PNG as the browser would rasterize it. */
+function useRaster(svg: string, size: number): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = size;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, size, size);
+      if (live) setUrl(canvas.toDataURL("image/png"));
+    };
+    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    return () => {
+      live = false;
+    };
+  }, [svg, size]);
+  return url;
+}
+
+function IconTile(props: { svg: string; size: number; label: string; onOpen: () => void }) {
+  const url = useRaster(props.svg, props.size);
+  const shown = Math.min(props.size, 96);
+  return (
+    <button className="bb-icon" onClick={props.onOpen} title="Open large (zoom into its pixels)">
+      <span className="bb-icon-art" style={{ width: shown, height: shown }}>
+        {url && <img src={url} alt={props.label} width={shown} height={shown} />}
+      </span>
+      <span className="bb-icon-label">{props.label}</span>
+    </button>
+  );
+}
+
+/** The kit's icons at their real sizes (the large ones scaled down), each opening in the lightbox. */
+function IconRow(props: { b: BrandInput }) {
+  const lightbox = useLightbox();
+  let icons: ReturnType<typeof iconFiles>;
+  try {
+    icons = iconFiles(props.b, svgs).filter((i) => i.size !== null && i.size <= 512 && !/icon-192/.test(i.path));
+  } catch (e) {
+    return <span className="bb-error">{(e as Error).message}</span>;
+  }
+  const label = (i: (typeof icons)[number]) => `${i.path.replace(/^icons\/|\.png$/g, "")}`;
+  const items: LightboxItem[] = icons.map((i) => ({
+    title: label(i),
+    width: i.size!,
+    height: i.size!,
+    raster: true,
+    render: () => <RasterImage svg={i.svg} size={i.size!} />,
+  }));
+  return (
+    <div className="bb-icons">
+      {icons.map((i, n) => (
+        <IconTile key={i.path} svg={i.svg} size={i.size!} label={label(i)} onOpen={() => lightbox.open(items, n)} />
+      ))}
+      {lightbox.element}
+    </div>
+  );
+}
+
+function RasterImage(props: { svg: string; size: number }) {
+  const url = useRaster(props.svg, props.size);
+  return url ? <img src={url} alt="" draggable={false} style={{ width: "100%", height: "100%", display: "block" }} /> : null;
 }
 
 /** The surface a colorway is meant for: declared by the surface, else the most legible. */
@@ -49,6 +115,7 @@ function Section(props: { title: string; note?: string; children: React.ReactNod
 }
 
 export function BrandBoard(props: { project: WsProject }) {
+  const lightbox = useLightbox();
   if (!brand) {
     return (
       <div className="canvas empty-state">
@@ -70,9 +137,29 @@ export function BrandBoard(props: { project: WsProject }) {
   const heroColorway = (isSurface(heroDef) && heroDef.logo) || colorways[0]!;
   const lockup = Object.keys(b.logo.lockups)[0] ?? "wordmark";
   const maxSpace = Math.max(...Object.values(b.space));
+  // Every logo tile, large: the logo at 100 px tall is "1:1", on its colorway's surface.
+  const logoItems: LightboxItem[] = logoVariants(b).flatMap((v) =>
+    colorways.flatMap((c) => {
+      try {
+        const { svg, aspect } = composeLogo(b, svgs, v, colorwayHex(b, c), 100);
+        const bg = colorValue(b, surfaceFor(b, c));
+        return [
+          {
+            title: `${v} · ${c}`,
+            width: aspect * 100,
+            height: 100,
+            render: () => <span className="lightbox-logo" style={{ background: bg }} dangerouslySetInnerHTML={{ __html: svg }} />,
+          },
+        ];
+      } catch {
+        return [];
+      }
+    }),
+  );
 
   return (
     <div className="canvas brand-canvas">
+      {lightbox.element}
       <div className="brand-board">
         <div className="bb-hero" style={{ background: colorValue(b, heroSurface), color: isSurface(heroDef) ? colorValue(b, heroDef.on) : undefined }}>
           <LogoArt b={b} variant={lockup} colorway={heroColorway} height={72} />
@@ -85,7 +172,7 @@ export function BrandBoard(props: { project: WsProject }) {
         </div>
 
         <Section title="Logo" note="Composed from mark.svg and wordmark.svg. Lockup geometry is relative to the wordmark height, so it holds at every size.">
-          <div className="bb-logo-grid" style={{ gridTemplateColumns: `140px repeat(${colorways.length}, minmax(0, 1fr))` }}>
+          <div className="bb-logo-grid" style={{ gridTemplateColumns: `minmax(56px, 140px) repeat(${colorways.length}, minmax(0, 1fr))` }}>
             <div />
             {colorways.map((c) => (
               <div key={c} className="bb-col-head">
@@ -96,9 +183,15 @@ export function BrandBoard(props: { project: WsProject }) {
               <div key={v} style={{ display: "contents" }}>
                 <div className="bb-row-head">{v}</div>
                 {colorways.map((c) => (
-                  <div key={c} className="bb-logo-tile" style={{ background: colorValue(b, surfaceFor(b, c)) }}>
+                  <button
+                    key={c}
+                    className="bb-logo-tile"
+                    style={{ background: colorValue(b, surfaceFor(b, c)) }}
+                    title="Open large (zoom and pan)"
+                    onClick={() => lightbox.open(logoItems, logoItems.findIndex((it) => it.title === `${v} · ${c}`))}
+                  >
                     <LogoArt b={b} variant={v} colorway={c} height={v === "mark" ? 56 : v === "wordmark" ? 28 : 40} />
-                  </div>
+                  </button>
                 ))}
               </div>
             ))}
@@ -238,6 +331,10 @@ export function BrandBoard(props: { project: WsProject }) {
             )}
           </Section>
         </div>
+
+        <Section title="Icons" note={`Favicons and app icons in the brand kit: the mark on ${iconSettings(b).ground}, never a separate drawing. Shown at their real pixel sizes; open one to zoom into its pixels.`}>
+          <IconRow b={b} />
+        </Section>
 
         <Section title="Facts" note='Used in artifacts as <Fact name="…" /> and never typed by hand. Edit them in the facts section of brand.ts.'>
           {factNames(b.facts).length ? (

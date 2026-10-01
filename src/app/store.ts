@@ -132,15 +132,41 @@ export function parseRoute(hash: string): Route {
   return { name: "home" };
 }
 
+/**
+ * The route, read from the URL on every render. A store, not state copied from an event: a child
+ * can change the hash (Home picks the first project) before this hook's listener is attached,
+ * and the change must still show.
+ */
 export function useRoute(): Route {
-  const [hash, setHash] = useState(() => window.location.hash);
-  useEffect(() => {
-    const on = () => setHash(window.location.hash);
-    window.addEventListener("hashchange", on);
-    return () => window.removeEventListener("hashchange", on);
-  }, []);
+  const hash = useSyncExternalStore(
+    (on) => {
+      window.addEventListener("hashchange", on);
+      return () => window.removeEventListener("hashchange", on);
+    },
+    () => window.location.hash,
+  );
   return parseRoute(hash);
 }
+
+/** The projects sidebar: remembered per browser; it starts closed in a narrow window (a VS Code column). */
+export const sidebarOpen = createStore<boolean>(
+  (() => {
+    try {
+      const saved = localStorage.getItem("ided.sidebar");
+      if (saved !== null) return saved === "open";
+    } catch {
+      // storage unavailable
+    }
+    return window.innerWidth >= 760;
+  })(),
+);
+sidebarOpen.subscribe(() => {
+  try {
+    localStorage.setItem("ided.sidebar", sidebarOpen.get() ? "open" : "closed");
+  } catch {
+    // storage unavailable
+  }
+});
 
 export function go(hash: string, replace = false) {
   if (replace) window.history.replaceState(null, "", hash);

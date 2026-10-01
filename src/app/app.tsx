@@ -21,6 +21,7 @@ import {
   refreshComments,
   refreshStaticIssues,
   showToast,
+  sidebarOpen,
   toast as toastStore,
   useRoute,
   useStore,
@@ -118,7 +119,7 @@ function Sidebar(props: { current: string | null }) {
             <div className="sidebar-none">{g.title === "Brand" ? "Missing design/brand" : g.title === "Libraries" ? "ided new library <name>" : "ided new deck <name>"}</div>
           )}
           {g.items.map((p) => (
-            <SidebarItem key={p.id} project={p} current={props.current === p.id} open={all.filter((c) => c.project === p.id && c.status === "open").length} />
+            <SidebarItem key={p.id} project={p} current={props.current === p.id} open={all.filter((c) => c.project === p.id && c.status === "open").length} badge={g.title === "Projects"} />
           ))}
         </div>
       ))}
@@ -163,8 +164,9 @@ function ExportMenu(props: { project: WsProject; frame: string | null }) {
   const isWeb = props.project.kind === "web";
   return (
     <div className="menu-wrap" ref={ref}>
-      <button className="btn" disabled={busy} onClick={() => setOpen(!open)}>
-        {busy ? "Exporting…" : "Export"}
+      <button className="btn" disabled={busy} onClick={() => setOpen(!open)} title="Export">
+        <Icon name="export" />
+        <span className="btn-label">{busy ? "Exporting…" : "Export"}</span>
       </button>
       {open && (
         <div className="menu">
@@ -178,12 +180,30 @@ function ExportMenu(props: { project: WsProject; frame: string | null }) {
   );
 }
 
+/** Small line icons for toolbar buttons, which show only their icon when the viewer is narrow. */
+const ICONS: Record<string, string> = {
+  sidebar: "M2.5 3.5h11v9h-11zM6 3.5v9",
+  panel: "M2.5 3.5h11v9h-11zM10 3.5v9",
+  comment: "M3 3.5h10v7H7l-3 2.5v-2.5H3z",
+  present: "M5 3.5v9l7.5-4.5z",
+  export: "M8 2.5v7M5 6.5l3 3 3-3M3 11v2.5h10V11",
+};
+
+function Icon(props: { name: keyof typeof ICONS }) {
+  return (
+    <svg className="icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden>
+      <path d={ICONS[props.name]} fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function BrandKitButton() {
   const [busy, setBusy] = useState(false);
   return (
     <button
       className="btn btn-primary"
       disabled={busy}
+      title="Download brand kit"
       onClick={async () => {
         setBusy(true);
         showToast("Building brand kit…", "info", 0);
@@ -205,19 +225,23 @@ function BrandKitButton() {
         }
       }}
     >
-      {busy ? "Building…" : "Download brand kit"}
+      <Icon name="export" />
+      <span className="btn-label">{busy ? "Building…" : "Download brand kit"}</span>
     </button>
   );
 }
 
 /** One project in the sidebar, with the same error count its toolbar and Issues tab show. */
-function SidebarItem(props: { project: WsProject; current: boolean; open: number }) {
+function SidebarItem(props: { project: WsProject; current: boolean; open: number; badge: boolean }) {
   const p = props.project;
   const errors = useProjectIssues(p).filter((i) => i.severity === "error").length;
   return (
     <a href={`#/p/${p.id}`} className={`sidebar-item${props.current ? " on" : ""}`}>
-      <span className={`kind kind-${p.kind}`}>{KIND_LABEL[p.kind]}</span>
-      <span className="sidebar-title">{p.title}</span>
+      {/* The group heading already names the brand and libraries; only projects mix kinds. */}
+      {props.badge && <span className={`kind kind-${p.kind}`}>{KIND_LABEL[p.kind]}</span>}
+      <span className="sidebar-title" title={p.title}>
+        {p.title}
+      </span>
       {errors > 0 && (
         <span className="pill pill-error" title={`${errors} error${errors > 1 ? "s" : ""}`}>
           {errors}
@@ -239,6 +263,7 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
   const { project, frame } = props;
   const mode = useStore(commentMode);
   const drawer = useStore(panelOpen);
+  const sidebar = useStore(sidebarOpen);
   const issues = useProjectIssues(project);
   const errors = issues.filter((i) => i.severity === "error").length;
   const g = project.geometry;
@@ -248,17 +273,20 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
   const pages = pageList(useStore(pageCounts), project.id, project.frames).length;
   return (
     <header className="toolbar">
+      <button className={`btn btn-icon sidebar-toggle${sidebar ? "" : " btn-on"}`} onClick={() => sidebarOpen.set(!sidebar)} title={`${sidebar ? "Hide" : "Show"} projects ([)`}>
+        <Icon name="sidebar" />
+      </button>
       <div className="toolbar-title">
         {focused ? (
           <>
-            <a href={`#/p/${project.id}`} className="crumb">
+            <a href={`#/p/${project.id}`} className="crumb toolbar-name">
               {project.title}
             </a>
             <span className="crumb-sep">/</span>
-            <span>{focused.title}</span>
+            <span className="toolbar-name">{focused.title}</span>
           </>
         ) : (
-          <span>{project.title}</span>
+          <span className="toolbar-name">{project.title}</span>
         )}
         <span className="toolbar-meta">
           {project.kind === "brand"
@@ -269,22 +297,26 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
           {g && isFrameKind(project.kind) && ` · ${g.width}×${g.fixedHeight ? g.height : "auto"}`}
           {project.dependencies.length > 0 && ` · uses ${project.dependencies.join(", ")}`}
           {embedded && isFrameKind(project.kind) && " · ⌥-click opens the code"}
-          {errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
         </span>
+        {/* Outside the details line, which hides when the toolbar is narrow. */}
+        {errors > 0 && <span className="pill pill-error">{errors} error{errors > 1 ? "s" : ""}</span>}
       </div>
       <div className="toolbar-actions">
         <button className={`btn panel-toggle${drawer ? " btn-on" : ""}`} onClick={() => panelOpen.set(!drawer)} title="Design, comments and issues">
-          Panel
+          <Icon name="panel" />
+          <span className="btn-label">Panel</span>
         </button>
         {project.kind === "brand" ? (
           <BrandKitButton />
         ) : !isFrameKind(project.kind) ? null : (
           <>
             <button className={`btn${mode ? " btn-on" : ""}`} onClick={() => commentMode.set(!mode)} title="Comment mode (C)">
-              {mode ? "Commenting" : "Comment"} <kbd>C</kbd>
+              <Icon name="comment" />
+              <span className="btn-label">{mode ? "Commenting" : "Comment"}</span> <kbd>C</kbd>
             </button>
             <button className="btn" onClick={() => enterPresentation(project.id, firstPage(project, frameIndex))} disabled={!project.frames.length} title="Present (P)">
-              Present <kbd>P</kbd>
+              <Icon name="present" />
+              <span className="btn-label">Present</span> <kbd>P</kbd>
             </button>
             <ExportMenu project={project} frame={frame} />
           </>
@@ -298,9 +330,11 @@ function Shell(props: { project: WsProject | null; frame: string | null; missing
   const { project, frame, missing } = props;
   const toast = useStore(toastStore);
   const drawerOpen = useStore(panelOpen);
+  const sidebar = useStore(sidebarOpen);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "[") return sidebarOpen.set(!sidebarOpen.get());
       if (!project || !isFrameKind(project.kind)) return;
       if (e.key === "c") commentMode.set(!commentMode.get());
       else if (e.key === "p" && project.frames.length) {
@@ -316,7 +350,7 @@ function Shell(props: { project: WsProject | null; frame: string | null; missing
   }, [project, frame]);
 
   return (
-    <div className={`shell${drawerOpen ? " panel-open" : ""}`}>
+    <div className={`shell${drawerOpen ? " panel-open" : ""}${sidebar ? "" : " sidebar-closed"}`}>
       <Sidebar current={project?.id ?? null} />
       <main className="main">
         {project ? (

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { WsFrame, WsProject } from "virtual:ided/workspace";
 import { openSource } from "./editor.ts";
 import { FrameRender, Scaled, ThreadMeasurer, useFrameHeight, useSize, variantOf, violationKey } from "./frame.tsx";
+import { useZoom, useZoomGestures, ZoomBar } from "./zoom.tsx";
 import {
   activeComment,
   commentMode,
@@ -24,6 +25,19 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
   const counts = useStore(pageCounts);
   const [ref, size] = useSize<HTMLDivElement>();
   const focusIndex = focus ? project.frames.findIndex((f) => f.id === focus) : -1;
+  const mode = useStore(commentMode);
+  // A focused frame starts fitted to the stage and zooms from there (variants share one scale).
+  const g0 = project.geometry;
+  const variants0 = g0?.viewports && g0.viewports.length > 1 ? g0.viewports : null;
+  const fitScale = !g0
+    ? 1
+    : variants0
+      ? (Math.max(200, size.width) - 32 * (variants0.length - 1)) / variants0.reduce((n, v) => n + v.width, 0)
+      : g0.fixedHeight
+        ? Math.min(Math.max(200, size.width) / g0.width, Math.max(200, size.height - 36) / g0.height)
+        : Math.max(200, size.width) / g0.width;
+  const zoom = useZoom(ref, fitScale, `${project.id}/${focus ?? ""}`);
+  useZoomGestures(ref, zoom, { keys: focusIndex >= 0, dragPan: focusIndex >= 0 && !mode });
 
   useEffect(() => {
     if (focusIndex < 0) return;
@@ -66,35 +80,37 @@ export function ProjectCanvas(props: { project: WsProject; focus: string | null 
   const variants = g.viewports && g.viewports.length > 1 ? g.viewports : null;
   if (variants) {
     const gap = 32;
-    const inner = Math.max(200, size.width);
-    const scale = (inner - gap * (variants.length - 1)) / variants.reduce((n, v) => n + v.width, 0);
+    const scale = focusIndex >= 0 ? zoom.scale : fitScale;
     const frames = focusIndex >= 0 ? [project.frames[focusIndex]!] : project.frames;
     return (
-      <div className="canvas" ref={ref}>
-        {size.width > 0 &&
-          frames.map((f) => (
-            <div key={f.id} className="variant-row" style={{ gap }}>
-              {variants.map((v) => (
-                <FrameCard key={v.name} project={project} frame={f} index={project.frames.indexOf(f)} viewport={v.name} scale={scale} focused={focusIndex >= 0} />
-              ))}
-            </div>
-          ))}
+      <div className="zoom-host">
+        <div className={`canvas${focusIndex >= 0 ? " canvas-zoom" : ""}${focusIndex >= 0 && zoom.scale >= 2 ? " pixel-zoom" : ""}`} ref={ref}>
+          {size.width > 0 &&
+            frames.map((f) => (
+              <div key={f.id} className="variant-row" style={{ gap }}>
+                {variants.map((v) => (
+                  <FrameCard key={v.name} project={project} frame={f} index={project.frames.indexOf(f)} viewport={v.name} scale={scale} focused={focusIndex >= 0} />
+                ))}
+              </div>
+            ))}
+        </div>
+        {focusIndex >= 0 && <ZoomBar zoom={zoom} />}
       </div>
     );
   }
   if (focusIndex >= 0) {
     const frame = project.frames[focusIndex]!;
-    const availW = Math.max(200, size.width);
-    const availH = Math.max(200, size.height - 36);
-    const scale = g.fixedHeight ? Math.min(availW / g.width, availH / g.height) : availW / g.width;
     const pages = pagesOf(counts, project.id, frame.id);
     return (
-      <div className={`canvas canvas-focus${pages > 1 ? " canvas-pages" : ""}`} ref={ref}>
-        {size.width > 0 &&
-          Array.from({ length: pages }, (_, page) => (
-            <FrameCard key={page} project={project} frame={frame} index={focusIndex} page={page} pages={pages} scale={scale} focused />
-          ))}
-        <ThreadMeasurer project={project} except={frame.id} />
+      <div className="zoom-host">
+        <div className={`canvas canvas-focus canvas-zoom${pages > 1 ? " canvas-pages" : ""}${zoom.scale >= 2 ? " pixel-zoom" : ""}`} ref={ref}>
+          {size.width > 0 &&
+            Array.from({ length: pages }, (_, page) => (
+              <FrameCard key={page} project={project} frame={frame} index={focusIndex} page={page} pages={pages} scale={zoom.scale} focused />
+            ))}
+          <ThreadMeasurer project={project} except={frame.id} />
+        </div>
+        <ZoomBar zoom={zoom} />
       </div>
     );
   }

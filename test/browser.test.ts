@@ -228,3 +228,70 @@ test("on a narrow window the side panel is a drawer, and other sites cannot open
   const res = await fetch(`${server.url}/__open-in-editor?file=package.json`, { headers: { "sec-fetch-site": "cross-site" } });
   assert.equal(res.status, 403);
 });
+
+test("the viewer opens the first project on first load", { skip, timeout: 60_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+  await page.goto(`${server.url}/`, { waitUntil: "load" });
+  await page.waitForSelector(".frame-card", { timeout: 30_000 });
+  // The first project in the sidebar's Projects group is the one shown, and it is selected there.
+  const first = await page.locator(".sidebar-group").last().locator(".sidebar-item").first().getAttribute("href");
+  assert.equal(new URL(page.url()).hash, first);
+  assert.match((await page.locator(".sidebar-item.on").getAttribute("href")) ?? "", /^#\/p\//);
+  await page.close();
+});
+
+test("in a narrow viewer the toolbar, sidebar and Brand page keep everything readable", { skip, timeout: 60_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 800, height: 900 } });
+  await page.addInitScript(() => localStorage.setItem("ided.sidebar", "open"));
+  // Long values with nowhere to break, as in a real brand.
+  const brandFile = join(dir, "design/brand/brand.ts");
+  writeFileSync(
+    brandFile,
+    readFileSync(brandFile, "utf8").replace(
+      "    // links: { website: \"https://example.com\" },",
+      '    links: { website: "https://darkmanufacturing-industrial-systems.example" },\n    contact: { email: "founders-and-partnerships@darkmanufacturing.example" },',
+    ),
+  );
+  await page.goto(`${server.url}/#/p/brand`, { waitUntil: "load" });
+  await page.waitForFunction(() => document.querySelectorAll(".bb-fact").length >= 3, null, { timeout: 30_000 });
+  const box = (sel: string) => page.locator(sel).first().boundingBox();
+  const title = (await box(".toolbar-title"))!;
+  const actions = (await box(".toolbar-actions"))!;
+  assert.ok(title.x + title.width <= actions.x, "the actions never cover the title");
+  assert.equal(await page.locator(".toolbar kbd").first().isVisible().catch(() => false), false, "key hints go first");
+  assert.equal(await page.locator(".sidebar-item .kind").count() > 0, true, "projects keep their kind");
+  assert.equal(await page.locator(".sidebar-group").first().locator(".kind").count(), 0, "the Brand group does not repeat it");
+  const overflow = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>(".bb-fact, .bb-logo-tile")].filter((el) => el.scrollWidth > el.clientWidth + 1).map((el) => el.className),
+  );
+  assert.deepEqual(overflow, [], "facts and logo tiles fit their cards");
+
+  // [ hides the sidebar, and the choice is remembered.
+  await page.keyboard.press("[");
+  assert.equal(await page.locator(".sidebar").isVisible(), false);
+  assert.equal(await page.evaluate(() => localStorage.getItem("ided.sidebar")), "closed");
+  await page.close();
+});
+
+test("a focused frame zooms and pans, and assets and logos open large", { skip, timeout: 60_000 }, async () => {
+  const { page } = await open("#/p/intro/01-statement");
+  await page.waitForSelector(".zoom-bar");
+  await page.keyboard.press("1");
+  assert.equal(await page.locator(".zoom-level").innerText(), "100%");
+  await page.keyboard.press("+");
+  assert.equal(await page.locator(".zoom-level").innerText(), "150%");
+  const canvas = page.locator(".canvas-zoom");
+  assert.ok(await canvas.evaluate((el) => el.scrollWidth > el.clientWidth), "zoomed past the stage, it scrolls");
+  await page.keyboard.press("0");
+  assert.notEqual(await page.locator(".zoom-level").innerText(), "150%", "0 fits again");
+
+  await page.goto(`${server.url}/#/p/brand`);
+  await page.locator(".bb-logo-tile").first().click();
+  await page.waitForSelector(".lightbox");
+  assert.match(await page.locator(".lightbox .zoom-title").innerText(), /^mark · primary/);
+  await page.keyboard.press("ArrowRight");
+  assert.match(await page.locator(".lightbox .zoom-title").innerText(), /^mark · reversed/);
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator(".lightbox").count(), 0);
+  await page.close();
+});
