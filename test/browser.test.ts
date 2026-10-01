@@ -252,8 +252,15 @@ test("in a narrow viewer the toolbar, sidebar and Brand page keep everything rea
       '    links: { website: "https://darkmanufacturing-industrial-systems.example" },\n    contact: { email: "founders-and-partnerships@darkmanufacturing.example" },',
     ),
   );
-  await page.goto(`${server.url}/#/p/brand`, { waitUntil: "load" });
-  await page.waitForFunction(() => document.querySelectorAll(".bb-fact").length >= 3, null, { timeout: 30_000 });
+  // The running server picks the edit up through its file watcher, which can lag on a busy
+  // machine: reload until the new facts are there.
+  for (let tries = 0; ; tries++) {
+    await page.goto(`${server.url}/#/p/brand`, { waitUntil: "load" });
+    await page.waitForSelector(".bb-fact", { timeout: 30_000 });
+    if ((await page.locator(".bb-fact").count()) >= 3) break;
+    assert.ok(tries < 30, "the brand edit never reached the viewer");
+    await page.waitForTimeout(1000);
+  }
   const box = (sel: string) => page.locator(sel).first().boundingBox();
   const title = (await box(".toolbar-title"))!;
   const actions = (await box(".toolbar-actions"))!;
