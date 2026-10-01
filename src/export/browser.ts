@@ -143,8 +143,8 @@ export async function launchBrowser(): Promise<Browser> {
     try {
       const b = await chromium.launch({ headless: true, channel });
       warnOnce(
-        `Exporting with installed ${channel} because the pinned Chromium ${status.version} is not available` +
-          `${downloadError ? ` (${downloadError.message.split("\n")[0]})` : ""}. Output can change when that browser updates; run \`ided browser install\` to pin it.`,
+        `Rendering with installed ${channel === "msedge" ? "Edge" : channel === "chrome" ? "Chrome" : "Chromium"} because the pinned Chromium ${status.version} is not available` +
+          `${downloadError ? ` (${downloadError.message.split("\n")[0]})` : ""}. Results can change when that browser updates; run \`ided browser install\` to pin it.`,
       );
       return b;
     } catch {

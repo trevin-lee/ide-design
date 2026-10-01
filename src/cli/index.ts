@@ -274,7 +274,7 @@ exportCmd.action(
   }),
 );
 
-const browserCmd = program.command("browser").description("The pinned Chromium that renders PDF/PNG exports.");
+const browserCmd = program.command("browser").description("The pinned Chromium that renders the layout check, screenshots and exports.");
 browserCmd
   .command("status", { isDefault: true })
   .description("Show the pinned build, where it lives and whether it is installed.")
@@ -287,7 +287,7 @@ browserCmd
       const mb = s.sizeBytes ? ` (${Math.round(s.sizeBytes / 1048576)} MB)` : "";
       console.log(`Chromium ${s.version} (headless shell, pinned by this ided version)`);
       console.log(`${s.installed ? pc.green("✔ installed") : pc.yellow("not installed")}  ${pc.dim(s.dir + mb)}`);
-      if (!s.installed) console.log(pc.dim("  Downloads automatically on first export, or now with `ided browser install`."));
+      if (!s.installed) console.log(pc.dim("  Downloads the first time check, a screenshot or an export needs it, or now with `ided browser install`."));
       if (process.env.IDED_CHROME_PATH) console.log(pc.yellow(`! IDED_CHROME_PATH is set; exports use ${process.env.IDED_CHROME_PATH} instead.`));
     }),
   );

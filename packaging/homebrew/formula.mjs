@@ -34,8 +34,8 @@ class IdeDesign < Formula
       Connect ided to Claude Code and Codex (skills and MCP server):
         ided setup
 
-      PDF and PNG export use a pinned Chromium, downloaded on the first
-      export (about 100 MB), or now with:
+      The layout check, screenshots and exports use a pinned Chromium,
+      downloaded the first time one needs it (about 100 MB), or now with:
         ided browser install
 
       Before uninstalling, remove the skills and MCP server from your agents,

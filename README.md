@@ -115,11 +115,11 @@ To run unreleased changes from `main`, install from a checkout:
 git clone https://github.com/trevin-lee/ide-design && cd ide-design && npm install && npm run build && npm install -g .
 ```
 
-PDF and PNG export render with one pinned Chromium build (the headless shell that ided's
-Playwright version targets), not with whatever Chrome you have installed, so an export looks the
-same after a Chrome update and on every machine of the same OS. It downloads on the first export
-(about 100 MB, 195 MB on disk, shared by every workspace in `~/.cache/ided/browsers`), or ahead of
-time with `ided browser install`. It comes from Playwright's download server over HTTPS; Playwright
+`ided check` (its layout layer), screenshots and PDF and PNG export render with one pinned
+Chromium build (the headless shell that ided's Playwright version targets), not with whatever
+Chrome you have installed, so a render looks the same after a Chrome update and on every machine of
+the same OS. It downloads the first time one of them needs it (about 100 MB, 195 MB on disk, shared
+by every workspace in `~/.cache/ided/browsers`), or ahead of time with `ided browser install`. It comes from Playwright's download server over HTTPS; Playwright
 does not publish checksums for these builds, so ided cannot verify one.
 
 ## Quick start
@@ -466,8 +466,8 @@ your files at run time.
 - The SVG color check reads explicit `fill`, `stroke` and `stop-color` values (hex, `rgb()`, basic
   names). Shapes with no fill at all draw black and are not flagged; `hsl()` and other names are
   reported as unreadable.
-- If the pinned Chromium cannot be downloaded, export falls back to installed Chrome and warns that
-  output then follows that browser's version. `IDED_CHROME_PATH` forces a specific binary;
+- If the pinned Chromium cannot be downloaded, rendering falls back to installed Chrome and warns
+  that results then follow that browser's version. `IDED_CHROME_PATH` forces a specific binary;
   `IDED_NO_BROWSER_DOWNLOAD=1` disables the download; `IDED_BROWSERS_PATH` moves the cache.
 - There is no pinned build for Linux on ARM; those machines use a system Chromium.
 - Pinning removes browser drift, not OS differences: macOS and Linux smooth fonts differently, so
