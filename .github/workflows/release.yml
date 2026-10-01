@@ -7,7 +7,8 @@
 # release, npm and the tap push.
 #
 # Secrets: TAP_DEPLOY_KEY (private half of a deploy key with write access to the
-# tap repository) and, optionally, NPM_TOKEN and OVSX_TOKEN (publish-extension.yml).
+# tap repository) and, optionally, NPM_TOKEN and OVSX_TOKEN. The VS Code Marketplace needs no
+# secret: publish-extension.yml signs in with the AZURE_* repository variables (see there).
 
 name: Release
 
