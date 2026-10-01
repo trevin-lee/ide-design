@@ -375,6 +375,25 @@ function checkDependencies(ws: Workspace, root: string) {
   for (const p of ws.projects) visit(p.id, []);
 }
 
+/**
+ * A project and everything that uses it, directly or through other libraries: what a change to
+ * it can break. Every project uses the brand.
+ */
+export function withDependents(ws: Workspace, id: string): string[] {
+  if (id === "brand") return ws.projects.map((p) => p.id);
+  const out = new Set([id]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const p of ws.projects) {
+      if (!out.has(p.id) && p.dependencies.some((d) => out.has(d))) {
+        out.add(p.id);
+        grew = true;
+      }
+    }
+  }
+  return ws.projects.map((p) => p.id).filter((p) => out.has(p));
+}
+
 /** Projects that depend on `id`, directly. */
 export function dependentsOf(ws: Workspace, id: string): string[] {
   return ws.projects.filter((p) => p.dependencies.includes(id)).map((p) => p.id);

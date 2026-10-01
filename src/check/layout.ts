@@ -8,26 +8,34 @@ import { isFrameKind } from "../shared/formats.ts";
 import type { Violation } from "../runtime/context.ts";
 import type { CheckIssue } from "./index.ts";
 
-export async function layoutIssues(root: string, projects: Project[], parseSrc: (src: string | undefined) => { file: string; line?: number; column?: number } | null): Promise<CheckIssue[]> {
+export async function layoutIssues(
+  root: string,
+  projects: Project[],
+  parseSrc: (src: string | undefined) => { file: string; line?: number; column?: number } | null,
+): Promise<{ issues: CheckIssue[]; skipped?: string }> {
   const targets = projects.filter((p) => isFrameKind(p.kind) && p.geometry && p.frames.length);
-  if (!targets.length) return [];
+  if (!targets.length) return { issues: [] };
   const { launchBrowser } = await import("../export/browser.ts");
   const { openRender, renderUrl } = await import("../export/artifacts.ts");
   let browser: Browser;
   try {
     browser = await launchBrowser();
   } catch (e) {
-    return [
-      {
-        file: "design",
-        rule: "layout",
-        severity: "warning",
-        message: `Layout was not checked: ${(e as Error).message.split("\n")[0]}`,
-        hint: "Run `ided browser install` (the layout check measures frames in the pinned Chromium), or pass --no-layout.",
-        source: "layout",
-        project: null,
-      },
-    ];
+    const reason = (e as Error).message.split("\n")[0];
+    return {
+      skipped: "no browser",
+      issues: [
+        {
+          file: "design",
+          rule: "layout",
+          severity: "warning",
+          message: `Layout was not checked: ${reason}`,
+          hint: "Run `ided browser install` (the layout check measures frames in the pinned Chromium), or pass --no-layout.",
+          source: "layout",
+          project: null,
+        },
+      ],
+    };
   }
   const { startServer } = await import("../server/index.ts");
   const server = await startServer({ root, port: 0 });
@@ -64,5 +72,5 @@ export async function layoutIssues(root: string, projects: Project[], parseSrc: 
     await server.close();
     await browser.close();
   }
-  return issues;
+  return { issues };
 }

@@ -41,6 +41,7 @@ export interface FrameEnv {
 /** The frame root's direct flow children, in render order: how bleed knows who touches which edge. */
 export interface RootSlots {
   align: "start" | "center" | "end" | "stretch";
+  justify: "start" | "center" | "end" | "between";
   items: { bleed: ReadonlySet<BleedSide>; src?: string }[];
 }
 

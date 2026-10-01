@@ -11,7 +11,7 @@
 
 import type { Violation } from "./context.ts";
 
-export const LAYOUT_RULES = ["overflow", "ratio", "crop"] as const;
+export const LAYOUT_RULES = ["overflow", "ratio", "crop", "bleed"] as const;
 
 export interface LayoutOptions {
   /** The frame's design width, to convert screen pixels back to design pixels. */
@@ -184,7 +184,10 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
       if (block.getClientRects().length > 1) continue;
     }
     const bleeds = el.hasAttribute("data-ided-bleed");
-    const limit = bleeds ? frame : name === "Place" ? inner(parent, false) : inner(parent, true);
+    // A Place is pinned to its positioned ancestor (a Box, a thread box or the frame), not to the
+    // Stack or Row it is written in.
+    const pinnedTo = name === "Place" && el.offsetParent instanceof HTMLElement && root.contains(el.offsetParent) ? el.offsetParent : parent;
+    const limit = bleeds ? frame : name === "Place" ? inner(pinnedTo, false) : inner(parent, true);
     const extent = extentOf(el);
     const over = beyond(extent, limit);
     // A thread box cuts its story at the bottom on purpose; the next box continues it.
@@ -216,6 +219,17 @@ export function measureLayout(root: HTMLElement, opts: LayoutOptions): Violation
       );
     }
     checkRatio(el);
+  }
+
+  // A bleed must actually reach the frame edges it names.
+  for (const box of root.querySelectorAll<HTMLElement>("[data-ided-bleed]")) {
+    const r = rectOf(box);
+    const gap: Record<Side, number> = { top: r.top - frame.top, right: frame.right - r.right, bottom: frame.bottom - r.bottom, left: r.left - frame.left };
+    for (const side of (box.dataset.idedBleed ?? "").split(" ").filter(Boolean) as Side[]) {
+      if (Math.abs(gap[side]) > tolerance) {
+        report(box, "bleed", "error", `bleeds to the ${side} edge but stops ${px(Math.abs(gap[side]))}px short of it.`, side === "top" || side === "bottom" ? `Lay the frame out so the Box sits at the ${side}: \`justify\` "${side === "top" ? "start" : "end"}" or "between" on the root.` : "Span the frame's width, or align the Box to that side.");
+      }
+    }
   }
 
   for (const box of root.querySelectorAll<HTMLElement>("[data-ided-thread]")) {

@@ -5,7 +5,7 @@ import type { ViteDevServer } from "vite";
 import { loadBrand } from "../core/load-brand.ts";
 import { RUNTIME_DIR } from "../core/paths.ts";
 import { writeGenerated } from "../core/scaffold.ts";
-import { allIssues, canonical, scanWorkspace, sourceFiles, type Issue, type Project, type Workspace } from "../core/workspace.ts";
+import { allIssues, canonical, scanWorkspace, sourceFiles, withDependents, type Issue, type Project, type Workspace } from "../core/workspace.ts";
 import type { FrameKind } from "../shared/formats.ts";
 import { createIdedVite } from "../server/vite.ts";
 import { lintFile, type FileRole } from "./lint.ts";
@@ -21,6 +21,8 @@ export interface CheckIssue extends Issue {
 export interface CheckResult {
   issues: CheckIssue[];
   projects: { id: string; kind: string; frames: number }[];
+  /** Layers that did not run, and why: a clean result says nothing about them. */
+  skipped: string[];
 }
 
 export interface CheckOptions {
@@ -59,8 +61,10 @@ export function staticCheck(rootPath: string, projectId?: string): CheckIssue[] 
   const root = canonical(rootPath);
   writeGenerated(root);
   const ws = scanWorkspace(root);
-  const projects = projectId ? ws.projects.filter((p) => p.id === projectId) : ws.projects;
-  if (projectId && projects.length === 0) throw new Error(`No project "${projectId}". Projects: ${ws.projects.map((p) => p.id).join(", ")}`);
+  if (projectId && !ws.projects.some((p) => p.id === projectId)) throw new Error(`No project "${projectId}". Projects: ${ws.projects.map((p) => p.id).join(", ")}`);
+  // A project's check covers what depends on it: a library change can break its users, a brand change everything.
+  const scope = projectId ? withDependents(ws, projectId) : null;
+  const projects = scope ? ws.projects.filter((p) => scope.includes(p.id)) : ws.projects;
   const out: CheckIssue[] = [];
   const structural = projectId ? projects.flatMap((p) => p.issues) : allIssues(ws);
   for (const i of structural) out.push({ ...i, source: "structure", project: projectOf(ws, i.file) });
@@ -115,79 +119,83 @@ export async function runCheck(rootPath: string, opts: CheckOptions = {}): Promi
   const root = canonical(rootPath);
   const issues = staticCheck(root, opts.project);
   const ws = scanWorkspace(root);
-  const projects = (opts.project ? ws.projects.filter((p) => p.id === opts.project) : ws.projects).filter(Boolean);
+  const scope = opts.project ? withDependents(ws, opts.project) : null;
+  const projects = scope ? ws.projects.filter((p) => scope.includes(p.id)) : ws.projects;
+  const skipped: string[] = [];
+  if (opts.render === false) skipped.push("render audit and layout (--no-render)");
+  else if (opts.layout === false) skipped.push("layout (--no-layout)");
 
-  if (opts.render !== false) {
-    const vite = opts.vite ?? (await createIdedVite({ root, ssrOnly: true }));
-    try {
-      const loaded = await loadBrand(vite, ws);
-      if (loaded.error) {
-        issues.push({ file: relative(root, join(ws.designDir, "brand", "brand.ts")), rule: "brand-load", message: loaded.error, severity: "error", source: "brand", project: "brand" });
-      }
-      if (!opts.project || opts.project === "brand") {
-        for (const i of loaded.issues) {
-          issues.push({ file: "design/brand/brand.ts", rule: "brand", message: `${i.path ? `${i.path}: ` : ""}${i.message}`, severity: i.severity, source: "brand", project: "brand" });
-        }
-      }
-      const brandOk = loaded.brand && !loaded.issues.some((i) => i.severity === "error");
-      if (loaded.brand && brandOk) {
-        for (const i of svgColorIssues(root, projects, loaded.brand)) issues.push({ ...i, source: "assets" });
-        const ssr = (await vite.ssrLoadModule(join(RUNTIME_DIR, "ssr.tsx"))) as typeof import("../runtime/ssr.tsx");
-        for (const p of projects) {
-          if (p.kind === "brand" || !p.geometry) continue;
-          for (const [index, f] of p.frames.entries()) {
-            const rel = relative(root, f.abs);
-            // Skip frames that already fail to type-check; their render errors would just repeat.
-            let mod: { default?: unknown };
-            try {
-              mod = await vite.ssrLoadModule(f.abs);
-            } catch (e) {
-              issues.push({ file: rel, rule: "load-error", message: (e as Error).message.split("\n")[0]!, severity: "error", source: "render", project: p.id });
-              continue;
-            }
-            if (typeof mod.default !== "function") continue; // reported by lint
-            // A responsive web screen renders once per viewport; what fails on only some says where.
-            const variants = p.geometry.viewports ?? [null];
-            const variantViolations = variants.flatMap((vp) =>
-              ssr
-                .renderFrame({
-                  brand: loaded.brand!,
-                  svgs: loaded.svgs,
-                  kind: p.kind as FrameKind,
-                  project: p.id,
-                  file: rel,
-                  geometry: vp ? { ...p.geometry!, width: vp.width, height: vp.height } : p.geometry!,
-                  index,
-                  total: p.frames.length,
-                  Component: mod.default as never,
-                  viewport: vp?.name,
-                })
-                .violations.map((v) => ({ ...v, viewport: vp?.name })),
-            );
-            const found = new Map<string, { v: (typeof variantViolations)[number]; on: string[] }>();
-            for (const v of variantViolations) {
-              const key = `${v.rule}|${v.src}|${v.message}`;
-              const entry = found.get(key) ?? { v, on: [] };
-              if (v.viewport) entry.on.push(v.viewport);
-              found.set(key, entry);
-            }
-            for (const { v, on } of found.values()) {
-              const loc = parseSrc(v.src) ?? { file: rel };
-              const where = on.length && on.length < variants.length ? ` (${on.join(", ")})` : "";
-              issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message + where, hint: v.hint, severity: v.severity, source: "render", project: p.id });
-            }
+  const vite = opts.vite ?? (await createIdedVite({ root, ssrOnly: true }));
+  try {
+    // The brand is validated on every check: every project depends on it.
+    const loaded = await loadBrand(vite, ws);
+    if (loaded.error) {
+      issues.push({ file: relative(root, join(ws.designDir, "brand", "brand.ts")), rule: "brand-load", message: loaded.error, severity: "error", source: "brand", project: "brand" });
+    }
+    for (const i of loaded.issues) {
+      issues.push({ file: "design/brand/brand.ts", rule: "brand", message: `${i.path ? `${i.path}: ` : ""}${i.message}`, severity: i.severity, source: "brand", project: "brand" });
+    }
+    if (!loaded.brand) {
+      if (opts.render !== false) skipped.push("render audit, layout and SVG colors (brand.ts does not load)");
+    } else if (opts.render !== false) {
+      for (const i of svgColorIssues(root, projects, loaded.brand)) issues.push({ ...i, source: "assets" });
+      const ssr = (await vite.ssrLoadModule(join(RUNTIME_DIR, "ssr.tsx"))) as typeof import("../runtime/ssr.tsx");
+      for (const p of projects) {
+        if (p.kind === "brand" || !p.geometry) continue;
+        for (const [index, f] of p.frames.entries()) {
+          const rel = relative(root, f.abs);
+          // Skip frames that already fail to type-check; their render errors would just repeat.
+          let mod: { default?: unknown };
+          try {
+            mod = await vite.ssrLoadModule(f.abs);
+          } catch (e) {
+            issues.push({ file: rel, rule: "load-error", message: (e as Error).message.split("\n")[0]!, severity: "error", source: "render", project: p.id });
+            continue;
+          }
+          if (typeof mod.default !== "function") continue; // reported by lint
+          // A responsive web screen renders once per viewport; what fails on only some says where.
+          const variants = p.geometry.viewports ?? [null];
+          const variantViolations = variants.flatMap((vp) =>
+            ssr
+              .renderFrame({
+                brand: loaded.brand!,
+                svgs: loaded.svgs,
+                kind: p.kind as FrameKind,
+                project: p.id,
+                file: rel,
+                geometry: vp ? { ...p.geometry!, width: vp.width, height: vp.height } : p.geometry!,
+                index,
+                total: p.frames.length,
+                Component: mod.default as never,
+                viewport: vp?.name,
+              })
+              .violations.map((v) => ({ ...v, viewport: vp?.name })),
+          );
+          const found = new Map<string, { v: (typeof variantViolations)[number]; on: string[] }>();
+          for (const v of variantViolations) {
+            const key = `${v.rule}|${v.src}|${v.message}`;
+            const entry = found.get(key) ?? { v, on: [] };
+            if (v.viewport) entry.on.push(v.viewport);
+            found.set(key, entry);
+          }
+          for (const { v, on } of found.values()) {
+            const loc = parseSrc(v.src) ?? { file: rel };
+            const where = on.length && on.length < variants.length ? ` (${on.join(", ")})` : "";
+            issues.push({ file: loc.file, line: loc.line, column: loc.column, rule: v.rule, message: v.message + where, hint: v.hint, severity: v.severity, source: "render", project: p.id });
           }
         }
-        if (opts.layout !== false) {
-          const { layoutIssues } = await import("./layout.ts");
-          issues.push(...(await layoutIssues(root, projects, parseSrc)));
-        }
       }
-    } finally {
-      if (!opts.vite) await vite.close();
+      if (opts.layout !== false) {
+        const { layoutIssues } = await import("./layout.ts");
+        const layout = await layoutIssues(root, projects, parseSrc);
+        issues.push(...layout.issues);
+        if (layout.skipped) skipped.push(`layout (${layout.skipped})`);
+      }
     }
+  } finally {
+    if (!opts.vite) await vite.close();
   }
-  return { issues: dedupe(issues), projects: projects.map((p) => ({ id: p.id, kind: p.kind, frames: p.frames.length })) };
+  return { issues: dedupe(issues), projects: projects.map((p) => ({ id: p.id, kind: p.kind, frames: p.frames.length })), skipped };
 }
 
 export function formatIssues(result: CheckResult): string {
@@ -215,5 +223,7 @@ export function formatIssues(result: CheckResult): string {
   const scope = result.projects.map((p) => `${p.id}${p.kind === "brand" || p.kind === "library" ? "" : ` (${p.frames})`}`).join(", ");
   if (errors === 0 && warnings === 0) lines.push(`${pc.green("✔")} Clean: ${scope}`);
   else lines.push(`${errors ? pc.red("✖") : pc.yellow("!")} ${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"} · ${scope}`);
+  // Say what was not looked at, so a clean result is never mistaken for a full one.
+  if (result.skipped.length) lines.push(pc.yellow(`  Not checked: ${result.skipped.join("; ")}.`));
   return lines.join("\n");
 }

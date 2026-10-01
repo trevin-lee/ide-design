@@ -245,7 +245,8 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
         const fg = isSurface(on) ? on.value : on;
         if (HEX_RE.test(fg)) {
           const ratio = contrast(hex, fg);
-          if (ratio < 4.5) err(`color.${k}.on`, `"${def.on}" on "${k}" has contrast ${ratio.toFixed(2)}:1; body text needs 4.5:1.`);
+          // A surface's default text color is used for text of every size, so it needs the small-text ratio.
+          if (ratio < 4.5) err(`color.${k}.on`, `"${def.on}" on "${k}" has contrast ${ratio.toFixed(2)}:1; a surface's default text color is used at every size and needs 4.5:1.`);
         }
       }
       if (def.logo !== undefined && !brand.logo?.colorways?.[def.logo]) {
@@ -353,6 +354,22 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
       }
     }
     onGrid("logo.sizes", logo.sizes, { ascending: true });
+    // Each surface's default colorway is what <Logo> draws there: every color of it must read (3:1).
+    for (const [k, def] of Object.entries(colors)) {
+      if (!isSurface(def) || def.logo === undefined || !HEX_RE.test(def.value)) continue;
+      const cw = logo.colorways?.[def.logo];
+      if (!cw) continue;
+      for (const part of ["mark", "wordmark"] as const) {
+        const value = cw[part];
+        for (const t of typeof value === "string" ? [value] : Array.isArray(value) ? value : []) {
+          const c = colors[t];
+          const hex = c === undefined ? undefined : isSurface(c) ? c.value : c;
+          if (hex && HEX_RE.test(hex) && contrast(hex, def.value) < 3) {
+            err(`color.${k}.logo`, `Colorway "${def.logo}" draws the ${part} in "${t}", ${contrast(hex, def.value).toFixed(2)}:1 on "${k}"; logos need 3:1.`);
+          }
+        }
+      }
+    }
   }
   return issues;
 }

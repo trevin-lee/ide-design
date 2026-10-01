@@ -137,6 +137,14 @@ function useTokens() {
   return { brand, token };
 }
 
+/**
+ * Doc pages are laid out at twice their printed size, so text sizes are halved before WCAG's
+ * large-text thresholds (which are about how big text is when read) apply.
+ */
+function printScale(frame: { kind: FrameKind } | null): number {
+  return frame?.kind === "doc" ? 0.5 : 1;
+}
+
 function fractionValue(f: string): number {
   const [a, b] = f.split("/").map(Number);
   return a! / b!;
@@ -251,7 +259,7 @@ function makeRoot(name: string, kind: FrameKind) {
     const align = oneOf(props.align, ALIGNS, "align", report) ?? "stretch";
     const justify = oneOf(props.justify, JUSTIFIES, "justify", report) ?? "start";
     // Filled in by the root's direct children as they render, then checked by BleedAudit.
-    const slots: RootSlots = { align, items: [] };
+    const slots: RootSlots = { align, justify, items: [] };
     let vars = variableCache.get(brand);
     if (!vars) variableCache.set(brand, (vars = brandVariables(brand)));
     const marginToken = brand.margin[kind];
@@ -285,7 +293,7 @@ function makeRoot(name: string, kind: FrameKind) {
       const m = brand.space[marginToken] ?? 0;
       const columnWidth = width - 2 * m;
       const step = columnWidth + m;
-      const chromeSlots: RootSlots = { align: "stretch", items: [] };
+      const chromeSlots: RootSlots = { align: "stretch", justify: "start", items: [] };
       return (
         <div {...dom} className="ided-root" style={{ ...style, display: "block" }}>
           <SurfaceContext.Provider value={bg ? surface! : null}>
@@ -343,9 +351,13 @@ function BleedAudit(props: { slots: RootSlots }) {
     const report = (message: string, hint: string) => sink.report({ rule: "bleed", severity: "error", message: `<Box> ${message}`, src: item.src, hint });
     if (item.bleed.has("top") && i !== 0) {
       report('bleeds to the top edge but is not the first thing in the frame.', "Only the first child of the frame's root touches its top edge; move the Box first or drop \"top\".");
+    } else if (item.bleed.has("top") && props.slots.justify !== "start" && props.slots.justify !== "between") {
+      report(`bleeds to the top edge, but the frame's justify "${props.slots.justify}" moves it away from it.`, 'Use justify "start" or "between" on the root, or drop "top".');
     }
     if (item.bleed.has("bottom") && i !== items.length - 1) {
       report('bleeds to the bottom edge but is not the last thing in the frame.', "Only the last child of the frame's root touches its bottom edge; move the Box last or drop \"bottom\".");
+    } else if (item.bleed.has("bottom") && props.slots.justify !== "end" && props.slots.justify !== "between") {
+      report(`bleeds to the bottom edge, but the frame's justify "${props.slots.justify}" leaves it above the edge.`, 'Use justify "end" or "between" on the root (the band goes last), or drop "bottom".');
     }
   });
   return null;
@@ -424,7 +436,8 @@ function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
     };
     return (
       <div {...dom} style={style}>
-        <LayoutContext.Provider value={{ axis, gap, inText: false, box: null, root: null }}>{props.children}</LayoutContext.Provider>
+        {/* Layout only: a Box's corner reaches through to what is laid out inside it, for concentric radii. */}
+        <LayoutContext.Provider value={{ axis, gap, inText: false, box: layout.box, root: null }}>{props.children}</LayoutContext.Provider>
       </div>
     );
   }
@@ -459,7 +472,7 @@ export function Show(raw: ShowProps) {
   return on.includes(frame.viewport) ? <>{props.children}</> : null;
 }
 
-export interface ThreadProps {
+interface ThreadBase {
   /**
    * The story: a component that returns its blocks, e.g. `export function Essay() { return <>…</>; }`.
    * Every <Thread> with the same story continues where the previous one (in page order) stopped.
@@ -470,6 +483,8 @@ export interface ThreadProps {
   height?: Extent;
   grow?: boolean;
 }
+
+export type ThreadProps = WithResponsive<ThreadBase, "gap" | "width" | "height" | "grow">;
 
 /** The story's blocks, with fragments flattened. */
 function storyBlocks(node: ReactNode, report: Reporter): ReactElement[] {
@@ -500,7 +515,7 @@ function storyFrom(blocks: ReactElement[], p: StoryPosition): ReactNode[] {
  * <Thread> for it in page order, splitting paragraphs between lines where a box is full.
  */
 export function Thread(raw: ThreadProps) {
-  const { props, report, dom, src } = usePrimitive<ThreadProps>("Thread", raw, ["story", "gap", "width", "height", "grow"], ["story"]);
+  const { props, report, dom, src } = usePrimitive<ThreadBase>("Thread", raw, ["story", "gap", "width", "height", "grow"], ["story"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -576,7 +591,7 @@ export function Grid(raw: GridProps) {
   };
   return (
     <div {...dom} style={style}>
-      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: null, root: null }}>{props.children}</LayoutContext.Provider>
+      <LayoutContext.Provider value={{ axis: "column", gap: "0px", inText: false, box: layout.box, root: null }}>{props.children}</LayoutContext.Provider>
     </div>
   );
 }
@@ -795,7 +810,7 @@ export function Box(raw: BoxProps) {
     if (layout.axis === "column") style.flexShrink = 0;
   }
   // Read by the layout check (src/runtime/layout.ts).
-  const layoutAttrs = { "data-ided-crop": props.crop === true ? "" : undefined, "data-ided-bleed": bleed.size ? "" : undefined, "data-ided-ratio": ratio };
+  const layoutAttrs = { "data-ided-crop": props.crop === true ? "" : undefined, "data-ided-bleed": bleed.size ? [...bleed].join(" ") : undefined, "data-ided-ratio": ratio };
   return (
     <div {...dom} {...layoutAttrs} style={style}>
       <SurfaceContext.Provider value={bg ? surface! : parentSurface}>
@@ -883,6 +898,7 @@ function checkTextChildren(children: ReactNode, report: Reporter) {
 /** All text. The only way to set type is a brand type style. */
 export function Text(raw: TextProps) {
   const { props, report, dom, src } = usePrimitive<TextBase>("Text", raw, ["type", "color", "align"], ["type"]);
+  const frameEnv = useContext(FrameContext);
   const { brand, token } = useTokens();
   const layout = useContext(LayoutContext);
   useRootSlot(layout, src);
@@ -898,7 +914,7 @@ export function Text(raw: TextProps) {
   const bg = isSurface(surfaceDef) ? surfaceDef.value : undefined;
   if (fg && bg && m) {
     const ratio = contrast(fg, bg);
-    const need = requiredContrast(m.size, m.weight);
+    const need = requiredContrast(m.size * printScale(frameEnv), m.weight);
     if (ratio < need) {
       report(
         "contrast",
@@ -943,6 +959,7 @@ export interface EmProps {
 /** Emphasis inside <Text>: the type style's emphasis weight, optionally a brand color. */
 export function Em(raw: EmProps) {
   const { props, report, dom } = usePrimitive<EmProps>("Em", raw, ["color"]);
+  const frameEnv = useContext(FrameContext);
   const { brand, token } = useTokens();
   const text = useContext(TextContext);
   if (!text) report("misplaced", "only works inside <Text>.");
@@ -953,7 +970,7 @@ export function Em(raw: EmProps) {
   const hex = color ? colorValue(brand, color) : undefined;
   if (hex && text && isSurface(surfaceDef)) {
     const ratio = contrast(hex, surfaceDef.value);
-    const need = requiredContrast(text.size, text.emphasisWeight);
+    const need = requiredContrast(text.size * printScale(frameEnv), text.emphasisWeight);
     if (ratio < need) report("contrast", `"${color}" on "${surface}" is ${ratio.toFixed(2)}:1; this text needs ${need}:1.`, "Emphasize with weight alone, or pick a color token that reads on this surface.");
   }
   return (
@@ -1022,13 +1039,27 @@ export interface EquationProps {
 }
 
 // Size, spacing, boxes and links set by hand inside TeX; the surrounding Text decides these.
-const TEX_FORBIDDEN = new Set(
-  "tiny scriptsize footnotesize small normalsize large Large LARGE huge Huge rule kern mkern mskip hskip hspace colorbox fcolorbox href url includegraphics htmlClass htmlId htmlStyle htmlData".split(" "),
+// TeX an Equation may not use. Math is everything KaTeX knows (anything else fails to parse)
+// except what the brand and the Text decide: macro definitions, which could rename anything
+// below; sizes and math styles; spacing, raising and boxes set by hand; links and HTML.
+// Colors are allowed only as brand tokens (\color{accent}, \textcolor{accent}{…}).
+const TEX_DEFINES = new Set("def gdef edef xdef let futurelet global newcommand renewcommand providecommand DeclareMathOperator expandafter noexpand csname endcsname char".split(" "));
+const TEX_BY_HAND = new Set(
+  [
+    "tiny scriptsize footnotesize small normalsize large Large LARGE huge Huge displaystyle textstyle scriptstyle scriptscriptstyle",
+    "kern mkern mskip hskip hspace quad qquad enspace enskip thinspace medspace thickspace negthinspace negmedspace negthickspace",
+    "raisebox raise lower smash phantom hphantom vphantom mathstrut strut rule llap rlap clap mathllap mathrlap mathclap",
+    "boxed fbox framebox colorbox fcolorbox",
+    "href url includegraphics htmlClass htmlId htmlStyle htmlData",
+  ]
+    .join(" ")
+    .split(" "),
 );
 
 /** Math set from TeX, inside <Text>: the Text gives it its size, color and alignment. */
 export function Equation(raw: EquationProps) {
   const { props, report, dom } = usePrimitive<EquationProps>("Equation", raw, ["tex", "display"], ["tex"]);
+  const frameEnv = useContext(FrameContext);
   const { brand } = useTokens();
   const text = useContext(TextContext);
   const surface = useContext(SurfaceContext);
@@ -1038,8 +1069,10 @@ export function Equation(raw: EquationProps) {
     return null;
   }
   for (const [, cmd] of props.tex.matchAll(/\\([a-zA-Z]+)/g)) {
-    if (TEX_FORBIDDEN.has(cmd!)) {
-      report("equation", `uses \\${cmd}, which sets size, spacing, boxes or links by hand.`, "The Text around the Equation sets its size; use a different type style, or split the Text.");
+    if (TEX_DEFINES.has(cmd!)) {
+      report("equation", `uses \\${cmd}, which defines a macro; write the math out.`, "Macros could stand in for anything an Equation may not use, so none can be defined.");
+    } else if (TEX_BY_HAND.has(cmd!)) {
+      report("equation", `uses \\${cmd}, which sets size, spacing, boxes or links by hand.`, "The Text around the Equation sets its size; use a different type style, or split the Text. Thin spaces (\\, \\; \\!) are fine.");
     }
   }
   // Colors are brand tokens, as everywhere: \textcolor{accent}{x} becomes the accent's value.
@@ -1053,7 +1086,7 @@ export function Equation(raw: EquationProps) {
     }
     if (text && isSurface(surfaceDef)) {
       const ratio = contrast(hex, surfaceDef.value);
-      const need = requiredContrast(text.size, text.weight);
+      const need = requiredContrast(text.size * printScale(frameEnv), text.weight);
       if (ratio < need) report("contrast", `"${token}" on "${surface}" is ${ratio.toFixed(2)}:1; this text needs ${need}:1.`);
     }
     return `\\${cmd}{${hex}}`;
@@ -1081,6 +1114,7 @@ export type ListProps = WithResponsive<ListBase, "type" | "gap">;
 /** A list of short text items with aligned markers. */
 export function List(raw: ListProps) {
   const { props, report, dom, src } = usePrimitive<ListBase>("List", raw, ["type", "items", "marker", "gap", "color"], ["type", "items"]);
+  const frameEnv = useContext(FrameContext);
   useRootSlot(useContext(LayoutContext), src);
   const { brand, token } = useTokens();
   const surface = useContext(SurfaceContext);
@@ -1094,7 +1128,7 @@ export function List(raw: ListProps) {
   const fg = fgToken ? colorValue(brand, fgToken) : undefined;
   if (fg && isSurface(surfaceDef) && m) {
     const ratio = contrast(fg, surfaceDef.value);
-    const need = requiredContrast(m.size, m.weight);
+    const need = requiredContrast(m.size * printScale(frameEnv), m.weight);
     if (ratio < need) report("contrast", `"${fgToken}" on "${surface}" is ${ratio.toFixed(2)}:1; needs ${need}:1.`);
   }
   if (!Array.isArray(props.items) || props.items.some((i) => typeof i !== "string")) {

@@ -33,6 +33,23 @@ function rawFacts(text: string): { kind: string; text: string }[] {
   return found;
 }
 
+/** Whether a string literal is a value given to a primitive: a JSX prop, or a per-viewport value inside one. */
+function isPropValue(node: ts.Node): boolean {
+  let n = node.parent;
+  if (ts.isJsxAttribute(n)) return true;
+  while (n && (ts.isPropertyAssignment(n) || ts.isObjectLiteralExpression(n) || ts.isParenthesizedExpression(n) || ts.isConditionalExpression(n))) n = n.parent;
+  return !!n && ts.isJsxExpression(n) && ts.isJsxAttribute(n.parent);
+}
+
+/** Whether an identifier is a type (Date in `: Date`), not a value. */
+function isTypePosition(node: ts.Node): boolean {
+  for (let n: ts.Node | undefined = node.parent; n; n = n.parent) {
+    if (ts.isTypeNode(n)) return true;
+    if (ts.isExpression(n) || ts.isStatement(n)) return false;
+  }
+  return false;
+}
+
 const LAYOUT_PRIMITIVES = new Set(["Slide", "Page", "Artboard", "Screen", "Stack", "Row", "Grid", "Box", "Place"]);
 const FORBIDDEN_ATTRS = new Set(["style", "className", "class", "dangerouslySetInnerHTML", "ref", "id", "tabIndex"]);
 const FORBIDDEN_GLOBALS = new Set(["window", "document", "fetch", "localStorage", "sessionStorage", "globalThis", "process", "require", "eval", "Function", "XMLHttpRequest", "navigator", "setTimeout", "setInterval"]);
@@ -185,8 +202,9 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
         }
       }
     }
-    // Raw CSS-looking values in string literals
-    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && !ts.isImportDeclaration(node.parent) && role !== "brand") {
+    // Raw CSS-looking values given to a primitive: a prop's value, or one of its values per viewport.
+    // Copy is not a value: "#cafe" in a list of hashtags is text, not a color.
+    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && role !== "brand" && isPropValue(node)) {
       const v = node.text.trim();
       if (RAW_UNIT_RE.test(v) || RAW_COLOR_RE.test(v) || RAW_FN_RE.test(v)) {
         report(node, "no-raw-values", `"${v}" is a raw CSS value.`, "Every length, color and font comes from brand tokens. Add a token to design/brand/brand.ts if one is missing.");
@@ -214,12 +232,25 @@ export function lintFile(abs: string, code: string, role: FileRole, project: Pro
       }
       if (callee.kind === ts.SyntaxKind.ImportKeyword) report(node, "imports", "Dynamic import() is not allowed.");
       const text = callee.getText(sf);
-      if (/^(Math\.random|Date\.now|performance\.now|crypto\.)/.test(text)) {
+      if (/^(performance\.now|crypto\.)/.test(text)) {
         report(node, "deterministic", `\`${text}\` makes the design non-deterministic.`, "The same source must always render the same pixels. Hard-code the data.");
       }
     }
-    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Date") {
-      report(node, "deterministic", "`new Date()` makes the design non-deterministic.", "Write the date as text.");
+    // The clock and randomness, however they are reached: Date() or new Date(), Date.now,
+    // Intl date formatting, Math.random called directly, stored, or destructured.
+    if (ts.isIdentifier(node) && node.text === "Date" && !isTypePosition(node) && !(ts.isPropertyAccessExpression(node.parent) && node.parent.name === node)) {
+      report(node, "deterministic", "`Date` reads the clock, so the design would change from day to day.", "Write the date as text.");
+    }
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Intl" && /^(DateTimeFormat|RelativeTimeFormat)$/.test(node.name.text)) {
+      report(node, "deterministic", `\`Intl.${node.name.text}\` formats the current date or depends on the machine's locale.`, "Write the date as text.");
+    }
+    if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "Math" && node.name.text === "random") {
+      report(node, "deterministic", "`Math.random` makes the design non-deterministic.", "The same source must always render the same pixels. Hard-code the data.");
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer && ts.isIdentifier(node.initializer) && node.initializer.text === "Math" && ts.isObjectBindingPattern(node.name)) {
+      for (const el of node.name.elements) {
+        if ((el.propertyName ?? el.name).getText(sf) === "random") report(el, "deterministic", "`Math.random` makes the design non-deterministic.", "The same source must always render the same pixels. Hard-code the data.");
+      }
     }
     if (ts.isIdentifier(node) && FORBIDDEN_GLOBALS.has(node.text)) {
       const p = node.parent;
