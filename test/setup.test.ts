@@ -23,7 +23,7 @@ test("setup installs skills once in the shared folder and links agents that need
   assert.equal(r.status, 0, r.stderr);
 
   assert.match(readFileSync(join(shared, "ided", "SKILL.md"), "utf8"), /^---\nname: ided\n/);
-  assert.equal(readFileSync(join(shared, "ided", ".ided-version"), "utf8").trim(), version);
+  assert.equal(readFileSync(join(shared, "ided", ".ided-version"), "utf8").split("\n")[0], version);
   assert.ok(lstatSync(join(claude, "ided-design")).isSymbolicLink(), "Claude Code gets a link");
   assert.equal(realpathSync(join(claude, "ided-design")), realpathSync(join(shared, "ided-design")));
   assert.ok(!existsSync(join(codex, "ided")), "the old Codex copy is removed");
@@ -37,14 +37,14 @@ test("any ided command refreshes the shared skills after an upgrade", { timeout:
   writeFileSync(join(shared, "ided", "SKILL.md"), "stale");
   assert.equal(runWith(env, FAKE_HOME, "browser", "status").status, 0);
   assert.match(readFileSync(join(shared, "ided", "SKILL.md"), "utf8"), /^---\nname: ided\n/);
-  assert.equal(readFileSync(join(shared, "ided", ".ided-version"), "utf8").trim(), version);
+  assert.equal(readFileSync(join(shared, "ided", ".ided-version"), "utf8").split("\n")[0], version);
 });
 
 test("setup --project commits portable skills, an AGENTS.md section and MCP config", { timeout: 60_000 }, () => {
   const dir = workspace("--bare");
   const r = run(dir, "setup", "--project");
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(readFileSync(join(dir, ".agents/skills/ided/.ided-version"), "utf8").trim(), version);
+  assert.equal(readFileSync(join(dir, ".agents/skills/ided/.ided-version"), "utf8").split("\n")[0], version);
   assert.equal(readlinkSync(join(dir, ".claude/skills/ided")), join("..", "..", ".agents", "skills", "ided"), "relative link, portable across checkouts");
   assert.match(readFileSync(join(dir, "AGENTS.md"), "utf8"), /<!-- ided:start -->[\s\S]*ided rules[\s\S]*<!-- ided:end -->/);
   assert.deepEqual(JSON.parse(readFileSync(join(dir, ".mcp.json"), "utf8")).mcpServers.ided, { command: "ided", args: ["mcp"] });
@@ -129,6 +129,7 @@ test("setup writes only for agents that are there, and --remove leaves the home 
   assert.equal(named.status, 0, named.stderr);
   assert.deepEqual(entries(), [".agents", ".trae"], "a named agent gets its own folder");
   assert.ok(existsSync(join(home, ".trae/skills/ided-design/SKILL.md")));
+  assert.equal(readFileSync(join(home, ".agents/skills/ided/.ided-version"), "utf8").split("\n")[0], version, "the shared copy stays ided's");
 
   assert.equal(runWith(clean, home, "setup", "--remove").status, 0);
   assert.deepEqual(entries(), [], "everything setup created is gone");
@@ -143,4 +144,50 @@ test("setup --project --no-mcp writes no .mcp.json, and --agent is user-wide onl
   const r = run(dir, "setup", "--project", "--agent", "trae");
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /--agent is for user-wide setup/);
+});
+
+test("setup and refresh never touch what is not theirs", { timeout: 180_000 }, () => {
+  const home = mkdtempSync(join(tmpdir(), "ided-own-home-"));
+  const clean = { ...env, HOME: home, CODEX_HOME: join(home, ".codex") };
+  mkdirSync(join(home, ".claude", "skills"), { recursive: true });
+  mkdirSync(join(home, "my-skills", "ided"), { recursive: true });
+  writeFileSync(join(home, "my-skills", "ided", "SKILL.md"), "---\nname: ided\n---\nmine");
+  symlinkSync(join(home, "my-skills", "ided"), join(home, ".claude", "skills", "ided"), "dir");
+
+  assert.equal(runWith(clean, home, "setup", "--no-mcp").status, 0);
+  assert.equal(readlinkSync(join(home, ".claude", "skills", "ided")), join(home, "my-skills", "ided"), "a user's own link stays");
+
+  // A refresh after an upgrade keeps files added to a skill folder and skills deleted on purpose.
+  const shared = join(home, ".agents", "skills");
+  writeFileSync(join(shared, "ided-design", "NOTES.md"), "mine");
+  rmSync(join(shared, "ided-brand"), { recursive: true });
+  const marker = join(shared, "ided-design", ".ided-version");
+  writeFileSync(marker, readFileSync(marker, "utf8").replace(/^[^\n]+/, "0.0.1"));
+  assert.equal(runWith(clean, home, "browser", "status").status, 0);
+  assert.equal(readFileSync(marker, "utf8").split("\n")[0], version, "refreshed");
+  assert.equal(readFileSync(join(shared, "ided-design", "NOTES.md"), "utf8"), "mine");
+  assert.ok(!existsSync(join(shared, "ided-brand")), "a deleted skill stays deleted");
+
+  assert.equal(runWith(clean, home, "setup", "--codex").status, 0);
+  assert.ok(existsSync(join(home, ".codex", "config.toml")));
+  const removed = runWith(clean, home, "setup", "--remove");
+  assert.equal(removed.status, 0);
+  assert.match(removed.stdout, /kept ~\/\.agents\/skills\/ided-design: they hold files ided did not put there/);
+  assert.ok(!existsSync(join(home, ".codex")), "the Codex config setup created is removed");
+  assert.equal(readlinkSync(join(home, ".claude", "skills", "ided")), join(home, "my-skills", "ided"), "the user's own link survives --remove");
+  assert.equal(readFileSync(join(shared, "ided-design", "NOTES.md"), "utf8"), "mine", "and so do files they added");
+  rmSync(home, { recursive: true, force: true });
+});
+
+test("project setup edits only its own entries in AGENTS.md and .mcp.json", { timeout: 60_000 }, () => {
+  const dir = workspace("--bare", "--no-agents-md");
+  const agentsMd = "# Notes\n\n\n\nKeep   this   spacing.\n";
+  const mcp = '{\n    "mcpServers": {\n        "other": { "command": "x" }\n    }\n}\n';
+  writeFileSync(join(dir, "AGENTS.md"), agentsMd);
+  writeFileSync(join(dir, ".mcp.json"), mcp);
+  run(dir, "setup", "--project");
+  assert.match(readFileSync(join(dir, ".mcp.json"), "utf8"), /"other": \{ "command": "x" \},\n        "ided"/);
+  run(dir, "setup", "--project", "--remove");
+  assert.equal(readFileSync(join(dir, "AGENTS.md"), "utf8"), agentsMd);
+  assert.equal(readFileSync(join(dir, ".mcp.json"), "utf8"), mcp);
 });

@@ -74,13 +74,24 @@ brew install trevin-lee/tap/ide-design   # pulls in Node; installs the `ided` co
 ided setup                         # skills for your agents + the MCP server
 ```
 
-Upgrade with `brew upgrade ide-design`. Before `brew uninstall ide-design`, run `ided setup --remove`
-to take the skills and MCP server out of your agents, and `ided browser remove` to delete the
-downloaded Chromium. Everything ided writes outside its own
-install survives upgrades: the workspace's editor types point at Homebrew's version-independent
-path, and the skills (and the links agents read them through) refresh on the next `ided` command.
-The MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents started
-outside a terminal still find it.
+Upgrade with `brew upgrade ide-design`. Everything ided writes outside its own install survives
+upgrades: the workspace's editor types point at Homebrew's version-independent path, and the
+skills (and the links agents read them through) refresh on the next `ided` command. User-wide, the
+MCP server is registered by absolute path (`/opt/homebrew/bin/ided`), so agents started outside a
+terminal still find it. A repository's `.mcp.json` names plain `ided` instead, because it is
+committed and read on other people's machines, where ided may be installed somewhere else.
+
+To uninstall, undo each thing ided added, then remove the package:
+
+```sh
+ided setup --remove             # skills and MCP server, from every agent
+ided setup --project --remove   # in each repository you ran `ided setup --project` in
+ided browser remove             # the downloaded Chromium (about 100 MB)
+brew uninstall ide-design       # or: npm rm -g ide-design
+```
+
+`design/.ided` in a workspace holds generated editor types and can be deleted; the VS Code
+extension is removed from the Extensions view.
 
 Installed 0.2 or earlier, when the formula was called `ided`? Homebrew trusts tap formulae by
 name, so trust the new name once, then move the install over:
@@ -240,7 +251,8 @@ ided setup --project    # this repository: every agent, for everyone who clones 
   folder (Trae, Junie, Kiro, Windsurf and others) get the skills when you name them with
   `--agent`; ided then runs the standard skills installer ([vercel-labs/skills](https://github.com/vercel-labs/skills),
   pinned, with its telemetry turned off), which knows where each one looks. Setup keeps a receipt
-  of every folder it creates, so `ided setup --remove` leaves your home folder as it found it. It
+  of every folder and file it creates, so `ided setup --remove` leaves your home folder as it
+  found it; a file you added to one of ided's skill folders stays, and so does its folder. It
   also registers the MCP server with Claude Code and Codex when they are installed (`--no-mcp` to
   skip); other MCP clients can run `ided mcp`.
 - **Per project**, ided writes the skills to `.agents/skills/` (the shared project location) with
@@ -248,7 +260,7 @@ ided setup --project    # this repository: every agent, for everyone who clones 
   `AGENTS.md`, the cross-agent instructions file, so even an agent without the skills knows to run
   `ided rules`. `ided init` adds that section on its own (`--no-agents-md` to skip).
 - After an upgrade, the next `ided` command refreshes every copy. Files and folders ided did not
-  create are never touched.
+  create are never touched, and a skill you deleted stays deleted.
 - Without ided installed, the skills alone install anywhere with `npx skills add trevin-lee/ide-design`.
 
 - **ided**: the mechanics (scaffold, write, `ided check`, screenshot, review comments) and the

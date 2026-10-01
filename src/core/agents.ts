@@ -31,7 +31,8 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
-import { dependencyDir, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR, STABLE_PKG_ROOT } from "./paths.ts";
+import { dependencyDir, LATEST_TARBALL_URL, PKG_VERSION, SKILLS_DIR } from "./paths.ts";
+import { addMember, removeMember } from "./json-edit.ts";
 import { findWorkspaceRoot } from "./workspace.ts";
 
 export type Agent = "claude" | "codex";
@@ -93,33 +94,77 @@ const claudeSkillsDir = () => join(homedir(), ".claude", "skills");
 const codexHome = () => process.env.CODEX_HOME ?? join(homedir(), ".codex");
 const codexSkillsDir = () => join(codexHome(), "skills");
 
-/** Is this directory entry one ided created (or the installer created for ided)? Anything else is left alone. */
+/** Whether a link points at a copy of ours: the shared folder, a repository's shared folder, or an installed ided package (0.1). */
+function ourLinkTarget(entry: string, name: string): boolean {
+  const target = resolve(dirname(entry), readlinkSync(entry)).replace(/[\\/]+$/, "").split(sep).join("/");
+  return (
+    target.endsWith(`/.agents/skills/${name}`) ||
+    new RegExp(`/node_modules/(ided|ide-design)/skills/${name}$`).test(target) ||
+    target === join(SKILLS_DIR, name).split(sep).join("/")
+  );
+}
+
+/** Is this directory entry one ided created? A link only if it points at ided's copy, a folder only with ided's marker. */
 function ownedBy(entry: string, name: string): "link" | "copy" | null {
   const st = lstatSync(entry, { throwIfNoEntry: false });
   if (!st) return null;
-  if (st.isSymbolicLink()) return readlinkSync(entry).replace(/[\\/]+$/, "").endsWith(join("skills", name)) ? "link" : null;
+  if (st.isSymbolicLink()) return ourLinkTarget(entry, name) ? "link" : null;
   if (st.isDirectory() && existsSync(join(entry, MARKER))) return "copy";
-  // Copies without a marker: ours if the folder is named like ours and its SKILL.md says so.
-  if (st.isDirectory() && name.startsWith("ided")) {
-    try {
-      return new RegExp(`^name:\\s*${name}\\s*$`, "m").test(readFileSync(join(entry, "SKILL.md"), "utf8")) ? "copy" : null;
-    } catch {
-      return null;
-    }
-  }
   return null;
+}
+
+/** The files of a skill as this version ships them, relative to the skill's folder. */
+function shippedFiles(name: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string, prefix: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(dir, e.name), `${prefix}${e.name}/`);
+      else out.push(`${prefix}${e.name}`);
+    }
+  };
+  walk(join(SKILLS_DIR, name), "");
+  return out.sort();
+}
+
+/** The files ided put in a copy (listed in its marker since 0.9; before that, the files it ships now). */
+function placedFiles(dir: string, name: string): string[] {
+  try {
+    const listed = readFileSync(join(dir, MARKER), "utf8").split("\n").slice(1).filter(Boolean);
+    if (listed.length) return listed;
+  } catch {
+    // no marker
+  }
+  return shippedFiles(name);
+}
+
+/** Removes ided's own files from a copy, and the folder when nothing else is left in it. */
+function removeCopy(dir: string, name: string): void {
+  for (const f of [...placedFiles(dir, name), MARKER]) rmSync(join(dir, f), { force: true });
+  pruneEmpty(dir);
+}
+
+/** Deletes `dir` and the folders inside it that are empty; anything with a file in it stays. */
+function pruneEmpty(dir: string): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const e of entries) if (lstatSync(join(dir, e)).isDirectory()) pruneEmpty(join(dir, e));
+  if (readdirSync(dir).length === 0) rmSync(dir, { recursive: true });
 }
 
 function removeOwned(entry: string, name: string): boolean {
   const owner = ownedBy(entry, name);
   if (owner === "link") unlinkSync(entry);
-  else if (owner === "copy") rmSync(entry, { recursive: true, force: true });
+  else if (owner === "copy") removeCopy(entry, name);
   return owner !== null;
 }
 
 function markerVersion(dir: string): string {
   try {
-    return readFileSync(join(dir, MARKER), "utf8").trim();
+    return readFileSync(join(dir, MARKER), "utf8").split("\n")[0]!.trim();
   } catch {
     return "0.0.0";
   }
@@ -137,13 +182,19 @@ function newer(a: string, b: string): boolean {
   return false;
 }
 
-/** A copy of one of this version's skills, with the version marker. */
+/**
+ * A copy of one of this version's skills, with a marker naming its version and its files. An
+ * existing copy of ours has only those files replaced: anything someone added to it stays.
+ */
 function copySkill(root: string, name: string): "copied" | "kept" {
   const dest = join(root, name);
-  if (lstatSync(dest, { throwIfNoEntry: false }) && !removeOwned(dest, name)) return "kept";
-  mkdirSync(root, { recursive: true });
-  cpSync(join(SKILLS_DIR, name), dest, { recursive: true });
-  writeFileSync(join(dest, MARKER), `${PKG_VERSION}\n`);
+  const owner = lstatSync(dest, { throwIfNoEntry: false }) ? ownedBy(dest, name) : "none";
+  if (owner === null) return "kept";
+  if (owner === "link") unlinkSync(dest);
+  if (owner === "copy") for (const f of placedFiles(dest, name)) rmSync(join(dest, f), { force: true });
+  mkdirSync(dest, { recursive: true });
+  cpSync(join(SKILLS_DIR, name), dest, { recursive: true, force: true });
+  writeFileSync(join(dest, MARKER), `${PKG_VERSION}\n${shippedFiles(name).join("\n")}\n`);
   return "copied";
 }
 
@@ -179,6 +230,8 @@ interface Receipt {
   agents: string[];
   /** Folders setup created. `--remove` deletes each one it leaves empty. */
   created: string[];
+  /** Skill folders the installer placed for named agents (since 0.9; absent in older receipts). */
+  placed?: string[];
 }
 
 const receiptFile = () => join(homedir(), ".agents", ".ided-setup.json");
@@ -186,7 +239,7 @@ const receiptFile = () => join(homedir(), ".agents", ".ided-setup.json");
 function readReceipt(): Receipt {
   try {
     const r = JSON.parse(readFileSync(receiptFile(), "utf8")) as Partial<Receipt>;
-    return { agents: r.agents ?? [], created: r.created ?? [] };
+    return { agents: r.agents ?? [], created: r.created ?? [], ...(r.placed ? { placed: r.placed } : {}) };
   } catch {
     return { agents: [], created: [] };
   }
@@ -206,8 +259,9 @@ const claudePresent = () => existsSync(join(homedir(), ".claude")) || which("cla
  * The shared copy, Claude Code's links when Claude Code is there, and the folders of any agents
  * named in `agents` (plus those named in earlier setups).
  */
-export function installGlobalSkills(agents: string[] = []): SetupStep[] {
-  const names = skillNames();
+export function installGlobalSkills(agents: string[] = [], only?: string[]): SetupStep[] {
+  // `only`: a refresh after an upgrade updates the skills that are installed, never one deleted on purpose.
+  const names = only ?? skillNames();
   const receipt = readReceipt();
   const created = [...receipt.created];
   // Setups from ided 0.1 put copies in ~/.codex/skills; Codex now reads the shared folder.
@@ -238,11 +292,15 @@ export function installGlobalSkills(agents: string[] = []): SetupStep[] {
 
   const named = [...new Set([...receipt.agents, ...agents])];
   let placedFor: string[] = receipt.agents;
+  let placed: string[] = [];
   if (named.length) {
     const topLevel = new Set(readdirSync(homedir()));
-    const r = runInstaller(["add", STABLE_PKG_ROOT, "--global", "--yes", "--skill", "*", "--agent", ...named], homedir());
+    // Copies of the shared folder's copies, so each carries ided's marker. An agent that reads the
+    // shared folder itself is skipped by the installer, which leaves that folder (and anything
+    // someone added to it) alone.
+    const r = runInstaller(["add", shared, "--global", "--yes", "--copy", "--skill", ...names, "--agent", ...named], homedir());
     // The installer lists where it put each skill ("→ ~/.trae/skills/ided"); note the folders it made.
-    const placed = [...r.output.matchAll(/→\s*(~?\/[^\s│]+)/g)].map((m) => m[1]!.replace(/^~/, homedir()));
+    placed = [...r.output.matchAll(/→\s*(~?\/[^\s│]+)/g)].map((m) => m[1]!.replace(/^~/, homedir())).filter((p) => !p.startsWith(shared + sep));
     for (const p of placed) {
       for (let d = dirname(p); d.startsWith(homedir() + sep); d = dirname(d)) {
         if (dirname(d) === homedir() && topLevel.has(basename(d))) break;
@@ -258,7 +316,8 @@ export function installGlobalSkills(agents: string[] = []): SetupStep[] {
   }
 
   mkdirSync(dirname(receiptFile()), { recursive: true });
-  writeFileSync(receiptFile(), JSON.stringify({ agents: placedFor, created } satisfies Receipt, null, 2) + "\n");
+  const allPlaced = [...new Set([...(receipt.placed ?? []), ...placed])];
+  writeFileSync(receiptFile(), JSON.stringify({ agents: placedFor, created, placed: allPlaced } satisfies Receipt, null, 2) + "\n");
   return steps;
 }
 
@@ -311,15 +370,23 @@ function writeProjectMcp(root: string): string {
       return `${file} is not valid JSON; left unchanged`;
     }
   }
-  config.mcpServers = { ...(config.mcpServers ?? {}), ided: { command: "ided", args: ["mcp"] } };
-  writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+  if (!existsSync(file)) {
+    writeFileSync(file, JSON.stringify({ mcpServers: { ided: { command: "ided", args: ["mcp"] } } }, null, 2) + "\n");
+    return ".mcp.json";
+  }
+  // Add one member and leave the rest of the file as its owner wrote it.
+  const text = readFileSync(file, "utf8");
+  const without = config.mcpServers?.ided ? (removeMember(text, ["mcpServers"], "ided") ?? text) : text;
+  const next = addMember(without, ["mcpServers"], "ided", JSON.stringify({ command: "ided", args: ["mcp"] }));
+  if (next === null) return `${file} is not a JSON object; left unchanged`;
+  if (next !== text) writeFileSync(file, next);
   return ".mcp.json";
 }
 
 const projectRoots = (root: string) => [join(root, ".agents", "skills"), join(root, ".claude", "skills")];
 
-export function installProjectSkills(root: string, opts: { mcp?: boolean } = {}): SetupStep[] {
-  const names = skillNames();
+export function installProjectSkills(root: string, opts: { mcp?: boolean; only?: string[] } = {}): SetupStep[] {
+  const names = opts.only ?? skillNames();
   const [shared, claude] = projectRoots(root) as [string, string];
   sweepRetired([claude, shared]);
   const kept: string[] = [];
@@ -348,11 +415,13 @@ export function installProjectSkills(root: string, opts: { mcp?: boolean } = {})
 
 /** Ours, but from an older version or missing a skill this version ships. */
 function stale(root: string): boolean {
-  if (!existsSync(root)) return false;
-  const names = skillNames();
-  const ours = names.filter((n) => ownedBy(join(root, n), n) === "copy");
-  if (ours.length === 0) return false;
-  return ours.length < names.length || ours.some((n) => newer(PKG_VERSION, markerVersion(join(root, n))));
+  return installedSkills(root).some((n) => newer(PKG_VERSION, markerVersion(join(root, n))));
+}
+
+/** This version's skills that have a copy of ours in `root`. A skill someone deleted stays deleted. */
+function installedSkills(root: string): string[] {
+  if (!existsSync(root)) return [];
+  return skillNames().filter((n) => ownedBy(join(root, n), n) === "copy");
 }
 
 /**
@@ -363,10 +432,10 @@ function stale(root: string): boolean {
 export function refreshSkills(cwd = process.cwd()): void {
   if (process.env.IDED_NO_SKILL_REFRESH === "1") return;
   try {
-    if (stale(agentsSkillsDir())) installGlobalSkills();
+    if (stale(agentsSkillsDir())) installGlobalSkills([], installedSkills(agentsSkillsDir()));
     const project = findWorkspaceRoot(cwd);
     // Refresh the skills only: .mcp.json is left as the last explicit setup wrote it.
-    if (project && stale(join(project, ".agents", "skills"))) installProjectSkills(project, { mcp: false });
+    if (project && stale(join(project, ".agents", "skills"))) installProjectSkills(project, { mcp: false, only: installedSkills(join(project, ".agents", "skills")) });
     refreshLegacy();
   } catch {
     // Never let housekeeping break the command the user actually ran.
@@ -398,8 +467,11 @@ function refreshLegacy(): void {
 export function removeGlobal(): SetupStep[] {
   const names = skillNames();
   const receipt = readReceipt();
-  // The installer placed skills for named agents (and, before 0.3.1, for every agent it detected).
-  const r = runInstaller(["remove", ...names, "--global", "--yes"], homedir());
+  // Named agents' copies are removed where setup recorded them. Receipts from before 0.9 did not
+  // record them (and before 0.3.1 the installer placed skills for every agent it detected), so
+  // for those the installer's own removal runs, as it did then.
+  const r = receipt.placed ? { ok: true } : runInstaller(["remove", ...names, "--global", "--yes"], homedir());
+  for (const p of receipt.placed ?? []) removeOwned(p, basename(p));
   for (const root of globalRoots()) for (const n of [...names, ...RETIRED_SKILLS]) removeOwned(join(root, n), n);
   rmSync(receiptFile(), { force: true });
   // Deepest first, and only folders that are now empty: anything else in them is someone else's.
@@ -410,8 +482,11 @@ export function removeGlobal(): SetupStep[] {
       // already gone
     }
   }
-  const left = names.filter((n) => existsSync(join(agentsSkillsDir(), n)));
-  const steps: SetupStep[] = [{ what: "skills removed from every agent", ok: r.ok && left.length === 0, detail: left.length ? `still present: ${left.join(", ")}` : names.join(", ") }];
+  // A folder still there holds only files someone else put in it.
+  const kept = names.filter((n) => existsSync(join(agentsSkillsDir(), n))).map((n) => `~/.agents/skills/${n}`);
+  const steps: SetupStep[] = [
+    { what: "skills removed from every agent", ok: r.ok, detail: kept.length ? `kept ${kept.join(", ")}: they hold files ided did not put there` : names.join(", ") },
+  ];
   const claude = which("claude");
   if (claude) {
     const c = spawnSync(claude, ["mcp", "remove", "--scope", "user", "ided"], { encoding: "utf8" });
@@ -422,7 +497,12 @@ export function removeGlobal(): SetupStep[] {
     const text = readFileSync(config, "utf8");
     const next = text.replace(/\n*^\[mcp_servers\.ided\][\s\S]*?(?=^\[|(?![\s\S]))/m, "\n");
     if (next !== text) {
-      writeFileSync(config, next.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, ""));
+      const left = next.replace(/\n{3,}/g, "\n\n").replace(/^\n+/, "");
+      // A config setup created and that held only ided's server goes, with ~/.codex if setup made that too.
+      if (!left.trim() && receipt.created.includes(config)) {
+        rmSync(config);
+        if (receipt.created.includes(codexHome())) pruneEmpty(codexHome());
+      } else writeFileSync(config, left);
       steps.push({ what: `Codex MCP removed from ${config.replace(homedir(), "~")}`, ok: true });
     }
   }
@@ -446,21 +526,29 @@ export function removeProject(root: string): SetupStep[] {
     const start = text.indexOf(AGENTS_MD_START);
     const end = text.indexOf(AGENTS_MD_END);
     if (start !== -1 && end > start) {
-      const rest = (text.slice(0, start) + text.slice(end + AGENTS_MD_END.length)).replace(/\n{3,}/g, "\n\n").trim();
+      // Cut out exactly the section (and the blank line setup put before it); the rest stays as written.
+      let before = text.slice(0, start);
+      let after = text.slice(end + AGENTS_MD_END.length);
+      if (after.startsWith("\n")) after = after.slice(1);
+      if (before.endsWith("\n\n")) before = before.slice(0, -1);
+      const rest = before + after;
       // A file that only ever held ided's section (with the heading ided wrote) goes entirely.
-      if (!rest || rest === "# Agent instructions") rmSync(agentsMd);
-      else writeFileSync(agentsMd, rest + "\n");
+      if (!rest.trim() || rest.trim() === "# Agent instructions") rmSync(agentsMd);
+      else writeFileSync(agentsMd, rest);
       steps.push({ what: "AGENTS.md: ided section removed", ok: true });
     }
   }
   const mcp = join(root, ".mcp.json");
   if (existsSync(mcp)) {
     try {
-      const config = JSON.parse(readFileSync(mcp, "utf8")) as { mcpServers?: Record<string, unknown> };
+      const text = readFileSync(mcp, "utf8");
+      const config = JSON.parse(text) as { mcpServers?: Record<string, unknown> };
       if (config.mcpServers?.ided) {
-        delete config.mcpServers.ided;
-        if (Object.keys(config.mcpServers).length === 0 && Object.keys(config).length === 1) rmSync(mcp);
-        else writeFileSync(mcp, JSON.stringify(config, null, 2) + "\n");
+        const next = removeMember(text, ["mcpServers"], "ided")!;
+        const left = JSON.parse(next) as { mcpServers?: Record<string, unknown> };
+        // A file that only held ided's server goes entirely; otherwise only that member is removed.
+        if (Object.keys(left.mcpServers ?? {}).length === 0 && Object.keys(left).length === 1) rmSync(mcp);
+        else writeFileSync(mcp, next);
         steps.push({ what: ".mcp.json: ided removed", ok: true });
       }
     } catch {
@@ -488,6 +576,8 @@ export function registerCodexMcp(): SetupStep {
   const config = join(home, "config.toml");
   const { command, args } = mcpCommand();
   const block = `[mcp_servers.ided]\ncommand = ${JSON.stringify(command)}\nargs = [${args.map((a) => JSON.stringify(a)).join(", ")}]\n`;
+  // What did not exist before is noted, so `ided setup --remove` takes it away again.
+  const created = [...(existsSync(home) ? [] : [home]), ...(existsSync(config) ? [] : [config])];
   let text = existsSync(config) ? readFileSync(config, "utf8") : "";
   if (/^\[mcp_servers\.ided\]/m.test(text)) {
     text = text.replace(/^\[mcp_servers\.ided\][\s\S]*?(?=^\[|(?![\s\S]))/m, block + "\n");
@@ -496,6 +586,11 @@ export function registerCodexMcp(): SetupStep {
   }
   mkdirSync(home, { recursive: true });
   writeFileSync(config, text);
+  if (created.length) {
+    const receipt = readReceipt();
+    mkdirSync(dirname(receiptFile()), { recursive: true });
+    writeFileSync(receiptFile(), JSON.stringify({ ...receipt, created: [...new Set([...receipt.created, ...created])] }, null, 2) + "\n");
+  }
   return { what: `Codex MCP → ${config.replace(homedir(), "~")}`, ok: true, detail: `${command} ${args.join(" ")}` };
 }
 

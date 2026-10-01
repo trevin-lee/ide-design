@@ -38,8 +38,10 @@ class IdeDesign < Formula
       export (about 100 MB), or now with:
         ided browser install
 
-      Before uninstalling, remove the skills and MCP server from your agents:
+      Before uninstalling, remove the skills and MCP server from your agents,
+      and the downloaded Chromium:
         ided setup --remove
+        ided browser remove
     EOS
   end
 
