@@ -11,6 +11,8 @@
 #   vars.S3_ENDPOINT        optional, for S3-compatible stores (Cloudflare R2, MinIO, GCS interop)
 #   secrets.AWS_ROLE_ARN    IAM role for GitHub OIDC, or use access keys instead:
 #   secrets.AWS_ACCESS_KEY_ID / secrets.AWS_SECRET_ACCESS_KEY
+#
+# Written by `ided ci`. It runs the ided version below; `ided check` says when yours is newer.
 
 name: Brand kit
 
@@ -19,6 +21,9 @@ on:
     branches: [main]
     paths: ["design/brand/**", "ided.json"]
   workflow_dispatch:
+
+env:
+  IDED_VERSION: "{{version}}"
 
 permissions:
   contents: read
@@ -39,7 +44,7 @@ jobs:
           node-version: 22
 
       - name: Install ided
-        run: npm install -g https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.tgz
+        run: npm install -g "https://github.com/trevin-lee/ide-design/releases/download/v${IDED_VERSION}/ide-design-${IDED_VERSION}.tgz"
 
       - name: Check every artifact against the brand
         # Layout is measured in a browser and is not needed to publish the brand kit.

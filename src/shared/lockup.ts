@@ -4,6 +4,8 @@
 
 import type { BrandInput, LockupDef } from "./brand-schema.ts";
 import { colorwayInks, normalizeHex, partFile, partInks } from "./brand-schema.ts";
+import { readColor, toHex } from "./color.ts";
+import { mapSvgColors } from "./svg-color.ts";
 
 /**
  * How a part is recolored: each of its colors as drawn (`currentColor`, or brand values for a
@@ -12,6 +14,8 @@ import { colorwayInks, normalizeHex, partFile, partInks } from "./brand-schema.t
 export interface Ink {
   from: readonly string[];
   to: readonly string[];
+  /** The drawing to use instead of the part's own file (its one-color `mono` version). */
+  file?: string;
 }
 
 export interface ParsedSvg {
@@ -142,14 +146,26 @@ export function logoVariants(brand: BrandInput): string[] {
 function recolor(inner: string, ink: Ink): string {
   if (ink.from.length === 1 && ink.from[0] === "currentColor") return inner.replace(/currentColor/g, ink.to[0]!);
   const map = new Map(ink.from.map((c, i) => [normalizeHex(c), ink.to[i] ?? ink.to[0]!]));
-  return inner.replace(/#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?(?:[0-9a-fA-F]{2})?\b/g, (hex) => map.get(normalizeHex(hex)) ?? hex);
+  return mapSvgColors(inner, (raw) => {
+    const c = readColor(raw);
+    const to = c ? map.get(toHex(c)) : undefined;
+    if (!c || !to) return undefined;
+    if (c.a >= 1) return to;
+    const t = readColor(to)!;
+    return `rgba(${t.r}, ${t.g}, ${t.b}, ${Number(c.a.toFixed(3))})`;
+  });
 }
 
 /** Resolve a colorway to the inks of each logo part. */
 export function colorwayHex(brand: BrandInput, colorway: string): { mark: Ink; wordmark: Ink } {
   const c = brand.logo.colorways[colorway];
   if (!c) throw new Error(`Unknown colorway "${colorway}"`);
-  const ink = (part: "mark" | "wordmark"): Ink => ({ from: partInks(brand, brand.logo[part]), to: colorwayInks(brand, brand.logo[part], c[part]) });
+  const ink = (part: "mark" | "wordmark"): Ink => {
+    const def = brand.logo[part];
+    // One token for a part drawn in several colors: its one-color drawing, when it has one.
+    if (typeof def !== "string" && def.mono && typeof c[part] === "string") return { from: ["currentColor"], to: colorwayInks(brand, def.mono, c[part]), file: def.mono };
+    return { from: partInks(brand, def), to: colorwayInks(brand, def, c[part]) };
+  };
   return { mark: ink("mark"), wordmark: ink("wordmark") };
 }
 
@@ -160,8 +176,8 @@ export function composeLogo(
   colors: { mark: Ink; wordmark: Ink },
   heightPx?: number,
 ): { svg: string; aspect: number } {
-  const markSrc = svgs[partFile(brand.logo.mark)];
-  const wordSrc = svgs[partFile(brand.logo.wordmark)];
+  const markSrc = svgs[colors.mark.file ?? partFile(brand.logo.mark)];
+  const wordSrc = svgs[colors.wordmark.file ?? partFile(brand.logo.wordmark)];
   if (!markSrc || !wordSrc) throw new Error("Logo SVGs are missing from design/brand/assets/");
   const layout = layoutLogo(variant, parseSvg(markSrc), parseSvg(wordSrc), brand.logo.lockups, colors);
   return { svg: renderLogoSvg(layout, heightPx, { title: brand.name }), aspect: layout.width / layout.height };

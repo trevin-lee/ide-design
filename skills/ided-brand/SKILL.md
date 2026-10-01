@@ -137,7 +137,12 @@ composed from them by rule. Requirements the checker enforces:
 
 - Drawn in one color with `currentColor` (fill or stroke), named as a plain file: `"mark.svg"`.
 - Or drawn in several of the brand's colors: `{ file: "mark.svg", colors: ["ink", "accent"] }`.
-  The SVG then uses exactly those colors' values (every one of them, and nothing else).
+  The SVG then uses exactly those colors' values (every one of them, and nothing else), as hex or
+  `rgb()`. A colorway gives one token per color, or a single token for a one-color version. A
+  single token paints every color the same, which erases whatever the colors set apart (an accent
+  dot on a dark body vanishes), so give the part a one-color drawing for those colorways:
+  `{ file: "mark.svg", colors: ["ink", "accent"], mono: "mark-mono.svg" }`, drawn with
+  `currentColor` and with the detail cut out. Without one, `ided check` warns.
 - A `viewBox`, cropped tight to the artwork (no built-in padding; clear space is a layout concern).
 - No `<text>` (convert type to outlines) and no embedded raster images.
 
@@ -168,7 +173,7 @@ color a logo is drawn in.
    the type scale at size, space and radius scales.
 3. `ided export brand --zip` writes `out/<brand>-brand-kit/`: `logos/<variant>/<variant>-<colorway>.svg`
    plus 128/512px PNGs, `tokens/tokens.css`, `tokens/tailwind.css` (a Tailwind v4 theme that
-   *replaces* the default palette and scales, so downstream apps can only use brand values),
+   *replaces* the default palette and scales; only arbitrary values like `p-[23px]` get past it),
    `tokens/tokens.json` (DTCG), `tokens/brand.ts`, `fonts/`, and a README.
 4. `ided ci` writes a GitHub Actions workflow that exports the kit on every change to
    `design/brand/` and syncs it to a bucket, so deployed sites that import `tokens.css` from

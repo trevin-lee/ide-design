@@ -3,7 +3,8 @@
 // this file defines what a token is and validates that a brand is coherent.
 
 import { validateBrandFacts, type BrandFacts } from "./brand-facts.ts";
-import { HEX_RE, contrast } from "./color.ts";
+import { HEX_RE, contrast, normalizeColor, parseShadow } from "./color.ts";
+import { svgColors } from "./svg-color.ts";
 import type { FrameKind } from "./formats.ts";
 
 export type Hex = `#${string}`;
@@ -72,9 +73,10 @@ export interface Colorway {
 /**
  * A logo part: an SVG file in `design/brand/assets/` drawn with `currentColor` (one color, set
  * per colorway), or `{ file, colors }` for a part drawn in several of the brand's colors: the SVG
- * uses exactly those colors' values, and each colorway maps them to its own.
+ * uses exactly those colors' values, and each colorway maps them to its own. `mono` is an optional
+ * one-color drawing of it (with `currentColor`), used by colorways that give one token.
  */
-export type LogoPart = string | { readonly file: string; readonly colors: readonly string[] };
+export type LogoPart = string | { readonly file: string; readonly colors: readonly string[]; readonly mono?: string };
 
 export interface LogoDef {
   readonly mark: LogoPart;
@@ -121,6 +123,12 @@ export function colorValue(brand: BrandInput, token: string): string | undefined
 /** A logo part's SVG file. */
 export function partFile(part: LogoPart): string {
   return typeof part === "string" ? part : part?.file;
+}
+
+/** Every SVG file the logo is drawn from, one-color drawings included. */
+export function logoFiles(brand: BrandInput): string[] {
+  if (!brand.logo) return [];
+  return [brand.logo.mark, brand.logo.wordmark].flatMap((p) => (typeof p === "string" ? [p] : [p.file, ...(p.mono ? [p.mono] : [])]));
 }
 
 /** The colors a part is drawn in as they appear in its SVG: `currentColor`, or its brand colors' values. */
@@ -263,7 +271,12 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
     if (typeof v !== "number" || v <= 0 || v > unit * 4) err(`stroke.${k}`, "Strokes are positive px widths, at most 4 units.");
   }
   if (brand.size) onGrid("size", brand.size, { ascending: true });
-  if (brand.shadow) checkNames("shadow", brand.shadow);
+  if (brand.shadow) {
+    checkNames("shadow", brand.shadow);
+    for (const [k, v] of Object.entries(brand.shadow)) {
+      if (typeof v !== "string" || !parseShadow(v)) err(`shadow.${k}`, `Shadows are CSS box-shadows in px with hex or rgb() colors, like "0 12px 32px rgba(17, 17, 19, 0.1)" (got ${JSON.stringify(v)}).`);
+    }
+  }
 
   // Fonts & type
   checkNames("font", brand.font as Record<string, unknown>);
@@ -328,6 +341,12 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
         continue;
       }
       for (const problem of svgProblems(svg, tokens.map((t) => colorValue(brand, t)!))) err(`logo.${part}`, `${file}: ${problem}`);
+      if (def.mono !== undefined) {
+        const mono = typeof def.mono === "string" && def.mono.endsWith(".svg") ? svgs[def.mono] : null;
+        if (mono === null) err(`logo.${part}.mono`, `mono is a one-color drawing of the ${part}, an SVG file drawn with currentColor: "${part}-mono.svg".`);
+        else if (mono === undefined) err(`logo.${part}.mono`, `design/brand/assets/${def.mono} does not exist.`);
+        else for (const problem of svgProblems(mono)) err(`logo.${part}.mono`, `${def.mono}: ${problem}`);
+      }
     }
     checkNames("logo.lockups", logo.lockups as Record<string, unknown>);
     for (const [k, l] of Object.entries(logo.lockups ?? {})) {
@@ -345,6 +364,12 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
         const list = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
         if (!list.length) err(`logo.colorways.${k}.${part}`, "is a color token, or a list of them for a part drawn in several colors.");
         for (const t of list) if (colors[t] === undefined) err(`logo.colorways.${k}.${part}`, `"${t}" is not a color token.`);
+        if (typeof value === "string" && inks > 1 && !(def as { mono?: string }).mono) {
+          warn(
+            `logo.colorways.${k}.${part}`,
+            `paints every color of the ${part} "${value}", so whatever its other colors set apart disappears. Add a one-color drawing of it (mono: "${part}-mono.svg"), or give one token per color.`,
+          );
+        }
         if (Array.isArray(value) && value.length !== inks) {
           err(
             `logo.colorways.${k}.${part}`,
@@ -385,23 +410,21 @@ export function svgProblems(svg: string, inks?: readonly string[]): string[] {
   if (!/viewBox\s*=\s*"[^"]+"/.test(svg)) out.push("needs a viewBox.");
   if (/<text[\s>]/.test(svg)) out.push("contains <text>; convert type to outlines.");
   if (/<image[\s>]/.test(svg)) out.push("embeds a raster <image>; logos must be vector.");
-  const colorRe = /(?:fill|stroke|stop-color|color)\s*[:=]\s*"?\s*(#[0-9a-fA-F]{3,8}|rgba?\([^)]*\)|hsla?\([^)]*\)|(?!none|currentColor|inherit|transparent)[a-z]+)/g;
-  const found = new Set<string>();
-  for (const m of svg.matchAll(colorRe)) {
-    const v = m[1]!;
-    if (/^url$/i.test(v)) continue;
-    found.add(v);
-  }
+  // Concrete colors, compared as #RRGGBB; one ided cannot read never matches. Reported as written.
+  const declared = svgColors(svg)
+    .map((raw) => ({ raw: raw.trim(), hex: normalizeColor(raw) }))
+    .filter((d) => d.hex !== null);
+  const found = new Set(declared.map((d) => d.hex ?? d.raw));
+  const written = (list: typeof declared) => [...new Set(list.map((d) => d.raw))].slice(0, 3).join(", ");
   if (!inks) {
-    if (found.size) out.push(`uses fixed colors (${[...found].slice(0, 3).join(", ")}); draw with currentColor so colorways can recolor it.`);
+    if (declared.length) out.push(`uses fixed colors (${written(declared)}); draw with currentColor so colorways can recolor it.`);
     return out;
   }
   const allowed = new Set(inks.map(normalizeHex));
-  const stray = [...found].filter((v) => !allowed.has(normalizeHex(v)));
-  if (stray.length) out.push(`uses colors that are not its declared colors (${stray.slice(0, 3).join(", ")}); draw it only in ${inks.join(", ")}.`);
-  if (/currentColor/.test(svg)) out.push("uses currentColor; a part drawn in several colors uses its declared colors' values.");
-  const used = new Set([...found].map(normalizeHex));
-  const unused = inks.filter((c) => !used.has(normalizeHex(c)));
+  const stray = declared.filter((d) => !allowed.has(d.hex ?? d.raw));
+  if (stray.length) out.push(`uses colors that are not its declared colors (${written(stray)}); draw it only in ${inks.join(", ")}.`);
+  if (/currentColor/i.test(svg)) out.push("uses currentColor; a part drawn in several colors uses its declared colors' values.");
+  const unused = inks.filter((c) => !found.has(normalizeHex(c)));
   if (unused.length) out.push(`never uses ${unused.join(", ")}; list only the colors it is drawn in.`);
   return out;
 }

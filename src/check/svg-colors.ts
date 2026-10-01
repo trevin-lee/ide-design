@@ -4,47 +4,10 @@
 
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { colorValue, partFile, type BrandInput } from "../shared/brand-schema.ts";
+import { colorValue, logoFiles, type BrandInput } from "../shared/brand-schema.ts";
+import { normalizeColor } from "../shared/color.ts";
+import { svgColors } from "../shared/svg-color.ts";
 import type { Issue, Project } from "../core/workspace.ts";
-
-const NAMED: Record<string, string> = {
-  black: "#000000",
-  white: "#FFFFFF",
-  red: "#FF0000",
-  green: "#008000",
-  blue: "#0000FF",
-  gray: "#808080",
-  grey: "#808080",
-  yellow: "#FFFF00",
-  orange: "#FFA500",
-};
-const SKIP = new Set(["none", "transparent", "currentcolor", "inherit", "context-fill", "context-stroke"]);
-const PROPS = "fill|stroke|stop-color|flood-color|lighting-color|color";
-
-const hex2 = (n: number) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0").toUpperCase();
-
-/** A color value as #RRGGBB (alpha dropped), or null if it is not a concrete color. */
-export function normalizeColor(raw: string): string | null | undefined {
-  const v = raw.trim().replace(/\s*!important$/, "");
-  const lower = v.toLowerCase();
-  if (SKIP.has(lower) || lower.startsWith("url(") || lower.startsWith("var(")) return null;
-  let m = /^#([0-9a-f]{3,4})$/i.exec(v);
-  if (m) return "#" + [...m[1]!.slice(0, 3)].map((c) => (c + c).toUpperCase()).join("");
-  m = /^#([0-9a-f]{6})(?:[0-9a-f]{2})?$/i.exec(v);
-  if (m) return "#" + m[1]!.toUpperCase();
-  m = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)/i.exec(v);
-  if (m) return "#" + hex2(Number(m[1])) + hex2(Number(m[2])) + hex2(Number(m[3]));
-  if (NAMED[lower]) return NAMED[lower];
-  return undefined; // a color we cannot check (another named color, hsl…)
-}
-
-/** Every color declaration in an SVG: attributes, inline styles and <style> blocks. */
-export function svgColors(svg: string): string[] {
-  const found: string[] = [];
-  for (const m of svg.matchAll(new RegExp(`\\s(?:${PROPS})\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, "gi"))) found.push(m[1] ?? m[2]!);
-  for (const m of svg.matchAll(new RegExp(`(?:^|[;{\\s"'])(?:${PROPS})\\s*:\\s*([^;"'}]+)`, "gi"))) found.push(m[1]!);
-  return found;
-}
 
 function distance(a: string, b: string): number {
   const p = (h: string, i: number) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
@@ -58,12 +21,12 @@ export function svgColorIssues(root: string, projects: Project[], brand: BrandIn
     const hex = colorValue(brand, token);
     if (hex) palette.set(hex.toUpperCase(), token);
   }
-  const logoFiles = new Set(brand.logo ? [partFile(brand.logo.mark), partFile(brand.logo.wordmark)] : []);
+  const logos = new Set(logoFiles(brand));
   const issues: (Issue & { project: string })[] = [];
   for (const p of projects) {
     for (const asset of p.assets) {
       if (!asset.endsWith(".svg") || asset.startsWith("fonts/")) continue;
-      if (p.kind === "brand" && logoFiles.has(asset)) continue; // logo parts have their own rules (brand.ts validation)
+      if (p.kind === "brand" && logos.has(asset)) continue; // logo parts have their own rules (brand.ts validation)
       const abs = join(p.dir, "assets", asset);
       const off = new Map<string, string>();
       const unknown = new Set<string>();

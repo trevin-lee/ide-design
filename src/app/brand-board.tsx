@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { brand, svgs, type WsProject } from "virtual:ided/workspace";
 import { AssetGrid, ComponentList } from "./library.tsx";
 import { factNames, formatFact } from "../shared/brand-facts.ts";
-import { colorValue, isSurface, partFile, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
+import { colorValue, isSurface, logoFiles, surfaceNames, typeMetrics, type BrandInput } from "../shared/brand-schema.ts";
 import { contrast } from "../shared/color.ts";
 import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
 
@@ -243,7 +243,7 @@ export function BrandBoard(props: { project: WsProject }) {
         </Section>
 
         <Section title="Assets" note="Shared images. Every project can import these: @brand/assets/<file>.">
-          <AssetGrid project={props.project} exclude={[partFile(b.logo.mark), partFile(b.logo.wordmark)]} />
+          <AssetGrid project={props.project} exclude={logoFiles(b)} />
         </Section>
       </div>
     </div>

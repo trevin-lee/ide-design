@@ -1,3 +1,4 @@
+import { workflowIssues } from "../core/ci.ts";
 import { readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import pc from "picocolors";
@@ -76,6 +77,8 @@ export function staticCheck(rootPath: string, projectId?: string): CheckIssue[] 
       for (const i of cachedLint(abs, roleOf(p, abs), p, root, packages)) out.push({ ...i, source: "lint", project: p.id });
     }
   }
+  // The brand-kit workflow belongs to the brand: a check that covers the brand covers it.
+  if (!projectId || projectId === "brand") for (const i of workflowIssues(root)) out.push({ ...i, source: "structure", project: "brand" });
   const brandProject = ws.projects.find((p) => p.id === "brand");
   if (brandProject?.manifest) {
     for (const i of typecheck(root, projectId ? files : undefined)) out.push({ ...i, source: "types", project: projectOf(ws, i.file) });

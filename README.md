@@ -356,7 +356,7 @@ acme-brand-kit/
   logos/<variant>/<variant>-<colorway>-{128,512}.png
   tokens/tokens.css      # :root custom properties + .brand-type-* classes
   tokens/tailwind.css    # Tailwind v4 @theme that replaces the default palette and scales
-  tokens/tokens.json     # Design Tokens Community Group format
+  tokens/tokens.json     # Design Tokens Community Group format (2025.10)
   tokens/brand.ts        # typed constant
   facts.json             # names, links, contact, locations, social, abbreviations
   fonts/                 # font files + licenses
@@ -367,11 +367,32 @@ Lockups are composed from `mark.svg` and `wordmark.svg` by rule (geometry is rel
 wordmark height), so they are identical in the viewer, in artifacts and in the kit. The kit needs
 no browser (SVGs are rasterized with resvg), so it runs anywhere.
 
-**Always-current brand in deployed sites.** `ided ci` writes `.github/workflows/brand-kit.yml`,
-which runs `ided check`, exports the kit on every change to `design/brand/`, and syncs it to an
-S3-compatible bucket under both `/<sha>/` and `/latest/`. Sites that load
-`…/latest/tokens/tokens.css` or `…/latest/logos/…svg` pick up brand changes on their next page
-load. `action.yml` packages the same steps as a composite action.
+`tokens.css` and `tailwind.css` load the brand fonts from `../fonts/`, so keep the kit's folders
+together. The Tailwind theme replaces the default colors, spacing, radii, shadows, fonts and type
+scale, so `bg-blue-500`, `p-4` or `font-bold` don't compile; size tokens become `w-*`, `h-*` and
+`size-*`, stroke tokens `border-*` and `outline-*`. Tailwind always compiles arbitrary values
+(`p-[23px]`) and bare numbers (`border-2`), which no theme can turn off: keep those out in review or
+with a lint rule.
+
+**Always-current brand in deployed sites.** `ided ci` writes `.github/workflows/brand-kit.yml` at
+the repository root (running from the workspace's folder when that is deeper). On every change to
+`design/brand/` it runs `ided check`, exports the kit, keeps it as a build artifact, and, when a
+bucket is set, syncs it to an S3-compatible bucket under both `/<sha>/` and `/latest/`. Sites that
+load `…/latest/tokens/tokens.css` or `…/latest/logos/…svg` pick up brand changes on their next page
+load. Set these in the repository's Settings → Secrets and variables → Actions:
+
+| name | kind | |
+|---|---|---|
+| `BRAND_KIT_BUCKET` | variable | the bucket; without it the kit is only kept as an artifact |
+| `AWS_REGION` | variable | defaults to `us-east-1` |
+| `S3_ENDPOINT` | variable | for S3-compatible stores other than AWS (Cloudflare R2, MinIO, GCS) |
+| `AWS_ROLE_ARN` | secret | an IAM role GitHub assumes through OIDC… |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | secrets | …or access keys instead |
+
+The workflow runs the ided version that wrote it, so its results only change when you change it;
+`ided check` says when your installed ided is newer. `action.yml` is a composite action for the
+check and export steps alone (`uses: trevin-lee/ide-design@v<version>`), for workflows of your own
+that publish the kit somewhere else.
 
 ## How it works
 

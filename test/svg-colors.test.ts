@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { normalizeColor, svgColors } from "../src/check/svg-colors.ts";
+import { normalizeColor } from "../src/shared/color.ts";
+import { svgColors } from "../src/shared/svg-color.ts";
 import { run, workspace } from "./helpers.ts";
 
 test("SVG color declarations are found in attributes, styles and style blocks", () => {

@@ -1,6 +1,6 @@
 import { Command, Option } from "commander";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
-import { basename, join, relative, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import pc from "picocolors";
 import {
   detectAgents,
@@ -474,14 +474,19 @@ program
   .description("Write a GitHub Actions workflow that publishes the brand kit on every change to design/brand.")
   .option("--force", "overwrite an existing workflow")
   .action(
-    action((opts: { force?: boolean }) => {
+    action(async (opts: { force?: boolean }) => {
+      const { brandKitWorkflow, gitRoot, workflowFile } = await import("../core/ci.ts");
       const root = requireWorkspaceRoot();
-      const target = join(root, ".github", "workflows", "brand-kit.yml");
-      if (existsSync(target) && !opts.force) throw new Error(`${relative(process.cwd(), target)} exists. Use --force to overwrite.`);
-      mkdirSync(join(root, ".github", "workflows"), { recursive: true });
-      writeFileSync(target, readFileSync(join(SKILLS_DIR, "..", "templates", "brand-kit.yml"), "utf8"));
-      console.log(`${pc.green("✔")} ${relative(process.cwd(), target)}`);
-      console.log(pc.dim("  Set the BRAND_KIT_BUCKET variable and AWS credentials secrets in the repository settings."));
+      const target = workflowFile(root);
+      if (existsSync(target) && !opts.force) throw new Error(`${relative(process.cwd(), target)} exists. Use --force to overwrite it (your edits to it are replaced).`);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, brandKitWorkflow(root));
+      console.log(`${pc.green("✔")} ${relative(process.cwd(), target)}  ${pc.dim(`runs ided ${PKG_VERSION}`)}`);
+      if (!gitRoot(root)) console.log(pc.yellow("! This folder is not in a git repository yet. GitHub runs workflows from .github/workflows at the repository root."));
+      console.log(pc.dim("  To publish to a bucket, set the BRAND_KIT_BUCKET and AWS_REGION variables (and S3_ENDPOINT for a"));
+      console.log(pc.dim("  store other than AWS) and the AWS_ROLE_ARN secret, or AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY,"));
+      console.log(pc.dim("  in the repository's Settings → Secrets and variables → Actions. Without a bucket, each run keeps"));
+      console.log(pc.dim("  the kit as a downloadable artifact."));
     }),
   );
 
