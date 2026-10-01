@@ -221,7 +221,8 @@ Decoration: surface, padding, corners, border, shadow. **At most one child**; pu
 - `bleed?` `"top" | "bottom" | "left" | "right" | "x" | "y" | "all"` or a list of them: the Box runs
   past the frame margin to that edge, while its content stays aligned to the margin. Only on a
   direct child of the root; `"top"` only on the first child and `"bottom"` only on the last, and
-  not when the root's `justify` moves its content away from that edge; a narrower Box bleeds
+  only when it reaches that edge: the root's `justify` must not hold it away (`"end"` or
+  `"between"` for a bottom band), unless something in the frame `grow`s; a narrower Box bleeds
   only toward the side the root aligns it to. Bled corners are square (no `radius`). Use it for
   color bands, split frames and full-bleed images.
 - `crop?` boolean: content may overflow this Box and is cut at its edge, the one sanctioned

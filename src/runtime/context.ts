@@ -42,7 +42,8 @@ export interface FrameEnv {
 export interface RootSlots {
   align: "start" | "center" | "end" | "stretch";
   justify: "start" | "center" | "end" | "between";
-  items: { bleed: ReadonlySet<BleedSide>; src?: string }[];
+  /** The root's children in order; `grow` ones take up its free space, whatever `justify` says. */
+  items: { bleed: ReadonlySet<BleedSide>; src?: string; grow?: boolean }[];
 }
 
 export type BleedSide = "top" | "bottom" | "left" | "right";

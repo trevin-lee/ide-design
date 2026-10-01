@@ -20,8 +20,10 @@ test("bleed is allowed only where the Box touches that edge", { timeout: 120_000
   const text = `      <Text type="body">text</Text>`;
 
   assert.deepEqual(bleedErrors(`${band(`{["top", "x"]}`)}\n${text}`), [], "first child may bleed up and sideways");
-  assert.deepEqual(bleedErrors(`${text}\n${band(`{["bottom", "x"]}`)}`), [], "last child may bleed down");
-  assert.deepEqual(bleedErrors(band('"all"')), [], "an only child may bleed everywhere");
+  assert.deepEqual(bleedErrors(`${text}\n${band(`{["bottom", "x"]}`)}`, ' justify="between"'), [], "last child may bleed down");
+  assert.deepEqual(bleedErrors(`      <Stack grow>\n  ${text}\n      </Stack>\n${band('"bottom"')}`), [], "something growing above pushes it to the bottom");
+  assert.deepEqual(bleedErrors(band('"all"', " grow")), [], "an only child that fills the frame may bleed everywhere");
+  assert.match(bleedErrors(`${text}\n${band('"bottom"')}`).join(), /justify "start" \(the default\) leaves it above the edge/);
   assert.deepEqual(bleedErrors(band('"left"', ' width="1/2"'), ' align="start"'), [], "a half-width box at the left edge may bleed left");
 
   assert.match(bleedErrors(`${text}\n${band('"top"')}`).join(), /not the first thing/);

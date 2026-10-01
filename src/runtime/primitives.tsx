@@ -339,25 +339,30 @@ function makeRoot(name: string, kind: FrameKind) {
 }
 
 /** A flow child of the root takes its place in the root's order (used to validate bleed). */
-function useRootSlot(layout: LayoutEnv, src: string | undefined, bleed: ReadonlySet<BleedSide> = new Set()): void {
-  if (layout.root) layout.root.items.push({ bleed, src });
+function useRootSlot(layout: LayoutEnv, src: string | undefined, bleed: ReadonlySet<BleedSide> = new Set(), grow?: boolean): void {
+  if (layout.root) layout.root.items.push({ bleed, src, grow: grow === true });
 }
 
 /** Rendered after the root's children: vertical bleed needs the first or last position. */
 function BleedAudit(props: { slots: RootSlots }) {
   const sink = useContext(SinkContext);
   const items = props.slots.items;
+  // A growing child takes up the free space, so the first child meets the top and the last the bottom.
+  const fills = items.some((item) => item.grow);
   items.forEach((item, i) => {
     const report = (message: string, hint: string) => sink.report({ rule: "bleed", severity: "error", message: `<Box> ${message}`, src: item.src, hint });
     if (item.bleed.has("top") && i !== 0) {
       report('bleeds to the top edge but is not the first thing in the frame.', "Only the first child of the frame's root touches its top edge; move the Box first or drop \"top\".");
-    } else if (item.bleed.has("top") && props.slots.justify !== "start" && props.slots.justify !== "between") {
-      report(`bleeds to the top edge, but the frame's justify "${props.slots.justify}" moves it away from it.`, 'Use justify "start" or "between" on the root, or drop "top".');
+    } else if (item.bleed.has("top") && !fills && props.slots.justify !== "start" && props.slots.justify !== "between") {
+      report(`bleeds to the top edge, but the frame's justify "${props.slots.justify}" moves it away from it.`, 'Use justify "start" or "between" on the root, or let something in the frame `grow` to fill the space; or drop "top".');
     }
     if (item.bleed.has("bottom") && i !== items.length - 1) {
       report('bleeds to the bottom edge but is not the last thing in the frame.', "Only the last child of the frame's root touches its bottom edge; move the Box last or drop \"bottom\".");
-    } else if (item.bleed.has("bottom") && props.slots.justify !== "end" && props.slots.justify !== "between") {
-      report(`bleeds to the bottom edge, but the frame's justify "${props.slots.justify}" leaves it above the edge.`, 'Use justify "end" or "between" on the root (the band goes last), or drop "bottom".');
+    } else if (item.bleed.has("bottom") && !fills && props.slots.justify !== "end" && props.slots.justify !== "between") {
+      report(
+        `bleeds to the bottom edge, but the frame's justify "${props.slots.justify}"${props.slots.justify === "start" ? " (the default)" : ""} leaves it above the edge.`,
+        'Use justify "end" or "between" on the root, or let something in the frame `grow` to fill the space; or drop "bottom".',
+      );
     }
   });
   return null;
@@ -426,7 +431,7 @@ function makeFlex(name: "Stack" | "Row", axis: "row" | "column") {
     const { props, report, dom, src } = usePrimitive<RowBase>(name, raw, allowed);
     const { token } = useTokens();
     const layout = useContext(LayoutContext);
-    useRootSlot(layout, src);
+    useRootSlot(layout, src, undefined, props.grow);
     if (layout.inText) report("misplaced", "cannot be inside <Text>.");
     checkNoLooseText(props.children, report);
     const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
@@ -529,7 +534,7 @@ export function Thread(raw: ThreadProps) {
   const { props, report, dom, src } = usePrimitive<ThreadBase>("Thread", raw, ["story", "gap", "width", "height", "grow"], ["story"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
-  useRootSlot(layout, src);
+  useRootSlot(layout, src, undefined, props.grow);
   const frame = useContext(FrameContext);
   const threads = useContext(ThreadContext);
   if (layout.flow) report("misplaced", "cannot be inside flowing content: a flowing page or a story already runs across pages.");
@@ -587,7 +592,7 @@ export function Grid(raw: GridProps) {
   const { props, report, dom, src } = usePrimitive<GridBase>("Grid", raw, ["columns", "gap", "width", "height", "grow"], ["columns"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
-  useRootSlot(layout, src);
+  useRootSlot(layout, src, undefined, props.grow);
   checkNoLooseText(props.children, report);
   const columns = oneOf(props.columns, COLUMNS, "columns", report) ?? 1;
   const gap = spaceCss(props.gap ?? "none", "gap", report, token) ?? "0px";
@@ -701,7 +706,7 @@ export function Box(raw: BoxProps) {
       report("bleed", "bleeds right, but a narrower Box does not reach the right edge.", 'Span the width, or align the frame "end".');
     }
   }
-  useRootSlot(layout, src, bleed);
+  useRootSlot(layout, src, bleed, props.grow);
   checkNoLooseText(props.children, report);
   if (Children.toArray(props.children).length > 1) {
     report("box-children", "holds at most one child.", "Wrap several children in <Stack> or <Row>; Box only decorates.");
@@ -1259,7 +1264,7 @@ export function Image(raw: ImageProps) {
   const { props, report, dom, src } = usePrimitive<ImageBase>("Image", raw, ["src", "alt", "ratio", "fit", "radius", "width", "height", "grow"], ["src", "alt"]);
   const { token } = useTokens();
   const layout = useContext(LayoutContext);
-  useRootSlot(layout, src);
+  useRootSlot(layout, src, undefined, props.grow);
   // Imported assets resolve to server paths; anything else was typed by hand.
   if (typeof props.src !== "string" || !/^(\/|data:)/.test(props.src)) {
     report("image-src", `\`src\` ${JSON.stringify(props.src)} is not an imported asset.`, 'Import the file and pass it: import team from "@<package>/assets/team.jpg"; <Image src={team} … />.');
