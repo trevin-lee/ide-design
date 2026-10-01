@@ -23,11 +23,34 @@ export function svgColorIssues(root: string, projects: Project[], brand: BrandIn
   }
   const logos = new Set(logoFiles(brand));
   const issues: (Issue & { project: string })[] = [];
+  // The logo's own path data: an asset that repeats it is a copy of the logo.
+  const brandDir = projects.find((p) => p.kind === "brand")?.dir;
+  const logoPaths = new Set<string>();
+  for (const f of logos) {
+    try {
+      for (const m of readFileSync(join(brandDir ?? "", "assets", f), "utf8").matchAll(/\sd="([^"]{40,})"/g)) logoPaths.add(m[1]!);
+    } catch {
+      // brand validation reports a missing logo file
+    }
+  }
   for (const p of projects) {
     for (const asset of p.assets) {
-      if (!asset.endsWith(".svg") || asset.startsWith("fonts/")) continue;
-      if (p.kind === "brand" && logos.has(asset)) continue; // logo parts have their own rules (brand.ts validation)
+      if (asset.startsWith("fonts/") || (p.kind === "brand" && logos.has(asset))) continue;
       const abs = join(p.dir, "assets", asset);
+      const name = asset.split("/").pop()!.toLowerCase();
+      const named = /^(favicon|app-?icon|apple-touch|logo|mark|wordmark|lockup)([-_.]|$)/.test(name) || /[-_](logo|favicon|wordmark|lockup)[-_.]/.test(name);
+      const drawn = asset.endsWith(".svg") && logoPaths.size > 0 && [...readFileSync(abs, "utf8").matchAll(/\sd="([^"]{40,})"/g)].some((m) => logoPaths.has(m[1]!));
+      if (named || drawn) {
+        issues.push({
+          file: relative(root, abs),
+          project: p.id,
+          rule: "logo-copy",
+          severity: "warning",
+          message: drawn ? "repeats the logo's drawing: a second copy of the logo, which nothing keeps in step with mark.svg." : "is named like the logo or an icon made from it: a second copy, which nothing keeps in step with mark.svg.",
+          hint: "Draw the logo with <Logo> in artifacts, and take favicons and app icons from the brand kit (`ided export brand`, icons/), which draws them from the mark. If this is a different drawing on purpose, give it a name that says what it is.",
+        });
+      }
+      if (!asset.endsWith(".svg")) continue;
       const off = new Map<string, string>();
       const unknown = new Set<string>();
       for (const raw of svgColors(readFileSync(abs, "utf8"))) {

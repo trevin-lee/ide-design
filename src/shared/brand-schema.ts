@@ -85,6 +85,23 @@ export interface LogoDef {
   readonly colorways: Readonly<Record<string, Colorway>>;
   /** Rendered logo heights in px. */
   readonly sizes: Readonly<Record<string, number>>;
+  /** Favicons and app icons in the brand kit: the mark on a surface. Optional; see `iconSettings`. */
+  readonly icon?: IconDef;
+}
+
+/**
+ * How the brand kit draws its icons from the mark. Every icon is the mark, never a separate
+ * drawing, so icons cannot drift from it.
+ */
+export interface IconDef {
+  /** The surface the icon is filled with. Default: "ink" if there is one, else the first surface. */
+  readonly ground?: string;
+  /** The colorway the mark is drawn in. Default: the ground's own logo colorway. */
+  readonly colorway?: string;
+  /** The mark's larger side as a share of an app icon (0-1). Default 0.7. */
+  readonly scale?: number;
+  /** The same for favicons, which are read at 16-48 px and need the mark bigger. Default 0.875. */
+  readonly faviconScale?: number;
 }
 
 export interface BrandInput {
@@ -141,6 +158,15 @@ export function colorwayInks(brand: BrandInput, part: LogoPart, value: string | 
   const inks = typeof part === "string" ? 1 : part.colors.length;
   const tokens = typeof value === "string" ? Array.from({ length: inks }, () => value) : value;
   return tokens.map((t) => colorValue(brand, t) ?? "#000000");
+}
+
+/** The icon settings with their defaults filled in. */
+export function iconSettings(brand: BrandInput): { ground: string; colorway: string; scale: number; faviconScale: number } {
+  const surfaces = surfaceNames(brand);
+  const ground = brand.logo.icon?.ground ?? (surfaces.includes("ink") ? "ink" : surfaces[0]!);
+  const def = brand.color[ground];
+  const colorway = brand.logo.icon?.colorway ?? (isSurface(def) ? def.logo : undefined) ?? Object.keys(brand.logo.colorways)[0]!;
+  return { ground, colorway, scale: brand.logo.icon?.scale ?? 0.7, faviconScale: brand.logo.icon?.faviconScale ?? 0.875 };
 }
 
 export function surfaceNames(brand: BrandInput): string[] {
@@ -207,20 +233,20 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
   const unit = brand.unit;
   if (!Number.isInteger(unit) || unit < 2 || unit > 16) err("unit", "unit must be an integer between 2 and 16 (4 or 8 is typical).");
 
-  const checkNames = (group: string, obj: Record<string, unknown> | undefined) => {
+  const checkNames = (group: string, obj: Record<string, unknown> | undefined, allowEmpty = false) => {
     if (!obj || typeof obj !== "object") {
       err(group, `Missing \`${group}\` tokens.`);
       return;
     }
-    if (Object.keys(obj).length === 0) err(group, `\`${group}\` needs at least one token.`);
+    if (Object.keys(obj).length === 0 && !allowEmpty) err(group, `\`${group}\` needs at least one token.`);
     for (const k of Object.keys(obj)) {
       if (!TOKEN_NAME_RE.test(k)) err(`${group}.${k}`, `Token names are lowercase kebab-case ("${k}" is not).`);
       if ((RESERVED_TOKENS as readonly string[]).includes(k)) err(`${group}.${k}`, `"${k}" is reserved by the framework.`);
     }
   };
 
-  const onGrid = (group: string, obj: Record<string, number> | undefined, opts: { ascending?: boolean } = {}) => {
-    checkNames(group, obj);
+  const onGrid = (group: string, obj: Record<string, number> | undefined, opts: { ascending?: boolean; allowEmpty?: boolean } = {}) => {
+    checkNames(group, obj, opts.allowEmpty);
     if (!obj) return;
     let prev = -Infinity;
     for (const [k, v] of Object.entries(obj)) {
@@ -265,7 +291,8 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
   if (surfaceNames(brand).length === 0) err("color", "Define at least one surface color: { value, on }.");
 
   onGrid("space", brand.space, { ascending: true });
-  onGrid("radius", brand.radius, { ascending: true });
+  // A square-cornered brand has no radius tokens: `radius: {}` (`"full"` and `"concentric"` still exist).
+  onGrid("radius", brand.radius, { ascending: true, allowEmpty: true });
   checkNames("stroke", brand.stroke);
   for (const [k, v] of Object.entries(brand.stroke ?? {})) {
     if (typeof v !== "number" || v <= 0 || v > unit * 4) err(`stroke.${k}`, "Strokes are positive px widths, at most 4 units.");
@@ -379,6 +406,31 @@ export function validateBrand(brand: BrandInput, svgs: Record<string, string> = 
       }
     }
     onGrid("logo.sizes", logo.sizes, { ascending: true });
+    const icon = (logo as { icon?: IconDef }).icon;
+    if (icon !== undefined) {
+      if (icon.ground !== undefined && !isSurface(colors[icon.ground])) err("logo.icon.ground", `"${icon.ground}" is not a surface (a color declared as { value, on }).`);
+      if (icon.colorway !== undefined && !logo.colorways?.[icon.colorway]) err("logo.icon.colorway", `"${icon.colorway}" is not a colorway.`);
+      for (const k of ["scale", "faviconScale"] as const) {
+        const v = icon[k];
+        if (v !== undefined && !(typeof v === "number" && v > 0 && v <= 1)) err(`logo.icon.${k}`, `${k} is the mark's share of the icon, more than 0 and at most 1.`);
+      }
+    }
+    // The icons must read: every color of the mark at 3:1 on the icon's ground.
+    if (surfaceNames(brand).length && logo.colorways && Object.keys(logo.colorways).length) {
+      const s = iconSettings(brand);
+      const g = colors[s.ground];
+      const cw = logo.colorways[s.colorway];
+      if (isSurface(g) && HEX_RE.test(g.value) && cw) {
+        const value = cw.mark;
+        for (const t of typeof value === "string" ? [value] : Array.isArray(value) ? value : []) {
+          const c = colors[t];
+          const hex = c === undefined ? undefined : isSurface(c) ? c.value : c;
+          if (hex && HEX_RE.test(hex) && contrast(hex, g.value) < 3) {
+            err("logo.icon", `The icons draw the mark in "${t}" on "${s.ground}", ${contrast(hex, g.value).toFixed(2)}:1; icons need 3:1. Set logo.icon.ground or logo.icon.colorway.`);
+          }
+        }
+      }
+    }
     // Each surface's default colorway is what <Logo> draws there: every color of it must read (3:1).
     for (const [k, def] of Object.entries(colors)) {
       if (!isSurface(def) || def.logo === undefined || !HEX_RE.test(def.value)) continue;

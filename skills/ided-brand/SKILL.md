@@ -152,6 +152,24 @@ colors: a one-color logo gets `currentColor`; a multi-color logo keeps its color
 to the value of the brand color it is (add the color to the palette if the logo needs one the
 brand lacks, which is a brand decision to confirm with the user).
 
+**Porting an existing identity.** Import its sources: the mark, the wordmark, the original
+artwork. Never import what an old pipeline derived from them (favicons, app icons, social
+images, PNG exports): each is a second drawing of the logo that nothing keeps in step with
+`mark.svg`, and a faithful copy of an old export repeats the old export's mistakes. Regenerate
+them with ided instead: favicons and app icons come from the brand kit (below), social images
+are graphic projects that draw `<Logo>`. Verify the port against the original design's own
+reference (its guidelines, its source artwork), not against the previous pipeline's output,
+and look at every exported size, including 16 px, before calling it done. `ided check` warns
+about an asset named or drawn like the logo (rule `logo-copy`).
+
+**Icons.** The brand kit draws favicons (16/32/48 and SVG), the Apple touch icon (180), web app
+icons (192, 512, maskable 512) and an App Store icon (1024) from the mark, on a surface:
+`logo: { …, icon: { ground: "ink", colorway: "reversed", scale: 0.7, faviconScale: 0.875 } }`
+(all optional; the ground defaults to "ink", the colorway to the ground's own, and every mark
+color must reach 3:1 on it). `scale` is the mark's share of an app icon, `faviconScale` of a
+favicon, which is read so small it needs the mark bigger. The Brand page shows them at their
+real pixel sizes; open one to zoom into its pixels.
+
 **Lockups** are relative to the wordmark height, so they are scale-free:
 `{ direction: "row" | "column", mark: <mark height ÷ wordmark height>, gap: <gap ÷ wordmark height>, align }`.
 Typical: horizontal `mark ≈ 1.8–2.4, gap ≈ 0.8–1.2`; stacked `mark ≈ 3–4, gap ≈ 1–1.4`.
@@ -174,7 +192,8 @@ color a logo is drawn in.
 3. `ided export brand --zip` writes `out/<brand>-brand-kit/`: `logos/<variant>/<variant>-<colorway>.svg`
    plus 128/512px PNGs, `tokens/tokens.css`, `tokens/tailwind.css` (a Tailwind v4 theme that
    *replaces* the default palette and scales; only arbitrary values like `p-[23px]` get past it),
-   `tokens/tokens.json` (DTCG), `tokens/brand.ts`, `fonts/`, and a README.
+   `tokens/tokens.json` (DTCG), `tokens/brand.ts`, `icons/` (favicons and app icons drawn from
+   the mark, with a web manifest fragment), `fonts/`, and a README.
 4. `ided ci` writes a GitHub Actions workflow that exports the kit on every change to
    `design/brand/` and syncs it to a bucket, so deployed sites that import `tokens.css` from
    that URL update themselves.

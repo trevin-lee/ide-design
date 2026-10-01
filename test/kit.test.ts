@@ -65,3 +65,51 @@ test("ided ci writes the workflow at the repository root and pins its ided versi
   writeFileSync(file, yml.replace(/IDED_VERSION: "[^"]+"/, 'IDED_VERSION: "0.1.0"'));
   assert.match(ci()[0]?.message ?? "", new RegExp(`runs ided 0\\.1\\.0; this is ${version.replace(/\./g, "\\.")}`));
 });
+
+test("the kit draws favicons and app icons from the mark", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-kit-"));
+  run(dir, "init", "--here", "--bare", "--name", "Kit");
+  assert.equal(run(dir, "export", "brand", "--out", "out").status, 0);
+  const icons = join(dir, "out/kit-brand-kit/icons");
+  const pngSize = (f: string) => {
+    const b = readFileSync(join(icons, f));
+    return [b.readUInt32BE(16), b.readUInt32BE(20)];
+  };
+  for (const [f, n] of [["favicon-16.png", 16], ["favicon-32.png", 32], ["apple-touch-icon.png", 180], ["icon-maskable-512.png", 512], ["app-icon-1024.png", 1024]] as const) {
+    assert.deepEqual(pngSize(f), [n, n], f);
+  }
+  assert.match(readFileSync(join(icons, "favicon.svg"), "utf8"), /^<svg[^>]*viewBox="0 0 64 64"/);
+  const manifest = JSON.parse(readFileSync(join(icons, "manifest.json"), "utf8")) as { icons: { src: string; purpose?: string }[] };
+  assert.deepEqual(manifest.icons.map((i) => i.src), ["icon-192.png", "icon-512.png", "icon-maskable-512.png"]);
+  assert.equal(manifest.icons[2]!.purpose, "maskable");
+
+  const file = join(dir, "design/brand/brand.ts");
+  writeFileSync(file, readFileSync(file, "utf8").replace("  logo: {", '  logo: {\n    icon: { ground: "paper", colorway: "white" },'));
+  const issues = (JSON.parse(run(dir, "check", "brand", "--no-render", "--json").stdout) as { issues: { message: string }[] }).issues.map((i) => i.message);
+  assert.ok(issues.some((m) => /The icons draw the mark in "paper" on "paper", 1\.00:1/.test(m)), issues.join("\n"));
+});
+
+test("an asset named or drawn like the logo is flagged; a square brand needs no radius", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-kit-"));
+  run(dir, "init", "--here", "--bare");
+  const assets = join(dir, "design/brand/assets");
+  writeFileSync(join(assets, "favicon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#111113"/></svg>');
+  writeFileSync(join(assets, "dial.svg"), readFileSync(join(assets, "mark.svg"), "utf8").replace("currentColor", "#111113"));
+  const brandFile = join(dir, "design/brand/brand.ts");
+  writeFileSync(brandFile, readFileSync(brandFile, "utf8").replace(/radius: \{[^}]*\}/, "radius: {}"));
+  const issues = (JSON.parse(run(dir, "check", "brand", "--no-layout", "--json").stdout) as { issues: { rule: string; file: string; message: string; severity: string }[] }).issues;
+  const copies = issues.filter((i) => i.rule === "logo-copy").map((i) => `${i.file}: ${i.message}`);
+  assert.ok(copies.some((m) => /favicon\.svg: is named like the logo/.test(m)), copies.join("\n"));
+  assert.ok(copies.some((m) => /dial\.svg: repeats the logo's drawing/.test(m)), copies.join("\n"));
+  assert.ok(!issues.some((i) => i.severity === "error" && /radius/.test(i.message)), "radius: {} is allowed");
+});
+
+test("init over an existing design folder says what it kept and what does not fit", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-kit-"));
+  mkdirSync(join(dir, "design/brand/assets"), { recursive: true });
+  writeFileSync(join(dir, "design/README.md"), "old");
+  writeFileSync(join(dir, "design/brand/assets/mark.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="currentColor"/></svg>');
+  const out = run(dir, "init", "--here", "--bare", "--no-agents-md").stdout;
+  assert.match(out, /left as it was:\n {2}= design\/brand\/assets\/mark\.svg/);
+  assert.match(out, /design\/README\.md: Unexpected file/);
+});

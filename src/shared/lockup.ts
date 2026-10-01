@@ -3,7 +3,7 @@
 // All lockup geometry is relative to the wordmark height, so it is scale-free.
 
 import type { BrandInput, LockupDef } from "./brand-schema.ts";
-import { colorwayInks, normalizeHex, partFile, partInks } from "./brand-schema.ts";
+import { colorValue, colorwayInks, iconSettings, normalizeHex, partFile, partInks } from "./brand-schema.ts";
 import { readColor, toHex } from "./color.ts";
 import { mapSvgColors } from "./svg-color.ts";
 
@@ -181,4 +181,49 @@ export function composeLogo(
   if (!markSrc || !wordSrc) throw new Error("Logo SVGs are missing from design/brand/assets/");
   const layout = layoutLogo(variant, parseSvg(markSrc), parseSvg(wordSrc), brand.logo.lockups, colors);
   return { svg: renderLogoSvg(layout, heightPx, { title: brand.name }), aspect: layout.width / layout.height };
+}
+
+export interface IconFile {
+  path: string;
+  /** Pixel size; null for the scalable SVG favicon. */
+  size: number | null;
+  svg: string;
+  purpose?: "maskable";
+}
+
+/**
+ * The mark on the icon's ground, `size` px square, the mark's larger side `share` of it.
+ * `fitCircle` keeps the mark inside the centered circle a maskable icon may be cut to (80%).
+ */
+export function composeIcon(brand: BrandInput, svgs: Record<string, string>, size: number, share: number, fitCircle = false): string {
+  const s = iconSettings(brand);
+  const ground = colorValue(brand, s.ground) ?? "#000000";
+  const { svg, aspect } = composeLogo(brand, svgs, "mark", colorwayHex(brand, s.colorway));
+  let w = aspect >= 1 ? size * share : size * share * aspect;
+  let h = aspect >= 1 ? (size * share) / aspect : size * share;
+  if (fitCircle) {
+    const k = Math.min(1, (size * 0.8 * 0.96) / Math.hypot(w, h));
+    w *= k;
+    h *= k;
+  }
+  const inner = svg.replace(/^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" /, `<svg x="${r((size - w) / 2)}" y="${r((size - h) / 2)}" width="${r(w)}" height="${r(h)}" `);
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}"><rect width="${size}" height="${size}" fill="${ground}"/>${inner}</svg>`;
+}
+
+/** Every icon the brand kit ships: favicons, the Apple touch icon, PWA and app-store icons. */
+export function iconFiles(brand: BrandInput, svgs: Record<string, string>): IconFile[] {
+  const s = iconSettings(brand);
+  const fav = (size: number) => composeIcon(brand, svgs, size, s.faviconScale);
+  const app = (size: number) => composeIcon(brand, svgs, size, s.scale);
+  return [
+    { path: "icons/favicon.svg", size: null, svg: fav(64) },
+    { path: "icons/favicon-16.png", size: 16, svg: fav(16) },
+    { path: "icons/favicon-32.png", size: 32, svg: fav(32) },
+    { path: "icons/favicon-48.png", size: 48, svg: fav(48) },
+    { path: "icons/apple-touch-icon.png", size: 180, svg: app(180) },
+    { path: "icons/icon-192.png", size: 192, svg: app(192) },
+    { path: "icons/icon-512.png", size: 512, svg: app(512) },
+    { path: "icons/icon-maskable-512.png", size: 512, svg: composeIcon(brand, svgs, 512, s.scale, true), purpose: "maskable" },
+    { path: "icons/app-icon-1024.png", size: 1024, svg: app(1024) },
+  ];
 }

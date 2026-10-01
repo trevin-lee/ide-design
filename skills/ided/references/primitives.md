@@ -363,6 +363,7 @@ A rule, horizontal in a `Stack` and vertical in a `Row`. `color` **required** co
 | `load-error`, `render-error` | a file that does not compile or import, or a component that throws while rendering | fix the error shown |
 | `empty` | a project with no frames, or a library with nothing in it (warning) | `ided add` |
 | `ci` | the brand-kit workflow runs an older ided than yours (warning) | set its `IDED_VERSION`, or `ided ci --force` |
+| `logo-copy` | an asset named or drawn like the logo, e.g. a favicon copied from an old kit (warning) | delete it; draw the logo with `<Logo>` and take icons from the brand kit's `icons/` |
 | `layout` | the layout check could not run, usually because the browser could not be downloaded (warning) | `ided browser install`, or `--no-layout` on purpose |
 | `ts…` (any other) | a TypeScript error, as your editor shows it | fix it as in any TypeScript file |
 

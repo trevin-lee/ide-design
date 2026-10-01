@@ -7,8 +7,8 @@ import { strToU8, zipSync } from "fflate";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { factNames, formatFact } from "../shared/brand-facts.ts";
-import type { BrandInput } from "../shared/brand-schema.ts";
-import { colorwayHex, composeLogo, logoVariants } from "../shared/lockup.ts";
+import { iconSettings, type BrandInput } from "../shared/brand-schema.ts";
+import { colorwayHex, composeLogo, iconFiles, logoVariants } from "../shared/lockup.ts";
 import { tailwindCss, tokensCss, tokensJson } from "../shared/tokens.ts";
 
 export const PNG_HEIGHTS = [128, 512] as const;
@@ -45,6 +45,19 @@ export function buildBrandKit(opts: BuildKitOptions): KitFile[] {
       logoRows.push(`| ${variant} | ${colorway} | [svg](${base}.svg) | ${PNG_HEIGHTS.map((h) => `[${h}px](${base}-${h}.png)`).join(" ")} |`);
     }
   }
+
+  // Favicons and app icons, drawn from the mark like the lockups, so no separate drawing can drift.
+  const icons = iconFiles(brand, svgs);
+  for (const icon of icons) add(icon.path, icon.size === null ? icon.svg + "\n" : rasterize(icon.svg, icon.size));
+  const webIcons = icons.filter((i) => /icon-(192|512|maskable-512)\.png$/.test(i.path));
+  add(
+    "icons/manifest.json",
+    JSON.stringify(
+      { icons: webIcons.map((i) => ({ src: i.path.replace("icons/", ""), sizes: `${i.size}x${i.size}`, type: "image/png", ...(i.purpose ? { purpose: i.purpose } : {}) })) },
+      null,
+      2,
+    ) + "\n",
+  );
 
   // Fonts ship beside the tokens, and the CSS files load them.
   const fonts: string[] = [];
@@ -114,7 +127,23 @@ ${factNames(brand.facts)
 
 `
       : ""
-  }## Colors
+  }## Icons
+
+Favicons and app icons in \`icons/\`, the mark on ${iconSettings(brand).ground}, drawn from the
+same mark as every lockup. Use these rather than drawing icons by hand: change the mark (or
+\`logo.icon\` in brand.ts) and re-export.
+
+\`\`\`html
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">  <!-- with the "icons" from icons/manifest.json -->
+\`\`\`
+
+\`app-icon-1024.png\` is the App Store size; \`icon-maskable-512.png\` keeps the mark inside the
+circle Android may crop it to.
+
+## Colors
 
 | token | value | role |
 |---|---|---|

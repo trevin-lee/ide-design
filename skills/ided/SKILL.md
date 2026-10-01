@@ -96,7 +96,8 @@ silently.
   downloads it (about 100 MB, one time); if a command seems to pause on first use, that is why.
 - `ided export <project>` gives a PDF (docs print at true Letter/A4 size; web projects export
   PNG, since screens have no page size); `-f png` or `-f jpeg` gives per-frame images at 2×
-  (`--frames 01-title,03-x` to limit).
+  (`--frames 01-title,03-x` to limit). `--scale` is any density, fractions too: `--scale 0.25`
+  renders a 1080 px artboard at 270 px.
 - `ided screenshot <project> <frame> --zoom 2x2` cuts a frame into full-resolution tiles for
   inspecting detail; `--sheet` puts every frame on one image; `--page <n>` picks a page of a
   flowing doc page, and `--viewport mobile` one viewport of a responsive screen.
