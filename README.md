@@ -300,16 +300,14 @@ editor or written by an agent in a terminal) with its results in Problems, and t
 viewer's open review comments appear as comment threads on the lines they point at, where you
 can reply or resolve them.
 
-In Cursor, VSCodium, Windsurf and other editors that use [Open VSX](https://open-vsx.org/extension/trevin-lee/ide-design),
-search for **ide-design** in Extensions; it updates like any other extension there. It is not on
-the VS Code Marketplace yet, so in VS Code install the release's `.vsix`:
+Search for **ide-design** in Extensions: it is on the
+[VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=trevin-lee.ide-design) and,
+for Cursor, VSCodium, Windsurf and other editors, on [Open VSX](https://open-vsx.org/extension/trevin-lee/ide-design).
+It updates itself like any other extension, or from the command line:
 
 ```sh
-curl -fsSLO https://github.com/trevin-lee/ide-design/releases/latest/download/ide-design.vsix
-code --install-extension ide-design.vsix
+code --install-extension trevin-lee.ide-design
 ```
-
-A `.vsix` install never updates itself: run the same two commands again after upgrading ided.
 
 It uses the `ided` command you already have (0.3.0 or newer) and turns on in any folder with an
 `ided.json`. Settings and details: [vscode/README.md](vscode/README.md).
@@ -429,9 +427,10 @@ runs the full test suite, and attaches the package to a GitHub release (notes ta
 changelog): `ide-design-<version>.tgz` for the formula, and `ide-design.tgz`, which
 `releases/latest/download/ide-design.tgz` always points at (plus `ided.tgz`, the same file, for
 workflows generated before 0.3), and the VS Code extension as `ide-design-<version>.vsix` and
-`ide-design.vsix`, after its integration test passes, and publishes that `.vsix` to Open VSX and,
-once its Azure identity is set up, the VS Code Marketplace (`publish-extension.yml`, which can
-also be run by hand for an existing release). It publishes to npm too when an `NPM_TOKEN`
+`ide-design.vsix`, after its integration test passes, and publishes that `.vsix` to Open VSX and
+the VS Code Marketplace (`publish-extension.yml`, which can also be run by hand for an existing
+release; the Marketplace job signs in as an Azure managed identity through GitHub's OIDC, so there
+is no token to renew). It publishes to npm too when an `NPM_TOKEN`
 secret exists. A macOS job then renders the formula with `packaging/homebrew/formula.mjs`,
 installs it with real Homebrew, runs `brew test` and `brew audit --strict`, and only then commits
 it to `trevin-lee/homebrew-tap` as `ide-design` with the `TAP_DEPLOY_KEY` secret, a deploy key that can write to

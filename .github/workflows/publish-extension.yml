@@ -6,7 +6,9 @@
 # Open VSX: secret OVSX_TOKEN, an open-vsx.org access token for the trevin-lee namespace.
 # Marketplace: variables AZURE_CLIENT_ID, AZURE_TENANT_ID and AZURE_SUBSCRIPTION_ID of a
 # user-assigned managed identity with a federated credential for this repository's
-# `marketplace` environment, added as a Contributor member of the trevin-lee publisher.
+# `marketplace` environment, added as a Contributor member of the trevin-lee publisher. GitHub
+# names the repository by its IDs in that credential's subject:
+# repo:trevin-lee@134039857/ide-design@1393094774:environment:marketplace.
 # No token: the job signs in with GitHub's OIDC token (Marketplace PATs retire 2026-12-01).
 
 name: Publish extension
