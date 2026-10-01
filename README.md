@@ -67,7 +67,7 @@ ided makes those mistakes unrepresentable:
 
 ## Install
 
-macOS or Linux. Windows is not supported yet.
+macOS or Linux. Windows is not supported, and support is not planned.
 
 ```sh
 brew install trevin-lee/tap/ide-design   # pulls in Node; installs the `ided` command
@@ -472,5 +472,4 @@ your files at run time.
 - There is no pinned build for Linux on ARM; those machines use a system Chromium.
 - Pinning removes browser drift, not OS differences: macOS and Linux smooth fonts differently, so
   PNGs differ slightly between them. Treat CI's Linux exports as canonical if that matters.
-- macOS and Linux only; Windows paths are untested.
 - The starter fonts are the Latin subsets of Inter and JetBrains Mono. Other scripts fall back to system fonts until you add font files.

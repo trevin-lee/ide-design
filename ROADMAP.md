@@ -9,4 +9,4 @@ What shipped is in CHANGELOG.md.
 
 ## Not planned
 
-- Windows. ided is developed and tested on macOS and Linux only.
+- Windows. ided runs on macOS and Linux only.
