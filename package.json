@@ -1,6 +1,6 @@
 {
   "name": "ide-design",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Parametric graphic design. Design as code. A rigid React framework + CLI for decks, documents, graphics and brand systems.",
   "type": "module",
   "license": "MIT",

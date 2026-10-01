@@ -1,5 +1,78 @@
 # Changelog
 
+## 0.9.0 (2026-10-01)
+
+Everything that was already there now works end to end, says what it does, and does what it
+says. Nothing new to learn: this release closes the gaps a review of 0.8 found.
+
+**Breaking:** a doc's paper size is now `"paper"` in project.json and `ided new --paper`
+(it was `"page"` and `--page`, which also named a page). The old key still loads, with a warning;
+run `ided init` once to rename it.
+
+`ided check`
+- No more false "Clean". A brand error no longer skips rendering, layout and SVG checks for every
+  project, `--no-render` still validates the brand, and a check of one project also re-checks what
+  depends on it (a library's users; for the brand, everything). The summary lists skipped layers.
+- Contrast is judged at the size text is read: doc pages print at half their design size, so body
+  text there needs 4.5:1. Each surface's default logo colorway must read at 3:1.
+- `<Equation>` rejects macro definitions and every command that sizes, spaces, raises or boxes by
+  hand (`\def`, `\newcommand`, `\displaystyle`, `\qquad`, `\raisebox`, `\boxed`…).
+- Recipes from the rules reference pass: concentric radii reach through Stack, Row and Grid, and a
+  Place is measured against what it is pinned to. A vertical bleed must reach its edge: a bottom
+  band needs the root's `justify="end"` or `"between"`, or something in the frame that `grow`s.
+  `Thread` takes values per viewport.
+- The lint catches `Date()`, `Intl` date formatting and `Math.random` however they are reached,
+  and checks raw CSS only in prop values, so hashtags in copy are fine.
+- Every finding says how to fix it, and the rules table lists every rule. `ided check` warns when
+  a comment was left on a page or viewport that no longer exists.
+
+Rendering, comments and the viewer
+- Exporting or screenshotting some frames keeps the document's context: a thread continues from
+  the right place and pages number through the whole document.
+- Comments say where they were left (page 3, on mobile) everywhere they are listed, follow a
+  renamed project folder, and can't be left on the brand or a library.
+- On a narrow window (a VS Code tab) the side panel is a drawer. A half-typed comment survives
+  files changing, the comment box stays clear of the panel, and resolving keeps typed text as its
+  note. Presenting a web screen scrolls, and V switches viewports. The toolbar counts printed
+  pages, the sidebar shows the same error count as the toolbar, and the Brand page lists every
+  token `ided brand` does. Other websites can no longer ask the viewer to open files.
+- On a web screen, whose height follows its content, `grow` starts from the content instead of
+  collapsing.
+
+MCP and VS Code
+- MCP gives the CLI's results: screenshots filter by page and viewport without `zoom` and say
+  when they show fewer images than they rendered; frames can be named by number; results with
+  errors are marked as errors; replies take an author; the project list has import paths; parallel
+  calls share one browser; a server started outside a workspace says to pass `root`.
+- The VS Code extension passes replies that start with "-" safely, recovers after an error,
+  starts when `ided init` runs in an open folder, and refreshes Problems after edits made outside
+  VS Code.
+
+Brand kit and CI
+- The kit's `tokens.css` and `tailwind.css` load the brand fonts. The Tailwind theme also replaces
+  weights, tracking, leading and containers, and gives size tokens (`w-icon`, `size-avatar`) and
+  stroke tokens (`border-hairline`) their utilities; the docs say plainly that arbitrary values
+  still compile. `tokens.json` follows the DTCG 2025.10 format.
+- `ided ci` writes the workflow at the repository root (running from the workspace's folder when
+  that is deeper) and pins the ided version it runs; `ided check` says when yours is newer. The
+  variables and secrets it needs are documented.
+- One color reader for SVG assets, logo validation and recoloring, so `rgb()` works in
+  multi-color logos. A multi-color part can have a one-color drawing,
+  `{ file, colors, mono: "mark-mono.svg" }`, for colorways that give one token; without one,
+  check warns that its detail disappears.
+
+Scaffolding and setup
+- `ided new deck "Q3 Report"` makes `design/q3-report/` titled "Q3 Report", like `ided add`.
+  Options that don't apply to a kind, empty titles and repeated viewports are errors.
+  `ided add <project> <name> --component` adds a component to any project.
+- Re-running `ided init` adds nothing you left out. The starter wordmark folds accents ("Café"),
+  draws "&", and says what it can't draw.
+- `ided setup` and `--remove` touch only what ided put there: your own skill links, files you
+  add to a skill folder, and skills you delete stay as they are; a Codex config setup created goes
+  with it; project removal leaves AGENTS.md and .mcp.json formatted as they were. The README has
+  uninstall steps.
+- The layout check is usually what downloads the pinned Chromium first, and the docs now say so.
+
 ## 0.8.0 (2026-09-29)
 
 Logos in more than one color.
