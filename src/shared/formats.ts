@@ -38,7 +38,7 @@ export const FRAME_NOUN: Record<FrameKind, string> = {
  * one brand type scale reads correctly on a slide and on paper: 28px body copy
  * prints at 10.5pt. PDF export maps them back to physical page sizes.
  */
-export const DOC_PAGES = {
+export const DOC_PAPERS = {
   letter: { width: 1632, height: 2112, pdf: { width: "8.5in", height: "11in" } },
   a4: { width: 1588, height: 2246, pdf: { width: "210mm", height: "297mm" } },
 } as const;
@@ -58,7 +58,7 @@ export const WEB_VIEWPORTS = {
   mobile: { width: 390, height: 844 },
 } as const;
 
-export type DocPage = keyof typeof DOC_PAGES;
+export type DocPaper = keyof typeof DOC_PAPERS;
 export type GraphicSize = keyof typeof GRAPHIC_SIZES;
 export type WebViewport = keyof typeof WEB_VIEWPORTS;
 
@@ -69,7 +69,7 @@ export type ProjectManifest =
   | { kind: "brand"; title: string }
   | ({ kind: "library"; title: string } & Deps)
   | ({ kind: "deck"; title: string } & Deps)
-  | ({ kind: "doc"; title: string; page: DocPage } & Deps)
+  | ({ kind: "doc"; title: string; paper: DocPaper } & Deps)
   | ({ kind: "graphic"; title: string; size: GraphicSize } & Deps)
   | ({ kind: "web"; title: string; viewport: WebViewport | readonly WebViewport[] } & Deps);
 
@@ -95,7 +95,7 @@ export function frameGeometry(m: ProjectManifest): FrameGeometry {
     case "deck":
       return { width: 1920, height: 1080, fixedHeight: true };
     case "doc": {
-      const p = DOC_PAGES[m.page];
+      const p = DOC_PAPERS[m.paper];
       return { width: p.width, height: p.height, fixedHeight: true, print: { ...p.pdf, scale: 0.5 } };
     }
     case "graphic":
@@ -120,7 +120,7 @@ export function describeGeometry(g: FrameGeometry): string {
 export const FRAME_FILE_RE = /^(\d{2,3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.tsx$/;
 /**
  * Asset files: kebab-case names, known formats. Imported by package path
- * (`@kit/assets/team.jpg`), so a missing file is a type error.
+ * (`@shared/assets/team.jpg`), so a missing file is a type error.
  */
 export const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "avif", "gif", "svg"] as const;
 export const FONT_EXTENSIONS = ["woff2", "woff", "ttf", "otf"] as const;

@@ -193,7 +193,7 @@ export function BrandBoard(props: { project: WsProject }) {
               ))}
             </div>
           </Section>
-          <Section title="Radius" note='Nested boxes use radius="concentric": parent radius minus padding.'>
+          <Section title="Radius, stroke, size and shadow" note='Nested boxes use radius="concentric": parent radius minus padding.'>
             <div className="bb-radius">
               {Object.entries(b.radius).map(([k, v]) => (
                 <div key={k} className="bb-radius-item">
@@ -209,6 +209,11 @@ export function BrandBoard(props: { project: WsProject }) {
                   stroke <strong>{k}</strong> {v}px
                 </span>
               ))}
+              {Object.entries(b.size ?? {}).map(([k, v]) => (
+                <span key={k}>
+                  size <strong>{k}</strong> {v}px
+                </span>
+              ))}
               {Object.entries(b.logo.sizes).map(([k, v]) => (
                 <span key={k}>
                   logo <strong>{k}</strong> {v}px
@@ -220,6 +225,17 @@ export function BrandBoard(props: { project: WsProject }) {
                 </span>
               ))}
             </div>
+            {b.shadow && Object.keys(b.shadow).length > 0 && (
+              <div className="bb-radius">
+                {Object.entries(b.shadow).map(([k, v]) => (
+                  <div key={k} className="bb-radius-item">
+                    <span className="bb-radius-shape" style={{ borderRadius: Object.values(b.radius)[1] ?? 8, boxShadow: v, background: "#fff" }} />
+                    <strong>{k}</strong>
+                    <span>shadow</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </Section>
         </div>
 

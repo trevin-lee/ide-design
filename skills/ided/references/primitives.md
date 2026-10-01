@@ -33,12 +33,12 @@ exactly one way to express each design decision. `ided check` enforces all of it
       brand.ts                 # export default defineBrand({ … })
       assets/                  # mark.svg, wordmark.svg, fonts/, shared images
       components/              # chrome shared by every medium
-    kit/                       # a library: shared components and assets, no frames
+    shared/                    # a library: shared components and assets, no frames
       project.json             # { "kind": "library", "title": "…", "dependencies": [] }
       DESIGN.md                # purpose, contents, rules
       components/  assets/
     <project>/                 # kebab-case
-      project.json             # { "kind": "deck" | "doc" | "graphic" | "web", "title", "dependencies": ["kit"], … }
+      project.json             # { "kind": "deck" | "doc" | "graphic" | "web", "title", "dependencies": ["shared"], … }
       DESIGN.md                # brief, message, concept, hierarchy, decisions, alternatives, critique
       slides/ | pages/ | artboards/ | screens/   # NN-name.tsx, ordered by number
       components/              # kebab-case.tsx, named exports (private to this project)
@@ -57,7 +57,7 @@ webp, avif, gif, svg). SVGs may only use the brand's color values (alpha allowed
 has an exact generated type, so a misspelled or missing file is a compile error:
 
 ```tsx
-import hero from "@kit/assets/photos/hero.jpg";
+import hero from "@shared/assets/photos/hero.jpg";
 <Image src={hero} alt="Launch day" ratio="16:9" />
 ```
 
@@ -67,7 +67,7 @@ library (or to the brand, if it is part of the identity), never import across pr
 | kind    | frames in    | root primitive | size (design px)                                             | manifest extra                                   |
 |---------|--------------|----------------|--------------------------------------------------------------|--------------------------------------------------|
 | deck    | `slides/`    | `<Slide>`      | 1920×1080                                                    | none                                             |
-| doc     | `pages/`     | `<Page>`       | letter 1632×2112, a4 1588×2246 (2×, prints at true size)     | `"page": "letter" \| "a4"`                       |
+| doc     | `pages/`     | `<Page>`       | letter 1632×2112, a4 1588×2246 (2×, prints at true size)     | `"paper": "letter" \| "a4"`                      |
 | graphic | `artboards/` | `<Artboard>`   | square 1080², portrait 1080×1350, story 1080×1920, landscape 1920×1080, og 1200×630, banner 1500×500 | `"size": …` |
 | web     | `screens/`   | `<Screen>`     | desktop 1440, tablet 834, mobile 390 wide; height grows      | `"viewport": …`, or a list for a responsive screen |
 
@@ -276,7 +276,7 @@ Composed from the brand's mark and wordmark.
 - `colorway?` colorway token (default: the one the current surface declares)
 
 ### `Image`
-- `src` **required**, an imported asset (`import team from "@kit/assets/team.jpg"`), `alt` **required**
+- `src` **required**, an imported asset (`import team from "@shared/assets/team.jpg"`), `alt` **required**
 - `ratio?`, `fit?` `"cover" | "contain"`, `radius?` (as Box), `width?`, `height?`, `grow?`
 
 ### `Divider`

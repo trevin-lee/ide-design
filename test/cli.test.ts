@@ -37,8 +37,8 @@ test("init → check → break it → check → structure rules", { timeout: 60_
 test("new and add follow the numbering contract", { timeout: 30_000 }, () => {
   const dir = mkdtempSync(join(tmpdir(), "ided-e2e-"));
   run(dir, "init", "--here", "--bare");
-  assert.equal(run(dir, "new", "doc", "report", "--page", "a4").status, 0);
-  assert.equal(JSON.parse(readFileSync(join(dir, "design/report/project.json"), "utf8")).page, "a4");
+  assert.equal(run(dir, "new", "doc", "report", "--paper", "a4").status, 0);
+  assert.equal(JSON.parse(readFileSync(join(dir, "design/report/project.json"), "utf8")).paper, "a4");
   const add = run(dir, "add", "report", "Executive Summary");
   assert.match(add.stdout, /pages\/02-executive-summary\.tsx/);
   assert.equal(run(dir, "check").status, 0);
@@ -177,7 +177,7 @@ test("scaffolding: names, options that do not apply, components in any project, 
   assert.match(named.stdout, /Created deck q3-report/);
   assert.equal(JSON.parse(readFileSync(join(dir, "design/q3-report/project.json"), "utf8")).title, "Q3 Report");
   assert.match(run(dir, "new", "graphic", "z", "--viewport", "mobile").stderr, /--viewport applies to web projects, not a graphic/);
-  assert.match(run(dir, "new", "deck", "z", "--page", "a4").stderr, /--page applies to doc projects, not a deck/);
+  assert.match(run(dir, "new", "deck", "z", "--paper", "a4").stderr, /--paper applies to doc projects, not a deck/);
   assert.match(run(dir, "new", "web", "z", "--viewport", "mobile,mobile").stderr, /lists mobile twice/);
   assert.match(run(dir, "new", "deck", "z", "--title", " ").stderr, /--title is empty/);
   assert.ok(!existsSync(join(dir, "design/z")));
@@ -186,4 +186,17 @@ test("scaffolding: names, options that do not apply, components in any project, 
   assert.match(readFileSync(join(dir, "design/q3-report/slides/02-key-numbers.tsx"), "utf8"), />Key Numbers</);
   assert.match(run(dir, "add", "q3-report", "stat", "--component").stdout, /design\/q3-report\/components\/stat\.tsx/);
   assert.equal(run(dir, "check", "--no-render").status, 0, run(dir, "check", "--no-render").stdout);
+});
+
+test("a doc's paper size is \"paper\"; init renames the old \"page\" key", { timeout: 60_000 }, () => {
+  const dir = mkdtempSync(join(tmpdir(), "ided-e2e-"));
+  run(dir, "init", "--here", "--bare");
+  run(dir, "new", "doc", "report", "--paper", "a4");
+  const file = join(dir, "design/report/project.json");
+  writeFileSync(file, '{\n  "kind": "doc",\n  "title": "Report",\n  "page": "a4"\n}\n');
+  const issues = (JSON.parse(run(dir, "check", "--no-render", "--json").stdout) as { issues: { rule: string; severity: string; message: string }[] }).issues;
+  assert.ok(issues.some((i) => i.rule === "manifest" && i.severity === "warning" && /now "paper"/.test(i.message)));
+  assert.ok(!issues.some((i) => i.severity === "error"), "the old key still works");
+  assert.match(run(dir, "init").stdout, /design\/report\/project\.json \("page" renamed "paper"\)/);
+  assert.equal(readFileSync(file, "utf8"), '{\n  "kind": "doc",\n  "title": "Report",\n  "paper": "a4"\n}\n');
 });

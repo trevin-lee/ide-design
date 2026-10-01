@@ -8,7 +8,7 @@ import {
   ASSET_FILE_RE,
   ASSET_SEGMENT_RE,
   COMPONENT_FILE_RE,
-  DOC_PAGES,
+  DOC_PAPERS,
   FONT_EXTENSIONS,
   IMAGE_EXTENSIONS,
   isFrameKind,
@@ -121,7 +121,7 @@ const MANIFEST_KEYS: Record<ProjectKind, string[]> = {
   brand: ["kind", "title"],
   library: ["kind", "title", "dependencies"],
   deck: ["kind", "title", "dependencies"],
-  doc: ["kind", "title", "page", "dependencies"],
+  doc: ["kind", "title", "paper", "dependencies"],
   graphic: ["kind", "title", "size", "dependencies"],
   web: ["kind", "title", "viewport", "dependencies"],
 };
@@ -146,6 +146,12 @@ function readManifest(file: string, rel: string, issues: Issue[]): ProjectManife
     return null;
   }
   if (typeof m.title !== "string" || !m.title.trim()) err('"title" must be a non-empty string.');
+  // Before 0.9 a doc's paper size was "page", which also names its pages.
+  if (kind === "doc" && m.page !== undefined && m.paper === undefined) {
+    m.paper = m.page;
+    delete m.page;
+    issues.push({ file: rel, rule: "manifest", severity: "warning", message: 'A doc\'s paper size is now "paper" (it was "page").', hint: "Run `ided init` to rename it in every project.json." });
+  }
   for (const k of Object.keys(m)) {
     if (k === "$schema") continue;
     if (!MANIFEST_KEYS[kind].includes(k)) err(`Unknown key "${k}" for a ${kind} project.`, `Allowed keys: ${MANIFEST_KEYS[kind].join(", ")}.`);
@@ -153,7 +159,7 @@ function readManifest(file: string, rel: string, issues: Issue[]): ProjectManife
   const need = (key: string, options: readonly string[]) => {
     if (!options.includes(m[key] as string)) err(`A ${kind} project needs "${key}": one of ${options.map((o) => `"${o}"`).join(", ")}.`);
   };
-  if (kind === "doc") need("page", Object.keys(DOC_PAGES));
+  if (kind === "doc") need("paper", Object.keys(DOC_PAPERS));
   if (kind === "graphic") need("size", Object.keys(GRAPHIC_SIZES));
   if (kind === "web") {
     // One viewport, or a list for a responsive screen rendered at each.
@@ -165,7 +171,7 @@ function readManifest(file: string, rel: string, issues: Issue[]): ProjectManife
     }
   }
   if (m.dependencies !== undefined && (!Array.isArray(m.dependencies) || m.dependencies.some((d) => typeof d !== "string"))) {
-    err('"dependencies" is an array of library names, e.g. ["kit"].');
+    err('"dependencies" is an array of library names, e.g. ["shared"].');
   }
   if (issues.some((i) => i.file === rel && i.severity === "error")) return null;
   return m as unknown as ProjectManifest;

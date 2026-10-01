@@ -161,6 +161,8 @@ test("the Brand page lists the brand's components and has no Comments tab", { sk
   await page.waitForSelector(".lib-component", { timeout: 30_000 });
   assert.deepEqual(await page.locator(".tabs button").allInnerTexts().then((t) => t.map((x) => x.split(/\s/)[0])), ["Design", "Issues"]);
   assert.match(await page.locator(".lib-component").first().innerText(), /import \{ CornerMark \} from "@brand\/components\/corner-mark";/);
+  const board = await page.locator(".brand-board").innerText();
+  for (const token of ["size icon 32px", "stroke hairline 1px", "logo xs 24px", "raised"]) assert.ok(board.replace(/\s+/g, " ").includes(token), token);
   await page.close();
 });
 
@@ -198,6 +200,7 @@ test("the viewer shows a flowing page as one card per page", { skip, timeout: 60
   await page.waitForFunction(() => document.querySelectorAll(".frame-card").length > 1, null, { timeout: 20_000 });
   const captions = await page.locator(".frame-page").allInnerTexts();
   assert.ok(captions.length > 1 && captions.every((c, i) => c.trim() === `${i + 1}/${captions.length}`), captions.join());
+  assert.match(await page.locator(".toolbar-meta").innerText(), new RegExp(`^${captions.length} pages from 1 file`), "the toolbar counts printed pages");
   await page.close();
 });
 

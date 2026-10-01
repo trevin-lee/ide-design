@@ -13,7 +13,7 @@ import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR } from "../core/paths.ts";
 import { addFrame, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { defaultScreenshotScale, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
-import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { describeGeometry, DOC_PAPERS, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 import type { RunningServer } from "../server/index.ts";
 
@@ -139,7 +139,7 @@ export async function runMcpServer() {
         kind: z.enum(["library", ...FRAME_KINDS] as ["library", ...FrameKind[]]),
         name: z.string().describe('project name; its folder is the name in kebab-case ("Q3 Report" → q3-report), and the name is the title unless one is given'),
         title: z.string().optional(),
-        page: z.enum(Object.keys(DOC_PAGES) as ["letter", "a4"]).optional(),
+        paper: z.enum(Object.keys(DOC_PAPERS) as ["letter", "a4"]).optional().describe("doc paper size"),
         size: z.enum(Object.keys(GRAPHIC_SIZES) as [string, ...string[]]).optional(),
         viewport: z
           .union([z.enum(Object.keys(WEB_VIEWPORTS) as [string, ...string[]]), z.array(z.enum(Object.keys(WEB_VIEWPORTS) as [string, ...string[]])).min(1)])

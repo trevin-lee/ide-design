@@ -1,7 +1,7 @@
 // Scaffolding: the only sanctioned way to create workspaces, projects and
 // frames, so every file starts in the canonical shape.
 
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import {
   isFrameKind,
@@ -267,6 +267,7 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
   // An existing workspace only gets what it is missing and never the starter again: the fonts,
   // components and sample deck may have been removed on purpose.
   if (existing) {
+    created.push(...migrateManifests(root));
     created.push(...addMissingDesignDocs(root));
     writeGenerated(root);
     return created;
@@ -310,6 +311,27 @@ export function initWorkspace(root: string, opts: InitOptions): string[] {
   return [...new Set(created)];
 }
 
+/** project.json keys renamed since: a doc's paper size was "page" before 0.9. Key order is kept. */
+export function migrateManifests(root: string): string[] {
+  const changed: string[] = [];
+  const designDir = join(root, DESIGN_DIR);
+  for (const id of existsSync(designDir) ? readdirSync(designDir) : []) {
+    const file = join(designDir, id, "project.json");
+    if (!existsSync(file)) continue;
+    let m: Record<string, unknown>;
+    try {
+      m = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    } catch {
+      continue; // `ided check` reports it
+    }
+    if (m.kind !== "doc" || m.page === undefined || m.paper !== undefined) continue;
+    const next = Object.fromEntries(Object.entries(m).map(([k, v]) => [k === "page" ? "paper" : k, v]));
+    writeFileSync(file, JSON.stringify(next, null, 2) + "\n");
+    changed.push(`${relative(root, file)} ("page" renamed "paper")`);
+  }
+  return changed;
+}
+
 /**
  * Workspaces from before design documents existed: every project without a DESIGN.md gets the
  * unwritten template for its kind. `ided check` then warns until each is written; nothing is
@@ -333,14 +355,14 @@ export function addMissingDesignDocs(root: string): string[] {
 
 export interface NewProjectOptions {
   title?: string;
-  page?: "letter" | "a4";
+  paper?: "letter" | "a4";
   size?: string;
   /** One viewport, or several separated by commas ("desktop,mobile") for a responsive screen. */
   viewport?: string | readonly string[];
 }
 
 /** Options that only apply to some kinds, so one given to another kind is a mistake, not a no-op. */
-const OPTION_KINDS = { page: "doc", size: "graphic", viewport: "web" } as const;
+const OPTION_KINDS = { paper: "doc", size: "graphic", viewport: "web" } as const;
 
 export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOptions): ProjectManifest {
   for (const [option, only] of Object.entries(OPTION_KINDS)) {
@@ -350,7 +372,7 @@ export function manifestFor(kind: FrameKind, title: string, opts: NewProjectOpti
     case "deck":
       return { kind, title };
     case "doc":
-      return { kind, title, page: opts.page ?? "letter" };
+      return { kind, title, paper: opts.paper ?? "letter" };
     case "graphic":
       return { kind, title, size: (opts.size ?? "square") as never };
     case "web": {

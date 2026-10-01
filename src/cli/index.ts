@@ -21,7 +21,7 @@ import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
 import { wordmarkText } from "../core/wordmark.ts";
 import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { defaultScreenshotScale, findWorkspaceRoot, getProject, requireWorkspaceRoot, resolveFrames, scanWorkspace } from "../core/workspace.ts";
-import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { describeGeometry, DOC_PAPERS, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 
 const program = new Command();
@@ -124,11 +124,11 @@ program
   .argument("<kind>", [...FRAME_KINDS, "library"].join(" | "))
   .argument("<name>", 'project name; its folder under design/ is the name in kebab-case ("Q3 Report" → q3-report)')
   .option("-t, --title <title>", "display title")
-  .addOption(new Option("--page <page>", "doc page size").choices(Object.keys(DOC_PAGES)))
+  .addOption(new Option("--paper <paper>", "doc paper size").choices(Object.keys(DOC_PAPERS)))
   .addOption(new Option("--size <size>", "graphic size").choices(Object.keys(GRAPHIC_SIZES)))
   .option("--viewport <viewports>", `web viewport (${Object.keys(WEB_VIEWPORTS).join(", ")}), or several separated by commas for a responsive screen, e.g. desktop,mobile`)
   .action(
-    action((kind: string, name: string, opts: { title?: string; page?: "letter" | "a4"; size?: string; viewport?: string }) => {
+    action((kind: string, name: string, opts: { title?: string; paper?: "letter" | "a4"; size?: string; viewport?: string }) => {
       const kinds = [...FRAME_KINDS, "library"];
       if (!kinds.includes(kind)) throw new Error(`Unknown kind "${kind}". Kinds: ${kinds.join(", ")}. (The brand project is created by \`ided init\`.)`);
       const root = requireWorkspaceRoot();

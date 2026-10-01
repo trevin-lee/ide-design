@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { brand, brandAssetBase, projects, svgs, workspace, type WsProject } from "virtual:ided/workspace";
 import { BrandProvider } from "../runtime/host.tsx";
-import { FRAME_DIR, isFrameKind } from "../shared/formats.ts";
+import { FRAME_NOUN, isFrameKind } from "../shared/formats.ts";
 import { BrandBoard } from "./brand-board.tsx";
 import { ProjectCanvas } from "./canvas.tsx";
 import { embedded } from "./editor.ts";
@@ -15,6 +15,7 @@ import {
   comments as commentsStore,
   go,
   pageCounts,
+  pageList,
   pagesOf,
   panelOpen,
   refreshComments,
@@ -116,19 +117,9 @@ function Sidebar(props: { current: string | null }) {
           {g.items.length === 0 && (
             <div className="sidebar-none">{g.title === "Brand" ? "Missing design/brand" : g.title === "Libraries" ? "ided new library <name>" : "ided new deck <name>"}</div>
           )}
-          {g.items.map((p) => {
-            const open = all.filter((c) => c.project === p.id && c.status === "open").length;
-            const structural = p.issues.filter((i) => i.severity === "error").length;
-            return (
-              <a key={p.id} href={`#/p/${p.id}`} className={`sidebar-item${props.current === p.id ? " on" : ""}`}>
-                <span className={`kind kind-${p.kind}`}>{KIND_LABEL[p.kind]}</span>
-                <span className="sidebar-title">{p.title}</span>
-                {structural > 0 && <span className="pill pill-error">!</span>}
-                {open > 0 && <span className="pill pill-comment">{open}</span>}
-                {isFrameKind(p.kind) && <span className="sidebar-count">{p.frames.length}</span>}
-              </a>
-            );
-          })}
+          {g.items.map((p) => (
+            <SidebarItem key={p.id} project={p} current={props.current === p.id} open={all.filter((c) => c.project === p.id && c.status === "open").length} />
+          ))}
         </div>
       ))}
       <div className="sidebar-foot">
@@ -219,6 +210,25 @@ function BrandKitButton() {
   );
 }
 
+/** One project in the sidebar, with the same error count its toolbar and Issues tab show. */
+function SidebarItem(props: { project: WsProject; current: boolean; open: number }) {
+  const p = props.project;
+  const errors = useProjectIssues(p).filter((i) => i.severity === "error").length;
+  return (
+    <a href={`#/p/${p.id}`} className={`sidebar-item${props.current ? " on" : ""}`}>
+      <span className={`kind kind-${p.kind}`}>{KIND_LABEL[p.kind]}</span>
+      <span className="sidebar-title">{p.title}</span>
+      {errors > 0 && (
+        <span className="pill pill-error" title={`${errors} error${errors > 1 ? "s" : ""}`}>
+          {errors}
+        </span>
+      )}
+      {props.open > 0 && <span className="pill pill-comment">{props.open}</span>}
+      {isFrameKind(p.kind) && <span className="sidebar-count">{p.frames.length}</span>}
+    </a>
+  );
+}
+
 /** The presentation index (counted in pages) of a frame's first page. */
 function firstPage(project: WsProject, frameIndex: number): number {
   const counts = pageCounts.get();
@@ -234,6 +244,8 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
   const g = project.geometry;
   const focused = frame ? project.frames.find((f) => f.id === frame) : null;
   const frameIndex = focused ? project.frames.indexOf(focused) : 0;
+  // A flowing page prints as several pages, so pages are counted, not page files.
+  const pages = pageList(useStore(pageCounts), project.id, project.frames).length;
   return (
     <header className="toolbar">
       <div className="toolbar-title">
@@ -252,7 +264,7 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
           {project.kind === "brand"
             ? "design/brand/brand.ts"
             : isFrameKind(project.kind)
-              ? `${project.frames.length} ${FRAME_DIR[project.kind]}`
+              ? `${pages} ${FRAME_NOUN[project.kind]}${pages === 1 ? "" : "s"}${pages !== project.frames.length ? ` from ${project.frames.length} file${project.frames.length === 1 ? "" : "s"}` : ""}`
               : `${project.components.length} components · ${project.assets.length} assets`}
           {g && isFrameKind(project.kind) && ` · ${g.width}×${g.fixedHeight ? g.height : "auto"}`}
           {project.dependencies.length > 0 && ` · uses ${project.dependencies.join(", ")}`}

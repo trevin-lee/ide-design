@@ -160,10 +160,10 @@ your-repo/
       brand.ts               # export default defineBrand({ … })
       assets/                # mark.svg, wordmark.svg, fonts/, shared images
       components/            # chrome shared by every medium
-    kit/                     # a library: shared components and assets
+    shared/                  # a library: shared components and assets
       project.json           # { "kind": "library", "title": "Marketing Kit" }
     q3-review/
-      project.json           # { "kind": "deck", "title": "Q3 Review", "dependencies": ["kit"] }
+      project.json           # { "kind": "deck", "title": "Q3 Review", "dependencies": ["shared"] }
       slides/01-title.tsx    # NN-name.tsx, ordered by number
       components/            # private to this project
       assets/                # private images
@@ -183,13 +183,13 @@ names the package it comes from:
 
 ```tsx
 import { CornerMark } from "@brand/components/corner-mark";   // the brand: always available
-import { Stat } from "@kit/components/stat";                   // a library, declared in project.json
-import hero from "@kit/assets/photos/hero.jpg";                // assets are imports too
+import { Stat } from "@shared/components/stat";                   // a library, declared in project.json
+import hero from "@shared/assets/photos/hero.jpg";                // assets are imports too
 import { Timeline } from "@q3-review/components/timeline";    // this project's own files
 ```
 
-- **Libraries** (`ided new library kit`) hold components and assets and have no frames. A project
-  opts in with `ided use q3-review kit`, which adds `"kit"` to its `"dependencies"`. Importing an
+- **Libraries** (`ided new library shared`) hold components and assets and have no frames. A project
+  opts in with `ided use q3-review shared`, which adds `"shared"` to its `"dependencies"`. Importing an
   undeclared package is a lint error, and a dependency cycle is a structure error.
 - **Assets are typed.** Each asset file gets an exact module declaration in `design/.ided/assets.d.ts`,
   so a misspelled image is a compile error in your editor, and `<Image src="hero.jpg">` does not
@@ -215,7 +215,7 @@ Anything else in these folders is an error. Create things with the CLI so they s
 |---|---|
 | `ided init [--name X] [--bare]` | create a workspace at the repository root |
 | `ided run [--port] [--no-open]` | start the viewer |
-| `ided new <kind> <name> [--title] [--page\|--size\|--viewport]` | create a project (`"Q3 Report"` makes `design/q3-report/`, titled as typed) |
+| `ided new <kind> <name> [--title] [--paper\|--size\|--viewport]` | create a project (`"Q3 Report"` makes `design/q3-report/`, titled as typed) |
 | `ided new library <name>` | create a library of shared components and assets |
 | `ided add <project> <name> [--component]` | add the next numbered frame, or a component (always, in a library or the brand) |
 | `ided use <project> <library> [--remove]` | declare (or drop) a dependency on a library |
