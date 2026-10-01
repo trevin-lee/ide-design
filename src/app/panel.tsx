@@ -4,6 +4,7 @@ import { validateBrand } from "../shared/brand-schema.ts";
 import { isFrameKind } from "../shared/formats.ts";
 import { DesignDocView } from "./design-doc.tsx";
 import { openSource } from "./editor.ts";
+import { commentPlace } from "../shared/comment-place.ts";
 import { violationKey } from "./frame.tsx";
 import { LAYOUT_RULES } from "../runtime/layout.ts";
 import {
@@ -13,7 +14,9 @@ import {
   patchComment,
   removeComment,
   showToast,
+  panelOpen,
   staticIssues,
+  useDraft,
   useStore,
   violations as violationStore,
   type Comment,
@@ -90,7 +93,9 @@ export function SidePanel(props: { project: WsProject }) {
   const errors = issues.filter((i) => i.severity === "error").length;
 
   useEffect(() => {
-    if (active) setTab("comments");
+    if (!active) return;
+    setTab("comments");
+    panelOpen.set(true); // on a narrow window the panel is a drawer: open it to show the comment
   }, [active]);
 
   return (
@@ -170,6 +175,7 @@ export function shortSrc(src: string): string {
 function CommentCard(props: { c: Comment; n: number | null; project: WsProject; active: boolean }) {
   const { c, project } = props;
   const [reply, setReply] = useState("");
+  useDraft(reply.trim() !== "");
   const frame = project.frames.find((f) => f.id === c.frame);
   const act = async (fn: () => Promise<void>) => {
     try {
@@ -190,6 +196,7 @@ function CommentCard(props: { c: Comment; n: number | null; project: WsProject; 
         {props.n !== null && <span className="pin static">{props.n}</span>}
         <span className="comment-where">
           {frame ? `${String(frame.number).padStart(2, "0")} ${frame.title}` : "Project"}
+          {commentPlace(c) && <span className="tag">{commentPlace(c)}</span>}
           {c.target?.primitive && <span className="tag">{c.target.primitive}</span>}
         </span>
       </div>
@@ -223,7 +230,16 @@ function CommentCard(props: { c: Comment; n: number | null; project: WsProject; 
           />
           <div className="row">
             {c.status === "open" ? (
-              <button className="btn" onClick={() => void act(() => patchComment(c.id, { status: "resolved" }))}>
+              <button
+                className="btn"
+                onClick={() =>
+                  // Text typed in the reply box goes with the resolution as its note, as in VS Code.
+                  void act(async () => {
+                    await patchComment(c.id, { status: "resolved", ...(reply.trim() ? { reply: { author: "user", body: reply.trim() } } : {}) });
+                    setReply("");
+                  })
+                }
+              >
                 Resolve
               </button>
             ) : (

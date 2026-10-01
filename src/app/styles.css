@@ -84,12 +84,31 @@ button {
   grid-template-columns: 1fr 320px;
   min-height: 0;
 }
+/* Narrow windows (a VS Code tab, a split screen): the side panel is a drawer, opened from the
+   toolbar, so comments, issues and the design document stay reachable. */
+.panel-toggle {
+  display: none;
+}
 @media (max-width: 1100px) {
   .stage {
     grid-template-columns: 1fr;
   }
   .panel {
-    display: none !important;
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(360px, 92vw);
+    z-index: 40;
+    box-shadow: var(--ui-shadow);
+    transform: translateX(105%);
+    transition: transform 160ms ease;
+  }
+  .shell.panel-open .panel {
+    transform: none;
+  }
+  .panel-toggle {
+    display: inline-flex;
   }
 }
 
@@ -1318,4 +1337,10 @@ html.render-mode #root {
   display: flex;
   align-items: flex-start;
   margin-bottom: 40px;
+}
+
+/* Presenting a web screen: it grows with its content, so it scrolls. */
+.present.present-scroll {
+  place-items: start center;
+  overflow-y: auto;
 }

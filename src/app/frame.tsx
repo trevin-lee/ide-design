@@ -185,17 +185,18 @@ function useAfterRender(
  * Renders a project's other frames offscreen, so thread boxes on the frame in view know where
  * their story starts. Mounted only while the project has threads, or has not been measured yet.
  */
-export function ThreadMeasurer(props: { project: WsProject; except?: string }) {
+export function ThreadMeasurer(props: { project: WsProject; except?: string | readonly string[]; always?: boolean }) {
   const { project } = props;
   const counts = useStore(threadCounts);
   const known = project.frames.every((f) => counts[`${project.id}/${f.id}`] !== undefined);
   const threaded = project.frames.some((f) => Object.keys(counts[`${project.id}/${f.id}`] ?? {}).length > 0);
-  if (!project.geometry || (known && !threaded)) return null;
+  if (!project.geometry || (!props.always && known && !threaded)) return null;
+  const except = typeof props.except === "string" ? [props.except] : (props.except ?? []);
   const g = project.geometry;
   return (
     <div aria-hidden style={{ position: "fixed", left: -100000, top: 0, visibility: "hidden", pointerEvents: "none" }}>
       {project.frames
-        .filter((f) => f.id !== props.except)
+        .filter((f) => !except.includes(f.id))
         .map((f) => (
           <div key={f.id} style={{ width: g.width, ...(g.fixedHeight ? { height: g.height } : {}) }}>
             <FrameRender project={project} frame={f} index={project.frames.indexOf(f)} publish={false} />

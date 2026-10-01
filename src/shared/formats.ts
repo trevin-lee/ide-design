@@ -110,6 +110,12 @@ export function frameGeometry(m: ProjectManifest): FrameGeometry {
   }
 }
 
+/** A project's frame size for listings: "1920x1080", "1440xauto", or a responsive screen's viewports. */
+export function describeGeometry(g: FrameGeometry): string {
+  if (g.viewports && g.viewports.length > 1) return g.viewports.map((v) => `${v.name} ${v.width}`).join(", ");
+  return `${g.width}x${g.fixedHeight ? g.height : "auto"}`;
+}
+
 /** Frame files are `NN-slug.tsx`; the number orders them, the slug names them. */
 export const FRAME_FILE_RE = /^(\d{2,3})-([a-z0-9]+(?:-[a-z0-9]+)*)\.tsx$/;
 /**

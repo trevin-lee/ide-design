@@ -12,6 +12,7 @@ import {
   pageList,
   pagesOf,
   showToast,
+  useDraft,
   useStore,
   violations as violationStore,
   type Comment,
@@ -304,7 +305,16 @@ function Composer(props: { x: number; y: number; target: CommentTarget | null; o
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => ref.current?.focus(), []);
+  const box = useRef<HTMLDivElement>(null);
+  // Keep the box inside the visible canvas, clear of the side panel on the right-most cards.
+  const [shift, setShift] = useState(0);
+  useEffect(() => {
+    ref.current?.focus();
+    const r = box.current?.getBoundingClientRect();
+    const edge = box.current?.closest(".canvas")?.getBoundingClientRect().right;
+    if (r && edge && r.right > edge - 12) setShift(r.right - edge + 12);
+  }, []);
+  useDraft(body.trim() !== "");
   const submit = async () => {
     if (!body.trim() || busy) return;
     setBusy(true);
@@ -312,7 +322,7 @@ function Composer(props: { x: number; y: number; target: CommentTarget | null; o
     setBusy(false);
   };
   return (
-    <div className="composer" style={{ left: props.x, top: props.y }} onClick={(e) => e.stopPropagation()} onMouseMove={(e) => e.stopPropagation()}>
+    <div ref={box} className="composer" style={{ left: props.x - shift, top: props.y }} onClick={(e) => e.stopPropagation()} onMouseMove={(e) => e.stopPropagation()}>
       <div className="composer-target">
         {props.target?.primitive ? (
           <>

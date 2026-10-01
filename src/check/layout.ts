@@ -1,12 +1,47 @@
 // The layout layer of `ided check`: every frame project's render route, opened in the pinned
 // Chromium and measured by src/runtime/layout.ts, the same code the viewer runs live.
 
-import { relative } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 import type { Browser } from "playwright-core";
 import type { Project } from "../core/workspace.ts";
 import { isFrameKind } from "../shared/formats.ts";
 import type { Violation } from "../runtime/context.ts";
 import type { CheckIssue } from "./index.ts";
+
+/**
+ * Open comments left on a page a flowing page no longer has, or on a viewport the screen no
+ * longer renders: their pins have nowhere to go.
+ */
+function strandedComments(root: string, p: Project, pages: Record<string, number>): CheckIssue[] {
+  const file = join(p.dir, "comments.json");
+  if (!existsSync(file)) return [];
+  let comments: { id: string; status: string; frame: string | null; target: { page?: number; viewport?: string } | null }[];
+  try {
+    comments = (JSON.parse(readFileSync(file, "utf8")) as { comments?: typeof comments }).comments ?? [];
+  } catch {
+    return [];
+  }
+  const viewports = p.geometry?.viewports?.map((v) => v.name as string) ?? [];
+  const out: CheckIssue[] = [];
+  for (const c of comments) {
+    if (c.status !== "open" || !c.frame) continue;
+    const n = pages[`${p.id}/${c.frame}`] ?? 1;
+    const page = c.target?.page ?? 0;
+    const lost = page >= n ? `page ${page + 1} of ${c.frame}, which now has ${n} page${n === 1 ? "" : "s"}` : c.target?.viewport && !viewports.includes(c.target.viewport) ? `the ${c.target.viewport} viewport, which ${p.id} no longer renders` : null;
+    if (!lost) continue;
+    out.push({
+      file: relative(root, file),
+      rule: "comments",
+      severity: "warning",
+      message: `Comment ${c.id} was left on ${lost}.`,
+      hint: `Address it and resolve it (\`ided comments resolve ${c.id} -m "…"\`), or leave it again in the viewer.`,
+      source: "layout",
+      project: p.id,
+    });
+  }
+  return out;
+}
 
 export async function layoutIssues(
   root: string,
@@ -43,13 +78,16 @@ export async function layoutIssues(
   try {
     for (const p of targets) {
       let results: { frame: string; viewport?: string; violations: Violation[] }[];
+      let pages: Record<string, number>;
       try {
         const page = await openRender(browser, renderUrl(server.url, p.id), 1, p.geometry!.width);
         results = await page.evaluate(() => window.__IDED_LAYOUT__?.() ?? []);
+        pages = await page.evaluate(() => window.__IDED_PAGES__ ?? {});
         await page.close();
       } catch {
         continue; // a frame that does not load or render is already reported by the render audit
       }
+      issues.push(...strandedComments(root, p, pages));
       // A responsive screen is measured at every viewport; what fails on only some says where.
       const viewports = p.geometry!.viewports?.length ?? 1;
       const found = new Map<string, { v: Violation; frame: string; on: string[] }>();

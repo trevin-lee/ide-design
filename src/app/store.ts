@@ -37,6 +37,25 @@ export function publishViolations(key: string, list: Violation[]) {
   if (!same) violations.set((all) => ({ ...all, [key]: list }));
 }
 
+/** Comments and replies being typed: a structure reload waits until there are none. */
+export const drafts = createStore(0);
+let reloadPending = false;
+drafts.subscribe(() => {
+  if (reloadPending && drafts.get() === 0) window.location.reload();
+});
+
+/** Marks a comment or reply with text in it as a draft while `active`. */
+export function useDraft(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    drafts.set((n) => n + 1);
+    return () => drafts.set((n) => n - 1);
+  }, [active]);
+}
+
+/** On a narrow window the side panel is a drawer, opened from the toolbar. */
+export const panelOpen = createStore(false);
+
 /** How many pages each frame (`project/frame`) lays out to: 1, or more for a flowing page. */
 export const pageCounts = createStore<Record<string, number>>({});
 
@@ -147,7 +166,12 @@ if (import.meta.hot) {
   });
   // Projects or files were added, removed or renamed. Export pages keep the snapshot they loaded.
   import.meta.hot.on("ided:structure", () => {
-    if (!window.location.hash.startsWith("#/render/")) window.location.reload();
+    if (window.location.hash.startsWith("#/render/")) return;
+    // Files were added, renamed or deleted (often by an agent mid-review): reload, but never
+    // under someone typing a comment or a reply.
+    if (drafts.get() === 0) return window.location.reload();
+    reloadPending = true;
+    showToast("Files changed. The viewer refreshes when you finish your comment.", "info");
   });
 }
 

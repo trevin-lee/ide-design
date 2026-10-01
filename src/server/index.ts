@@ -164,6 +164,12 @@ export async function startServer(input: StartOptions): Promise<RunningServer> {
       void api(req, res, url);
       return;
     }
+    // Vite's /__open-in-editor opens any file in the user's editor; only the viewer itself may ask.
+    if (url.pathname === "/__open-in-editor" && !sameOrigin(req)) {
+      res.statusCode = 403;
+      res.end("Cross-origin request refused.");
+      return;
+    }
     vite.middlewares(req, res);
   };
 

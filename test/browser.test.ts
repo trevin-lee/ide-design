@@ -210,3 +210,18 @@ test("the viewer shows a responsive screen at each viewport, side by side", { sk
   assert.ok(Math.abs(desktop! / mobile! - 1440 / 390) < 0.05, "one scale for every viewport");
   await page.close();
 });
+
+test("on a narrow window the side panel is a drawer, and other sites cannot open files", { skip, timeout: 60_000 }, async () => {
+  const page = await browser.newPage({ viewport: { width: 900, height: 900 } });
+  await page.goto(`${server.url}/#/p/intro`, { waitUntil: "load" });
+  await page.waitForSelector(".ided-root", { timeout: 30_000 });
+  const panelShown = () => page.evaluate(() => document.querySelector(".panel")!.getBoundingClientRect().left < window.innerWidth);
+  assert.equal(await panelShown(), false);
+  await page.locator(".panel-toggle").click();
+  await page.waitForFunction(() => document.querySelector(".panel")!.getBoundingClientRect().left < window.innerWidth - 100);
+  assert.equal(await panelShown(), true);
+  await page.close();
+
+  const res = await fetch(`${server.url}/__open-in-editor?file=package.json`, { headers: { "sec-fetch-site": "cross-site" } });
+  assert.equal(res.status, 403);
+});

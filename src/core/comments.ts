@@ -4,6 +4,7 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { commentPlace } from "../shared/comment-place.ts";
 import { getProject, type Workspace } from "./workspace.ts";
 
 export interface CommentTarget {
@@ -54,7 +55,8 @@ function load(ws: Workspace, project: string): CommentFile {
   if (!existsSync(f)) return { comments: [] };
   try {
     const data = JSON.parse(readFileSync(f, "utf8")) as CommentFile;
-    return Array.isArray(data.comments) ? data : { comments: [] };
+    // A comment belongs to the folder it is stored in, even after the folder was renamed.
+    return Array.isArray(data.comments) ? { comments: data.comments.map((c) => ({ ...c, project })) } : { comments: [] };
   } catch {
     return { comments: [] };
   }
@@ -77,7 +79,12 @@ export function addComment(
   ws: Workspace,
   input: { project: string; frame: string | null; target: CommentTarget | null; body: string; author?: string },
 ): Comment {
-  if (!ws.projects.some((p) => p.id === input.project)) throw new Error(`No project "${input.project}".`);
+  const target = ws.projects.find((p) => p.id === input.project);
+  if (!target) throw new Error(`No project "${input.project}".`);
+  // Comments are left on frames; the brand and libraries have none (and no comments.json).
+  if (!target.geometry || target.kind === "brand" || target.kind === "library") {
+    throw new Error(`"${input.project}" is ${target.kind === "brand" ? "the brand" : "a library"}; comments are left on the frames of decks, docs, graphics and web screens.`);
+  }
   if (!input.body?.trim()) throw new Error("Comment body is empty.");
   const data = load(ws, input.project);
   const comment: Comment = {
@@ -131,7 +138,8 @@ export function deleteComment(ws: Workspace, id: string) {
 }
 
 export function formatComment(c: Comment): string {
-  const where = c.target?.src ?? `design/${c.project}${c.frame ? ` (${c.frame})` : ""}`;
+  const place = commentPlace(c);
+  const where = `${c.target?.src ?? `design/${c.project}${c.frame ? ` (${c.frame})` : ""}`}${place ? ` (${place})` : ""}`;
   const lines = [`[${c.id}] ${c.status === "resolved" ? "(resolved) " : ""}${where}`];
   if (c.target?.primitive) lines.push(`  on <${c.target.primitive}>${c.target.text ? ` "${c.target.text}"` : ""}`);
   if (c.target?.ancestors?.length) lines.push(`  inside ${c.target.ancestors.slice(0, 3).join(" < ")}`);

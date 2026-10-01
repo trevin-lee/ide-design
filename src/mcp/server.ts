@@ -13,7 +13,7 @@ import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR } from "../core/paths.ts";
 import { addFrame, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
-import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 import type { RunningServer } from "../server/index.ts";
 
@@ -55,7 +55,7 @@ export async function runMcpServer() {
         const r = rootFor(root);
         const ws = scanWorkspace(r);
         const lines = ws.projects.map((p) => {
-          const size = p.geometry && isFrameKind(p.kind) ? ` ${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : "";
+          const size = p.geometry && isFrameKind(p.kind) ? ` ${describeGeometry(p.geometry)}` : "";
           return [`${p.id} (${p.kind}${size}) "${p.title}"`, ...p.frames.map((f) => `  ${relative(r, f.abs)}`), ...p.issues.map((i) => `  ! ${i.file}: ${i.message}`)].join("\n");
         });
         return text(`workspace ${r}\n\n${lines.join("\n\n")}`);

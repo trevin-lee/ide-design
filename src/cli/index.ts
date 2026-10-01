@@ -20,7 +20,7 @@ import { loadBrand } from "../core/load-brand.ts";
 import { PKG_VERSION, SKILLS_DIR, WORKSPACE_MARKER } from "../core/paths.ts";
 import { addFrame, describeKinds, initWorkspace, newProject, unuseLibrary, useLibrary, writeGenerated } from "../core/scaffold.ts";
 import { findWorkspaceRoot, getProject, requireWorkspaceRoot, scanWorkspace } from "../core/workspace.ts";
-import { DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
+import { describeGeometry, DOC_PAGES, FRAME_KINDS, GRAPHIC_SIZES, isFrameKind, WEB_VIEWPORTS, type FrameKind } from "../shared/formats.ts";
 import { brandSummary } from "../shared/summary.ts";
 
 const program = new Command();
@@ -180,7 +180,7 @@ program
         kind: p.kind,
         title: p.title,
         // Only frame projects have a frame size; the brand and libraries hold components and assets.
-        size: p.geometry && isFrameKind(p.kind) ? `${p.geometry.width}x${p.geometry.fixedHeight ? p.geometry.height : "auto"}` : null,
+        size: p.geometry && isFrameKind(p.kind) ? describeGeometry(p.geometry) : null,
         frames: p.frames.map((f) => ({ id: f.id, file: relative(root, f.abs) })),
         components: p.components,
         assets: p.assets.filter((a) => !a.startsWith("fonts/")),

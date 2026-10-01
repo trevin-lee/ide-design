@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { brand, type WsProject } from "virtual:ided/workspace";
 import type { Violation } from "../runtime/context.ts";
 import { bodySize, measureLayout } from "../runtime/layout.ts";
-import { FrameRender, loadFrame } from "./frame.tsx";
+import { FrameRender, loadFrame, ThreadMeasurer } from "./frame.tsx";
 import { pageCounts, pageList, pendingMeasures, threadCounts, threadStarts, useStore, violations } from "./store.ts";
 
 declare global {
@@ -10,6 +10,8 @@ declare global {
     __IDED_READY__?: boolean;
     __IDED_ERROR__?: string;
     __IDED_VIOLATIONS__?: unknown;
+    /** Pages per frame (`project/frame`) once flowing pages are laid out. */
+    __IDED_PAGES__?: Record<string, number>;
     /** Measures every rendered frame's layout (used by `ided check`). */
     __IDED_LAYOUT__?: () => { frame: string; viewport?: string; violations: Violation[] }[];
   }
@@ -67,6 +69,7 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
       }
       if (cancelled) return;
       window.__IDED_VIOLATIONS__ = violations.get();
+      window.__IDED_PAGES__ = pageCounts.get();
       window.__IDED_LAYOUT__ = () =>
         [...document.querySelectorAll<HTMLElement>("[data-ided-frame][data-ided-page='0']")].map((el) => {
           const root = el.querySelector<HTMLElement>(".ided-root");
@@ -107,6 +110,8 @@ export function RenderRoute(props: { project: WsProject; frames: string[] | null
 
   return (
     <div className="render-root">
+      {/* Frames left out of a partial export still count: they number the pages and carry threads. */}
+      {props.frames && <ThreadMeasurer project={project} except={frames.map((f) => f.id)} always />}
       {print && <style>{`@page { size: ${pageW} ${pageH}; margin: 0; } html, body { margin: 0; padding: 0; background: none; }`}</style>}
       {loaded &&
         pages.map(({ frame: f, page, viewport: v }) => (

@@ -16,6 +16,7 @@ import {
   go,
   pageCounts,
   pagesOf,
+  panelOpen,
   refreshComments,
   refreshStaticIssues,
   showToast,
@@ -227,6 +228,7 @@ function firstPage(project: WsProject, frameIndex: number): number {
 function Toolbar(props: { project: WsProject; frame: string | null }) {
   const { project, frame } = props;
   const mode = useStore(commentMode);
+  const drawer = useStore(panelOpen);
   const issues = useProjectIssues(project);
   const errors = issues.filter((i) => i.severity === "error").length;
   const g = project.geometry;
@@ -259,6 +261,9 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
         </span>
       </div>
       <div className="toolbar-actions">
+        <button className={`btn panel-toggle${drawer ? " btn-on" : ""}`} onClick={() => panelOpen.set(!drawer)} title="Design, comments and issues">
+          Panel
+        </button>
         {project.kind === "brand" ? (
           <BrandKitButton />
         ) : !isFrameKind(project.kind) ? null : (
@@ -280,6 +285,7 @@ function Toolbar(props: { project: WsProject; frame: string | null }) {
 function Shell(props: { project: WsProject | null; frame: string | null; missing?: string }) {
   const { project, frame, missing } = props;
   const toast = useStore(toastStore);
+  const drawerOpen = useStore(panelOpen);
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).closest("input, textarea") || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -298,7 +304,7 @@ function Shell(props: { project: WsProject | null; frame: string | null; missing
   }, [project, frame]);
 
   return (
-    <div className="shell">
+    <div className={`shell${drawerOpen ? " panel-open" : ""}`}>
       <Sidebar current={project?.id ?? null} />
       <main className="main">
         {project ? (
