@@ -34,8 +34,9 @@ only one that exists at that size, and `gap="24px"` does not compile.
 Design tools that work on top of generic HTML and Tailwind let the agent that consumes a design
 system write almost-right code: `px` where the system uses a scale, a nearby grey instead of the
 brand grey, a corner radius that is 2px off from its container. Each mistake is invisible on its
-own. Across a company's output, they add up to the inconsistency good brands spend years
-eliminating (line up the corner radii of Apple's products and they are concentric).
+own. Across a company's output, they add up to a brand that looks slightly different everywhere
+it appears: a logo a little closer to the corner on the deck than on the post, a favicon redrawn
+by hand that no longer quite matches the mark.
 
 ided makes those mistakes unrepresentable:
 
